@@ -10,7 +10,7 @@
 
 using namespace std;
 
-#define DEBUG
+// #define DEBUG
 
 ////////////////////////////////////////////////////////////////////////
 ///                           GLOBALS                                ///
@@ -151,7 +151,7 @@ void buildSatFormula(sat_solver* pSat, Aig_Man_t* FAig, Aig_Man_t* GAig, vector<
     assert(numY == r1.size());
 
     cout << "Getting GCnf..." << endl;
-    Cnf_Dat_t* GCnf = Cnf_Derive(GAig, 1);
+    Cnf_Dat_t* GCnf = Cnf_Derive(GAig, Aig_ManCoNum(GAig));
 
     // Insert F(X, Y')
     liftVal = sat_solver_nvars(pSat);
@@ -196,20 +196,37 @@ void printMap(map<string,int> m) {
 }
 
 static inline void evaluateAig(Aig_Man_t* formula, const vector<int> &cex) {
-    assert(cex.size() == Aig_ManCiNum(formula));
+    // assert(cex.size() == Aig_ManCiNum(formula));
     int i;
     Aig_Obj_t* pObj;
     Aig_ManForEachObj(formula, pObj, i) {
-        if(i < numX + numY) {
-            pObj->iData = cex[i];
-        } else {
-            pObj->iData = 1;
-            int ld, rd;
-            if(pObj->pFanin0 != NULL)
-                ld = pObj->pFanin0->iData, pObj->iData *= (Aig_IsComplement(pObj->pFanin0)? (1-ld):ld);
-            if(pObj->pFanin1 != NULL)
-                rd = pObj->pFanin1->iData, pObj->iData *= (Aig_IsComplement(pObj->pFanin1)? (1-rd):rd);
+        // cout << "Evaluating node " << pObj->Id << endl;
+        if(pObj->Id > 0) {
+            if(i <= numX + numY) {
+                // cout << "\tAssigned from cex" << endl;
+                pObj->iData = cex[i-1];
+            } else {
+                pObj->iData = 1;
+                int ld, rd;
+                if(Aig_ObjFanin0(pObj) != NULL) {
+                    ld = Aig_ObjFanin0(pObj)->iData;
+                    if(Aig_IsComplement(pObj->pFanin0))
+                        ld = 1 - ld;
+
+                    // cout << "\tld = " << ld << endl;
+                    pObj->iData *= ld;
+                }
+                if(Aig_ObjFanin1(pObj) != NULL) {
+                    rd = Aig_ObjFanin1(pObj)->iData;
+                    if(Aig_IsComplement(pObj->pFanin1))
+                        rd = 1 - rd;
+
+                    // cout << "\trd = " << ld << endl;
+                    pObj->iData *= rd;
+                }
+            }
         }
+        // cout << "\tEvaluated node " << pObj->Id <<"\t= "<<pObj->iData<<endl;
     }
     return;
 }
@@ -230,7 +247,7 @@ Aig_Obj_t* satisfiesVec(Aig_Man_t* formula, const vector<int> &cex, vector<Aig_O
 }
 
 Aig_Obj_t* generalize(Aig_Man_t* formula, const vector<int> &cex, vector<Aig_Obj_t* > coObjs) {
-    Aig_Obj_t* temp = satisfiesVec(formula, cex, coObjs); 
+    Aig_Obj_t* temp = satisfiesVec(formula, cex, coObjs);
     assert(temp != NULL);
     return temp;
 }
@@ -256,36 +273,58 @@ Aig_Obj_t* Aig_Substitute(Aig_Man_t* pMan, Aig_Obj_t* initAig, int varId, Aig_Ob
 }
 
 void updateAbsRef(Aig_Man_t* pMan, vector<vector<Aig_Obj_t* > > &r0, vector<vector<Aig_Obj_t* > > &r1,
-                    const vector<int> &cex) {
+    const vector<int> &cex) {
 
-    int k, l;
-    Aig_Obj_t *mu0, *mu1, *mu;
+    int k, l, i;
+    Aig_Obj_t *mu0, *mu1, *mu, *pAigObj;
     for(k = numY; k > 0; k--) {
         if(((mu0 = satisfiesVec(pMan, cex, r0[k - 1])) != NULL) &&
              ((mu1 = satisfiesVec(pMan, cex, r1[k - 1])) != NULL))
             break;
     }
     assert(k > 0);
-    k--;
     mu = Aig_AndAigs(pMan, mu0, mu1);
     l = k + 1;
 
+    cout<<"Starting CEGAR Loop at at l = "<<l<<endl;
     while(true) {
         // if(Aig_ObjFanout0(mu, Aig_ManCi(mu, varsYF[l])) != NULL) {
             // Above condition assumes ith input have id i
+            cout<<"l = "<<l<<endl;
+            assert(l<=numY);
             if(cex[numX + l - 1]) {
                 mu1 = Aig_SubstituteConst(pMan, mu, numX + l, 1);
-                r1[l].push_back(Aig_ObjCreateCo(pMan, mu1));
-                if(satisfiesVec(pMan, cex, r0[l]) != NULL) {
-                    mu0 = generalize(pMan, cex, r0[l]);
+                assert(!Aig_ObjIsCo(mu1));
+
+                Aig_ObjPrint(pMan, mu1); cout << endl;
+                Aig_ManForEachObj( pMan, pAigObj, i )
+                    Aig_ObjPrint(pMan, pAigObj), cout << endl;
+
+
+                cout<<"Updating r1 "<<l-1<<endl;
+
+                // Aig_Obj_t* orObj = Aig_Or(pMan, r1[l-1][0]->pFanin0, mu1);
+                // Aig_ObjPatchFanin0(pMan, r1[l-1][0], orObj);
+                r1[l-1].push_back(Aig_ObjCreateCo(pMan, mu1));
+
+                if(satisfiesVec(pMan, cex, r0[l-1]) != NULL) {
+                    mu0 = generalize(pMan, cex, r0[l-1]);
                     mu = Aig_AndAigs(pMan, mu0, mu1);
                 } else {
+                    cout<<"CEX eliminated, Break!"<<endl;
                     break;
                 }
             } else {
                 mu0 = Aig_SubstituteConst(pMan, mu, numX + l, 0);
-                r0[l].push_back(Aig_ObjCreateCo(pMan, mu0));
-                mu1 = generalize(pMan, cex, r1[l]);
+                assert(!Aig_ObjIsCo(mu0));
+                Aig_ObjPrint(pMan, mu0); cout << endl;
+
+                cout<<"Updating r0 "<<l-1<<endl;
+
+                // Aig_Obj_t* orObj = Aig_Or(pMan, r0[l-1][0]->pFanin0, mu0);
+                // Aig_ObjPatchFanin0(pMan, r0[l-1][0], orObj);
+                r0[l-1].push_back(Aig_ObjCreateCo(pMan, mu0));
+                mu1 = generalize(pMan, cex, r1[l-1]);
                 mu = Aig_AndAigs(pMan, mu0, mu1);
             }
         // }
@@ -566,7 +605,7 @@ int main( int argc, char * argv[] )
             assert(sat_solver_var_value(pSat,i) == cex[i-1]);
         }
 
-        #ifdef DEBUG
+        // #ifdef DEBUG
         cout << "CEX: " << endl;
         for(int i=1;i<=numOrigInputs+numY;i++) {
             cout<<'\t'<<i;
@@ -576,7 +615,7 @@ int main( int argc, char * argv[] )
             cout<<'\t'<<cex[i-1];
         }
         cout<<endl;
-        #endif
+        // #endif
     }
     else {
         cout << "\nNone\n";
@@ -599,20 +638,20 @@ int main( int argc, char * argv[] )
         }
         for(int j = 1; j <= numY; j++) {
             if(j < i)
-                delta = Aig_SubstituteConst(SAig, delta, j, 0);
+                delta = Aig_SubstituteConst(SAig, delta, numX + j, 0);
             else if(j == i)
-                delta = Aig_SubstituteConst(SAig, delta, j, 1);
+                delta = Aig_SubstituteConst(SAig, delta, numX + j, 1);
             else
-                delta = Aig_Substitute(SAig, delta, j, Aig_Not(Aig_ManCi(SAig, numX + j - 1)));
+                delta = Aig_Substitute(SAig, delta, numX + j, Aig_Not(Aig_ManCi(SAig, numX + j - 1)));
         }
         for(int j = 1; j <= numX; j++) {
-            delta = Aig_Substitute(SAig, delta, j, Aig_ManCi(SAig, j - 1));
+            delta = Aig_Substitute(SAig, delta, numOrigInputs + j, Aig_ManCi(SAig, j - 1));
         }
         for(int j = 1; j <= numY; j++) {
             if(j <= i)
-                delta = Aig_SubstituteConst(SAig, delta, j, 0);
+                delta = Aig_SubstituteConst(SAig, delta, numOrigInputs + numX + j, 0);
             else
-                delta = Aig_Substitute(SAig, delta, j, Aig_ManCi(SAig, numX + j - 1));
+                delta = Aig_Substitute(SAig, delta, numOrigInputs + numX + j, Aig_ManCi(SAig, numX + j - 1));
         }
         // for(int j = numX + numY; j < 2*(numX + numY); j++)
             // Aig_ObjDelete(delta, Aig_ManCi(delta, j));
@@ -625,36 +664,83 @@ int main( int argc, char * argv[] )
         }
         for(int j = 1; j <= numY; j++) {
             if(j <= i)
-                gamma = Aig_SubstituteConst(SAig, gamma, j, 0);
+                gamma = Aig_SubstituteConst(SAig, gamma, numX + j, 0);
             else
-                gamma = Aig_Substitute(SAig, gamma, j, Aig_Not(Aig_ManCi(SAig, numX + j - 1)));
+                gamma = Aig_Substitute(SAig, gamma, numX + j, Aig_Not(Aig_ManCi(SAig, numX + j - 1)));
         }
         for(int j = 1; j <= numX; j++) {
-            gamma = Aig_Substitute(SAig, gamma, j, Aig_ManCi(SAig, j - 1));
+            gamma = Aig_Substitute(SAig, gamma, numOrigInputs + j, Aig_ManCi(SAig, j - 1));
         }
         for(int j = 1; j <= numY; j++) {
             if(j < i)
-                gamma = Aig_SubstituteConst(SAig, gamma, j, 0);
+                gamma = Aig_SubstituteConst(SAig, gamma, numOrigInputs + numX + j, 0);
             else if(j == i)
-                gamma = Aig_SubstituteConst(SAig, gamma, j, 1);
+                gamma = Aig_SubstituteConst(SAig, gamma, numOrigInputs + numX + j, 1);
             else
-                gamma = Aig_Substitute(SAig, gamma, j, Aig_ManCi(SAig, numX + j - 1));
+                gamma = Aig_Substitute(SAig, gamma, numOrigInputs + numX + j, Aig_ManCi(SAig, numX + j - 1));
         }
         // for(int j = numX + numY; j < 2*(numX + numY); j++)
             // Aig_ObjDelete(gamma, Aig_ManCi(gamma, j));
         r1[i-1].push_back(Aig_ObjCreateCo(SAig, gamma));
     }
 
+
+    // cout<<"composed SAig: (before deleting Po) "<<endl;
+    // Aig_ManForEachObj( SAig, pAigObj, i )
+    //     Aig_ObjPrintVerbose(pAigObj, 1), cout << endl;
+
+    cout<<"numCos = "<<Aig_ManCoNum(SAig)<<endl;
+    // Aig_ObjDisconnect(SAig,Aig_ManCo(SAig,0));
+    cout<<"numCos = "<<Aig_ManCoNum(SAig)<<endl;
+    // Aig_ObjDeletePo(SAig,Aig_ManCo(SAig,0));
+    cout<<"numCos = "<<Aig_ManCoNum(SAig)<<endl;
+    cout<<"composed SAig: (after deleting Po) "<<endl;
+    Aig_ManForEachObj( SAig, pAigObj, i )
+        Aig_ObjPrintVerbose(pAigObj, 1), cout << endl;
+
+    cout<<"composed SAig: (after cleanup) "<<endl;
+    Aig_ManCleanup(SAig);
+    Aig_ManForEachObj( SAig, pAigObj, i )
+        Aig_ObjPrintVerbose(pAigObj, 1), cout << endl;
+
+
+    // Aig_ManSetCioIds(SAig);
+    // Aig_ManCleanCioIds(SAig);
+
+    cout<<"Deriving CNF..."<<endl;
+    SCnf = Cnf_Derive(SAig,Aig_ManCoNum(SAig));
+    cout<<"Derived CNF!!"<<endl;
+
+    i = 0;
+    for(auto roi:r0) {
+        cout<<"R0["<<i++<<"] : ";
+        cout<<roi[0]->Id<<endl;
+    }
+    i = 0;
+    for(auto roi:r1) {
+        cout<<"R1["<<i++<<"] : ";
+        cout<<roi[0]->Id<<endl;
+    }
+
+
     int loopCount = 0;
     while(status == l_True) {
         // CEGAR CALL
-        updateAbsRef(SAig, r0, r1, cex);
         cout << "LOOP COUNT : " << loopCount++ << endl;
+        updateAbsRef(SAig, r0, r1, cex);
+
+        cout << "SAig cleanup..." << endl;
+        Aig_ManCleanup(SAig);
+        cout<<"SAig: (after cleanup) "<<endl;
+        Aig_ManForEachObj( SAig, pAigObj, i )
+            Aig_ObjPrintVerbose(pAigObj, 1), cout << endl;
 
         cout << "Instantiating new solver..." << endl;
         sat_solver *pSat = sat_solver_new();
 
-        buildSatFormula(SAig, pSat, FAig, r1);
+
+        cout << "building SatFormula..." << endl;
+        buildSatFormula(pSat, FAig, SAig, r1);
         Sat_SolverWriteDimacs(pSat,"solver.dimacs", 0, 0, 0);
 
         cout << "Solving..." << endl;
