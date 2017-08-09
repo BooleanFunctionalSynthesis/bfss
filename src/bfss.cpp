@@ -25,60 +25,46 @@ Abc_Frame_t* pAbc;
 ////////////////////////////////////////////////////////////////////////
 ///                        DECLARATIONS                              ///
 ////////////////////////////////////////////////////////////////////////
-static inline lit addRlToSolver(sat_solver* pSat, const vector<Aig_Man_t*>& r);
-lit addRlToSolver_bin(sat_solver* pSat, const vector<Aig_Man_t*>& r, int start, int end);
+lit addRlToSolver(sat_solver* pSat, Cnf_Dat_t* GCnf, Aig_Man_t* GAig, const vector<Aig_Obj_t*>& r);
+lit addRlToSolver_rec(sat_solver* pSat, Cnf_Dat_t* GCnf, Aig_Man_t* GAig, const vector<Aig_Obj_t*>& r, int start, int end);
 lit OR(sat_solver* pSat, lit lh, lit rh);
-void buildSatFormula(sat_solver* pSat, Aig_Man_t* FAig, vector<vector<Aig_Man_t* > > &r1);
+void buildSatFormula(sat_solver* pSat, Aig_Man_t* FAig, vector<vector<Aig_Obj_t* > > &r1);
 
 void addCnfToSolver(sat_solver* pSat, Cnf_Dat_t* cnf);
 int getCoVarNum(Cnf_Dat_t* cnf, Aig_Man_t* aig);
 void addVarToSolver(sat_solver* pSat, int varNum, int neg);
 void printMap(map<string,int> m);
 bool satisfies(const vector<int> &cex, Aig_Man_t* formula);
-int satisfiesVec(const vector<int> &cex, vector<Aig_Man_t* > formula);
-Aig_Man_t* generalize(const vector<int> &cex, vector<Aig_Man_t*> r0l);
+int satisfiesVec(const vector<int> &cex, vector<Aig_Obj_t* > formula);
+Aig_Man_t* generalize(const vector<int> &cex, vector<Aig_Obj_t*> r0l);
 Aig_Man_t* Aig_AndAigs(Aig_Man_t* Aig1, Aig_Man_t* Aig2);
 Aig_Man_t* Aig_SubstituteConst(Aig_Man_t* initAig, int varId, int one);
 Aig_Man_t* Aig_Substitute(Aig_Man_t* initAig, int varId, Abc_Obj_t* func);
-void updateAbsRef(vector<vector<Aig_Man_t* > > &r0, vector<vector<Aig_Man_t* > > &r1,
+void updateAbsRef(vector<vector<Aig_Obj_t* > > &r0, vector<vector<Aig_Obj_t* > > &r1,
                     const vector<int> &cex);
 ////////////////////////////////////////////////////////////////////////
 ///                         FUNCTIONS                                ///
 ////////////////////////////////////////////////////////////////////////
 
-static inline lit addRlToSolver(sat_solver* pSat, const vector<Aig_Man_t*>& r) {
-    return addRlToSolver_bin(pSat, r, 0, r.size());
+lit addRlToSolver(sat_solver* pSat, Cnf_Dat_t* GCnf, Aig_Man_t* GAig, const vector<Aig_Obj_t*>& r) {
+
+    for(auto co:r)
+        assert(Aig_ObjIsCo(co));
+
+    return addRlToSolver_rec(pSat, GCnf, GAig, r, 0, r.size());
 }
 
-lit addRlToSolver_bin(sat_solver* pSat, const vector<Aig_Man_t*>& r, int start, int end) {
-    Cnf_Dat_t* rCnf;
-    Aig_Man_t* rAig;
-    int liftVal;
+lit addRlToSolver_rec(sat_solver* pSat, Cnf_Dat_t* GCnf, Aig_Man_t* GAig, const vector<Aig_Obj_t*>& r, int start, int end) {
 
     assert(end > start);
 
     if(end == start+1) {
-        rAig = r[start];
-        rCnf = Cnf_Derive(rAig, 1);
-        liftVal = sat_solver_nvars(pSat);
-        Cnf_DataLift(rCnf, liftVal);
-        sat_solver_setnvars(pSat, sat_solver_nvars(pSat) + rCnf->nVars);
-        addCnfToSolver(pSat, rCnf);
-
-        for (int i = 1; i <= numX; ++i) { // x_i-> x_i
-            Equate(pSat, i, rCnf->pVarNums[varsXF[i-1]]);
-        }
-        for (int i = 1; i <= numY; ++i) { // y_i-> y_i
-            Equate(pSat, numX + i, rCnf->pVarNums[varsYF[i-1]]);
-        }
-
-        return getCoVarNum(rCnf, rAig);
-
+        return GCnf->pVarNums[r[start]->Id];
     }
 
     int mid = (start+end)/2;
-    lit lh = addRlToSolver_bin(pSat, r, start, mid);
-    lit rh = addRlToSolver_bin(pSat, r, mid, end);
+    lit lh = addRlToSolver_rec(pSat, r, start, mid);
+    lit rh = addRlToSolver_rec(pSat, r, mid, end);
     lit nv = OR(pSat, lh, rh);
 
     return nv;
@@ -161,8 +147,25 @@ void buildSatFormula(sat_solver* pSat, Aig_Man_t* FAig, vector<vector<Aig_Man_t*
     }
 
     assert(numY == r1.size());
+
+    cout << "Getting grandCnf..." << endl;
+    Cnf_Dat_t* grandCnf = Cnf_Derive(grandAig, 1);
+
+    // Insert F(X, Y')
+    liftVal = sat_solver_nvars(pSat);
+    cummLiftF += liftVal;
+    Cnf_DataLift(grandCnf, liftVal);
+    sat_solver_setnvars(pSat, sat_solver_nvars(pSat) + grandCnf->nVars);
+    addCnfToSolver(pSat, grandCnf);
+
+    for (int i = 1; i <= numX; ++i) { // x_i-> x_i
+        Equate(pSat, i, grandCnf->pVarNums[varsXF[i-1]]);
+    }
+    for (int i = 1; i <= numY; ++i) { // y_i-> y_i
+        Equate(pSat, numX + i, grandCnf->pVarNums[varsYF[i-1]]);
+    }
     for(int i = 1; i <= numY; i++) { // y_i-> -r1[i]
-        int r_var = addRlToSolver(pSat,r1[i-1]);
+        int r_var = addRlToSolver(pSat, grandCnf, grandAig, r1[i-1]);
         Equate(pSat, numX + i, -r_var);
     }
 }
