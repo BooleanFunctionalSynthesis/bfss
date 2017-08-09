@@ -1,7 +1,7 @@
 # project name (generate executable with this name)
 TARGET   = bfss
 
-export ABC_PATH = ${HOME}/abc
+export ABC_PATH = ${HOME}/Github/abc
 export ABC_INCLUDES = -I$(ABC_PATH) -I$(ABC_PATH)/src
 
 SRCDIR   = src

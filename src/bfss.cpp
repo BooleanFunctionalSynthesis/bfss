@@ -28,21 +28,21 @@ Abc_Frame_t* pAbc;
 lit addRlToSolver(sat_solver* pSat, Cnf_Dat_t* GCnf, Aig_Man_t* GAig, const vector<Aig_Obj_t*>& r);
 lit addRlToSolver_rec(sat_solver* pSat, Cnf_Dat_t* GCnf, Aig_Man_t* GAig, const vector<Aig_Obj_t*>& r, int start, int end);
 lit OR(sat_solver* pSat, lit lh, lit rh);
-void buildSatFormula(sat_solver* pSat, Aig_Man_t* FAig, Aig_Man_t* grandAig, vector<vector<Aig_Obj_t*> > &r1);
+void buildSatFormula(sat_solver* pSat, Aig_Man_t* FAig, Aig_Man_t* GAig, vector<vector<Aig_Obj_t*> > &r1);
 
 void addCnfToSolver(sat_solver* pSat, Cnf_Dat_t* cnf);
 int getCoVarNum(Cnf_Dat_t* cnf, Aig_Man_t* aig);
 void addVarToSolver(sat_solver* pSat, int varNum, int neg);
 void printMap(map<string,int> m);
-static inline void evaluateAig(const vector<int> &cex, Aig_Man_t* formula);
-bool satisfies(const vector<int> &cex, Aig_Man_t* formula, int coId);
-Aig_Obj_t* satisfiesVec(const vector<int> &cex, Aig_Man_t* formula, vector<Aig_Obj_t* > coObjs);
-Aig_Obj_t* generalize(const vector<int> &cex, Aig_Man_t* formula, vector<Aig_Obj_t* > coObjs);
+static inline void evaluateAig(Aig_Man_t* formula, const vector<int> &cex);
+bool satisfies(Aig_Man_t* formula, const vector<int> &cex, int coId);
+Aig_Obj_t* satisfiesVec(Aig_Man_t* formula, const vector<int> &cex, vector<Aig_Obj_t* > coObjs);
+Aig_Obj_t* generalize(Aig_Man_t* formula, const vector<int> &cex, vector<Aig_Obj_t* > coObjs);
 Aig_Obj_t* Aig_AndAigs(Aig_Man_t* pMan, Aig_Obj_t* Aig1, Aig_Obj_t* Aig2);
 Aig_Obj_t* Aig_SubstituteConst(Aig_Man_t* pMan, Aig_Obj_t* initAig, int varId, int one);
 Aig_Obj_t* Aig_Substitute(Aig_Man_t* pMan, Aig_Obj_t* initAig, int varId, Aig_Obj_t* func);
-void updateAbsRef(vector<vector<Aig_Obj_t* > > &r0, vector<vector<Aig_Obj_t* > > &r1,
-                    const vector<int> &cex, Aig_Man_t* pMan);
+void updateAbsRef(Aig_Man_t* pMan, vector<vector<Aig_Obj_t* > > &r0, vector<vector<Aig_Obj_t* > > &r1,
+                    const vector<int> &cex);
 
 ////////////////////////////////////////////////////////////////////////
 ///                         FUNCTIONS                                ///
@@ -65,8 +65,8 @@ lit addRlToSolver_rec(sat_solver* pSat, Cnf_Dat_t* GCnf, Aig_Man_t* GAig, const 
     }
 
     int mid = (start+end)/2;
-    lit lh = addRlToSolver_rec(pSat, r, start, mid);
-    lit rh = addRlToSolver_rec(pSat, r, mid, end);
+    lit lh = addRlToSolver_rec(pSat, GCnf, GAig, r, start, mid);
+    lit rh = addRlToSolver_rec(pSat, GCnf, GAig, r, mid, end);
     lit nv = OR(pSat, lh, rh);
 
     return nv;
@@ -105,7 +105,7 @@ lit OR(sat_solver* pSat, lit lh, lit rh) {
     return nv;
 }
 
-void buildSatFormula(sat_solver* pSat, Aig_Man_t* FAig, Aig_Man_t* grandAig, vector<vector<Aig_Obj_t*> > &r1) {
+void buildSatFormula(sat_solver* pSat, Aig_Man_t* FAig, Aig_Man_t* GAig, vector<vector<Aig_Obj_t*> > &r1) {
     int liftVal = 0;
     int cummLiftF = 0;
 
@@ -150,24 +150,24 @@ void buildSatFormula(sat_solver* pSat, Aig_Man_t* FAig, Aig_Man_t* grandAig, vec
 
     assert(numY == r1.size());
 
-    cout << "Getting grandCnf..." << endl;
-    Cnf_Dat_t* grandCnf = Cnf_Derive(grandAig, 1);
+    cout << "Getting GCnf..." << endl;
+    Cnf_Dat_t* GCnf = Cnf_Derive(GAig, 1);
 
     // Insert F(X, Y')
     liftVal = sat_solver_nvars(pSat);
     cummLiftF += liftVal;
-    Cnf_DataLift(grandCnf, liftVal);
-    sat_solver_setnvars(pSat, sat_solver_nvars(pSat) + grandCnf->nVars);
-    addCnfToSolver(pSat, grandCnf);
+    Cnf_DataLift(GCnf, liftVal);
+    sat_solver_setnvars(pSat, sat_solver_nvars(pSat) + GCnf->nVars);
+    addCnfToSolver(pSat, GCnf);
 
     for (int i = 1; i <= numX; ++i) { // x_i-> x_i
-        Equate(pSat, i, grandCnf->pVarNums[varsXF[i-1]]);
+        Equate(pSat, i, GCnf->pVarNums[varsXF[i-1]]);
     }
     for (int i = 1; i <= numY; ++i) { // y_i-> y_i
-        Equate(pSat, numX + i, grandCnf->pVarNums[varsYF[i-1]]);
+        Equate(pSat, numX + i, GCnf->pVarNums[varsYF[i-1]]);
     }
     for(int i = 1; i <= numY; i++) { // y_i-> -r1[i]
-        int r_var = addRlToSolver(pSat, grandCnf, grandAig, r1[i-1]);
+        int r_var = addRlToSolver(pSat, GCnf, GAig, r1[i-1]);
         Equate(pSat, numX + i, -r_var);
     }
 }
@@ -195,7 +195,7 @@ void printMap(map<string,int> m) {
     }
 }
 
-static inline void evaluateAig(const vector<int> &cex, Aig_Man_t* formula) {
+static inline void evaluateAig(Aig_Man_t* formula, const vector<int> &cex) {
     assert(cex.size() == Aig_ManCiNum(formula));
     int i;
     Aig_Obj_t* pObj;
@@ -214,31 +214,30 @@ static inline void evaluateAig(const vector<int> &cex, Aig_Man_t* formula) {
     return;
 }
 
-bool satisfies(const vector<int> &cex, Aig_Man_t* formula, int coId) {
-    evaluateAig(cex, formula);
+bool satisfies(Aig_Man_t* formula, const vector<int> &cex, int coId) {
+    evaluateAig(formula, cex);
     return Aig_ManCo(formula, coId)->iData;
 }
 
-Aig_Obj_t* satisfiesVec(const vector<int> &cex, Aig_Man_t* formula, vector<Aig_Obj_t* > coObjs) {
-    evaluateAig(cex, formula);
+Aig_Obj_t* satisfiesVec(Aig_Man_t* formula, const vector<int> &cex, vector<Aig_Obj_t* > coObjs) {
+    evaluateAig(formula, cex);
     for(int i = 0; i < coObjs.size(); i++) {
-        if(coObjs->iData == 1) {
-            return coObjs;
+        if(coObjs[i]->iData == 1) {
+            return coObjs[i];
         }
     }
     return NULL;
 }
 
-Aig_Obj_t* generalize(const vector<int> &cex, Aig_Man_t* formula, vector<Aig_Obj_t* > coObjs) {
-    Aig_Obj_t* temp = satisfiesVec(cex, formula, coObjs); 
+Aig_Obj_t* generalize(Aig_Man_t* formula, const vector<int> &cex, vector<Aig_Obj_t* > coObjs) {
+    Aig_Obj_t* temp = satisfiesVec(formula, cex, coObjs); 
     assert(temp != NULL);
     return temp;
 }
 
 Aig_Obj_t* Aig_AndAigs(Aig_Man_t* pMan, Aig_Obj_t* Aig1, Aig_Obj_t* Aig2) {
-    Aig_Obj_t* lhs, rhs, result;
-    lhs = Aig_ObjIsCo(Aig1)? Aig1->pFanin0: Aig1;
-    rhs = Aig_ObjIsCo(Aig2)? Aig2->pFanin0: Aig2;
+    Aig_Obj_t* lhs = Aig_ObjIsCo(Aig1)? Aig1->pFanin0: Aig1;
+    Aig_Obj_t* rhs = Aig_ObjIsCo(Aig2)? Aig2->pFanin0: Aig2;
     return Aig_And(pMan, lhs, rhs);
 }
 
@@ -246,48 +245,48 @@ Aig_Obj_t* Aig_SubstituteConst(Aig_Man_t* pMan, Aig_Obj_t* initAig, int varId, i
     Aig_Obj_t* const1 = Aig_ManConst1(pMan);
     Aig_Obj_t* constf = (one? const1: Aig_Not(const1));
     Aig_Obj_t* currFI = Aig_ObjIsCo(initAig)? initAig->pFanin0: initAig;
-    Aig_Obj_t* afterCompose = Aig_Compose(pMan, currFI, constf, varId);
+    Aig_Obj_t* afterCompose = Aig_Compose(pMan, currFI, constf, varId-1);
     return afterCompose;
 }
 
 Aig_Obj_t* Aig_Substitute(Aig_Man_t* pMan, Aig_Obj_t* initAig, int varId, Aig_Obj_t* func) {
     Aig_Obj_t* currFI = Aig_ObjIsCo(initAig)? initAig->pFanin0: initAig;
-    Aig_Obj_t* afterCompose = Aig_Compose(pMan, currFI, func, varId);
+    Aig_Obj_t* afterCompose = Aig_Compose(pMan, currFI, func, varId-1);
     return afterCompose;
 }
 
-void updateAbsRef(vector<vector<Aig_Obj_t* > > &r0, vector<vector<Aig_Obj_t* > > &r1,
-                    const vector<int> &cex, Aig_Man_t* pMan) {
+void updateAbsRef(Aig_Man_t* pMan, vector<vector<Aig_Obj_t* > > &r0, vector<vector<Aig_Obj_t* > > &r1,
+                    const vector<int> &cex) {
 
     int k, l;
     Aig_Obj_t *mu0, *mu1, *mu;
     for(k = numY; k > 0; k--) {
-        if(((mu0 = satisfiesVec(cex, r0[k - 1])) != NULL) &&
-             ((mu1 = satisfiesVec(cex, r1[k - 1])) != NULL))
+        if(((mu0 = satisfiesVec(pMan, cex, r0[k - 1])) != NULL) &&
+             ((mu1 = satisfiesVec(pMan, cex, r1[k - 1])) != NULL))
             break;
     }
     assert(k > 0);
     k--;
-    mu = Aig_AndAigs(mu0, mu1);
+    mu = Aig_AndAigs(pMan, mu0, mu1);
     l = k + 1;
 
     while(true) {
         // if(Aig_ObjFanout0(mu, Aig_ManCi(mu, varsYF[l])) != NULL) {
             // Above condition assumes ith input have id i
             if(cex[numX + l - 1]) {
-                mu1 = Aig_SubstituteConst(mu, numX + l, 1);
+                mu1 = Aig_SubstituteConst(pMan, mu, numX + l, 1);
                 r1[l].push_back(Aig_ObjCreateCo(pMan, mu1));
-                if(satisfiesVec(cex, r0[l]) != NULL) {
-                    mu0 = generalize(cex, r0[l]);
-                    mu = Aig_AndAigs(mu0, mu1);
+                if(satisfiesVec(pMan, cex, r0[l]) != NULL) {
+                    mu0 = generalize(pMan, cex, r0[l]);
+                    mu = Aig_AndAigs(pMan, mu0, mu1);
                 } else {
                     break;
                 }
             } else {
-                mu0 = Aig_SubstituteConst(mu, numX + l, 0);
+                mu0 = Aig_SubstituteConst(pMan, mu, numX + l, 0);
                 r0[l].push_back(Aig_ObjCreateCo(pMan, mu0));
-                mu1 = generalize(cex, r1[l]);
-                mu = Aig_AndAigs(mu0, mu1);
+                mu1 = generalize(pMan, cex, r1[l]);
+                mu = Aig_AndAigs(pMan, mu0, mu1);
             }
         // }
         l = l + 1;
@@ -649,13 +648,13 @@ int main( int argc, char * argv[] )
     int loopCount = 0;
     while(status == l_True) {
         // CEGAR CALL
-        updateAbsRef(r0, r1, cex);
+        updateAbsRef(GAig, r0, r1, cex);
         cout << "LOOP COUNT : " << loopCount++ << endl;
 
         cout << "Instantiating new solver..." << endl;
         sat_solver *pSat = sat_solver_new();
 
-        buildSatFormula(pSat, FAig, r1);
+        buildSatFormula(GAig, pSat, FAig, r1);
         Sat_SolverWriteDimacs(pSat,"solver.dimacs", 0, 0, 0);
 
         cout << "Solving..." << endl;
