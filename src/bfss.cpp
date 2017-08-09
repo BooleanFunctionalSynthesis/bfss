@@ -193,7 +193,8 @@ void printMap(map<string,int> m) {
     }
 }
 
-bool satisfies(const vector<int> &cex, Aig_Man_t* formula) {
+static inline void evaluateAig(const vector<int> &cex, Aig_Man_t* formula) {
+    assert(cex.size() == Aig_ManCiNum(formula));
     int i;
     Aig_Obj_t* pObj;
     Aig_ManForEachObj(formula, pObj, i) {
@@ -208,87 +209,73 @@ bool satisfies(const vector<int> &cex, Aig_Man_t* formula) {
                 rd = pObj->pFanin1->iData, pObj->iData *= (Aig_IsComplement(pObj->pFanin1)? (1-rd):rd);
         }
     }
-    return Aig_ManCo(formula, 0)->iData;
+    return;
 }
 
-int satisfiesVec(const vector<int> &cex, vector<Aig_Man_t* > formula) {
-    for(int i = 0; i < formula.size(); i++) {
-        if(satisfies(cex, formula[i])) {
-            return i;
+bool satisfies(const vector<int> &cex, Aig_Man_t* formula, int coId) {
+    evaluateAig(cex, formula);
+    return Aig_ManCo(formula, coId)->iData;
+}
+
+Aig_Obj_t* satisfiesVec(const vector<int> &cex, Aig_Man_t* formula, vector<Aig_Obj_t* > coObjs) {
+    evaluateAig(cex, formula);
+    for(int i = 0; i < coObjs.size(); i++) {
+        if(coObjs->iData == 1) {
+            return coObjs;
         }
     }
-    return -1;
+    return NULL;
 }
 
-Aig_Man_t* generalize(const vector<int> &cex, vector<Aig_Man_t*> r0l) {
-    Aig_Man_t* genResult;
-    for(int i = 0; i < r0l.size(); i++) {
-        if(satisfies(cex, r0l[i])) {
-            genResult = r0l[i];
-            return genResult;
-        }
-    }
-    assert(false);
+Aig_Obj_t* generalize(const vector<int> &cex, Aig_Man_t* formula, vector<Aig_Obj_t* > coObjs) {
+    Aig_Obj_t* temp = satisfiesVec(cex, formula, coObjs); 
+    assert(temp != NULL);
+    return temp;
 }
 
-Aig_Man_t* Aig_AndAigs(Aig_Man_t* Aig1, Aig_Man_t* Aig2) {
-    // TODO
-    Aig1 = Aig_ManDupSimple(Aig1);
-
-    Aig_Obj_t* h2 = Aig_ObjFanin0(Aig_ManCo(Aig2,0));
-    Aig_Obj_t* nn = Aig_Transfer(Aig2,Aig1,h2,numOrigInputs);
-    Aig_Obj_t* rh = Aig_IsComplement(h2)?Aig_Not(nn):nn;
-    Aig_Obj_t* h1 = Aig_ManCo(Aig1,0)->pFanin0;
-    Aig_Obj_t* andObj = Aig_And(Aig1,h1,rh);
-    Aig_ObjPatchFanin0(Aig1, Aig_ManCo(Aig1,0), andObj);
-    return Aig1;
+Aig_Obj_t* Aig_AndAigs(Aig_Man_t* pMan, Aig_Obj_t* Aig1, Aig_Obj_t* Aig2) {
+    Aig_Obj_t* lhs, rhs, result;
+    lhs = Aig_ObjIsCo(Aig1)? Aig1->pFanin0: Aig1;
+    rhs = Aig_ObjIsCo(Aig2)? Aig2->pFanin0: Aig2;
+    return Aig_And(pMan, lhs, rhs);
 }
 
-Aig_Man_t* Aig_SubstituteConst(Aig_Man_t* initAig, int varId, int one) {
-    Aig_Obj_t* currCo = Aig_ManCo(initAig, 0);
-    Aig_Obj_t* const1 = Aig_ManConst1(initAig);
+Aig_Obj_t* Aig_SubstituteConst(Aig_Man_t* pMan, Aig_Obj_t* initAig, int varId, int one) {
+    Aig_Obj_t* const1 = Aig_ManConst1(pMan);
     Aig_Obj_t* constf = (one? const1: Aig_Not(const1));
-    Aig_Obj_t* currFI = currCo->pFanin0;
-    Aig_Obj_t* afterCompose = Aig_Compose(initAig, currFI, constf, varId-1);
-    // check var id in the above compose
-    Aig_ObjPatchFanin0(initAig, currCo, afterCompose);
-    return initAig;
+    Aig_Obj_t* currFI = Aig_ObjIsCo(initAig)? initAig->pFanin0: initAig;
+    Aig_Obj_t* afterCompose = Aig_Compose(pMan, currFI, constf, varId);
+    return afterCompose;
 }
 
-Aig_Man_t* Aig_Substitute(Aig_Man_t* initAig, int varId, Aig_Obj_t* func) {
-    Aig_Obj_t* currCo = Aig_ManCo(initAig, 0);
-    Aig_Obj_t* currFI = currCo->pFanin0;
-    Aig_Obj_t* afterCompose = Aig_Compose(initAig, currFI, func, varId);
-    // check var id in the above compose
-    Aig_ObjPatchFanin0(initAig, currCo, afterCompose);
-    return initAig;
+Aig_Obj_t* Aig_Substitute(Aig_Man_t* pMan, Aig_Obj_t* initAig, int varId, Aig_Obj_t* func) {
+    Aig_Obj_t* currFI = Aig_ObjIsCo(initAig)? initAig->pFanin0: initAig;
+    Aig_Obj_t* afterCompose = Aig_Compose(pMan, currFI, func, varId);
+    return afterCompose;
 }
 
-void updateAbsRef(vector<vector<Aig_Man_t* > > &r0, vector<vector<Aig_Man_t* > > &r1,
-                    const vector<int> &cex) {
+void updateAbsRef(vector<vector<Aig_Obj_t* > > &r0, vector<vector<Aig_Obj_t* > > &r1,
+                    const vector<int> &cex, Aig_Man_t* pMan) {
 
-    int k, l, mu0Index = -1, mu1Index = -1;
+    int k, l;
+    Aig_Obj_t *mu0, *mu1, *mu;
     for(k = numY; k > 0; k--) {
-        if(((mu0Index = satisfiesVec(cex, r0[k - 1])) != -1) &&
-             ((mu1Index = satisfiesVec(cex, r1[k - 1])) != -1))
+        if(((mu0 = satisfiesVec(cex, r0[k - 1])) != NULL) &&
+             ((mu1 = satisfiesVec(cex, r1[k - 1])) != NULL))
             break;
     }
-    assert(k >= 0);
+    assert(k > 0);
     k--;
+    mu = Aig_AndAigs(mu0, mu1);
     l = k + 1;
 
-    Aig_Man_t *mu0, *mu1, *mu;
-    mu0 = generalize(cex, r0[k]);
-    mu1 = generalize(cex, r1[k]);
-    mu = Aig_AndAigs(mu0, mu1);
-
     while(true) {
-        if(Aig_ObjFanout0(mu, Aig_ManCi(mu, varsYF[l])) != NULL) {
+        // if(Aig_ObjFanout0(mu, Aig_ManCi(mu, varsYF[l])) != NULL) {
             // Above condition assumes ith input have id i
             if(cex[numX + l - 1]) {
                 mu1 = Aig_SubstituteConst(mu, numX + l, 1);
-                r1[l].push_back(mu1);
-                if(satisfiesVec(cex, r0[l]) != -1) {
+                r1[l].push_back(Aig_ObjCreateCo(pMan, mu1));
+                if(satisfiesVec(cex, r0[l]) != NULL) {
                     mu0 = generalize(cex, r0[l]);
                     mu = Aig_AndAigs(mu0, mu1);
                 } else {
@@ -296,11 +283,11 @@ void updateAbsRef(vector<vector<Aig_Man_t* > > &r0, vector<vector<Aig_Man_t* > >
                 }
             } else {
                 mu0 = Aig_SubstituteConst(mu, numX + l, 0);
-                r0[l].push_back(mu0);
+                r0[l].push_back(Aig_ObjCreateCo(pMan, mu0));
                 mu1 = generalize(cex, r1[l]);
                 mu = Aig_AndAigs(mu0, mu1);
             }
-        }
+        // }
         l = l + 1;
     }
     return;
