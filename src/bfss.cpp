@@ -28,20 +28,22 @@ Abc_Frame_t* pAbc;
 lit addRlToSolver(sat_solver* pSat, Cnf_Dat_t* GCnf, Aig_Man_t* GAig, const vector<Aig_Obj_t*>& r);
 lit addRlToSolver_rec(sat_solver* pSat, Cnf_Dat_t* GCnf, Aig_Man_t* GAig, const vector<Aig_Obj_t*>& r, int start, int end);
 lit OR(sat_solver* pSat, lit lh, lit rh);
-void buildSatFormula(sat_solver* pSat, Aig_Man_t* FAig, vector<vector<Aig_Obj_t* > > &r1);
+void buildSatFormula(sat_solver* pSat, Aig_Man_t* FAig, Aig_Man_t* grandAig, vector<vector<Aig_Obj_t*> > &r1);
 
 void addCnfToSolver(sat_solver* pSat, Cnf_Dat_t* cnf);
 int getCoVarNum(Cnf_Dat_t* cnf, Aig_Man_t* aig);
 void addVarToSolver(sat_solver* pSat, int varNum, int neg);
 void printMap(map<string,int> m);
-bool satisfies(const vector<int> &cex, Aig_Man_t* formula);
-int satisfiesVec(const vector<int> &cex, vector<Aig_Obj_t* > formula);
-Aig_Man_t* generalize(const vector<int> &cex, vector<Aig_Obj_t*> r0l);
-Aig_Man_t* Aig_AndAigs(Aig_Man_t* Aig1, Aig_Man_t* Aig2);
-Aig_Man_t* Aig_SubstituteConst(Aig_Man_t* initAig, int varId, int one);
-Aig_Man_t* Aig_Substitute(Aig_Man_t* initAig, int varId, Abc_Obj_t* func);
+static inline void evaluateAig(const vector<int> &cex, Aig_Man_t* formula);
+bool satisfies(const vector<int> &cex, Aig_Man_t* formula, int coId);
+Aig_Obj_t* satisfiesVec(const vector<int> &cex, Aig_Man_t* formula, vector<Aig_Obj_t* > coObjs);
+Aig_Obj_t* generalize(const vector<int> &cex, Aig_Man_t* formula, vector<Aig_Obj_t* > coObjs);
+Aig_Obj_t* Aig_AndAigs(Aig_Man_t* pMan, Aig_Obj_t* Aig1, Aig_Obj_t* Aig2);
+Aig_Obj_t* Aig_SubstituteConst(Aig_Man_t* pMan, Aig_Obj_t* initAig, int varId, int one);
+Aig_Obj_t* Aig_Substitute(Aig_Man_t* pMan, Aig_Obj_t* initAig, int varId, Aig_Obj_t* func);
 void updateAbsRef(vector<vector<Aig_Obj_t* > > &r0, vector<vector<Aig_Obj_t* > > &r1,
-                    const vector<int> &cex);
+                    const vector<int> &cex, Aig_Man_t* pMan);
+
 ////////////////////////////////////////////////////////////////////////
 ///                         FUNCTIONS                                ///
 ////////////////////////////////////////////////////////////////////////
@@ -70,8 +72,8 @@ lit addRlToSolver_rec(sat_solver* pSat, Cnf_Dat_t* GCnf, Aig_Man_t* GAig, const 
     return nv;
 }
 
-int sat_solver_newvar(sat_solver* s)
-{   // TODO use sat_solver_addvar
+int sat_solver_newvar(sat_solver* s) {
+    // TODO use sat_solver_addvar
     sat_solver_setnvars(s, s->size+1);
     return s->size-1;
 }
@@ -103,7 +105,7 @@ lit OR(sat_solver* pSat, lit lh, lit rh) {
     return nv;
 }
 
-void buildSatFormula(sat_solver* pSat, Aig_Man_t* FAig, vector<vector<Aig_Man_t* > > &r1) {
+void buildSatFormula(sat_solver* pSat, Aig_Man_t* FAig, Aig_Man_t* grandAig, vector<vector<Aig_Obj_t*> > &r1) {
     int liftVal = 0;
     int cummLiftF = 0;
 
