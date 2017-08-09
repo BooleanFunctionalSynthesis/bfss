@@ -11,6 +11,7 @@ extern "C" {
 #include "misc/nm/nmInt.h"
 #include "sat/cnf/cnf.h"
 #include "sat/bsat/satStore.h"
+#include "sat/bsat/satSolver.h"
 #include "sat/bsat/satSolver2.h"
 #include "opt/mfs/mfs.h"
 #include "opt/mfs/mfsInt.h"
