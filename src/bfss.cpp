@@ -582,63 +582,63 @@ int main( int argc, char * argv[] )
     Sat_SolverWriteDimacs(pSat,"solver_simplied.dimacs", 0, 0, 0);
 
 
-    vector<vector<Aig_Man_t*> > r0(numY), r1(numY);
+    vector<vector<Aig_Obj_t*> > r0(numY), r1(numY);
     cout << numY << endl;
     // r0.resize(numY);
     // r1.resize(numY);
 
 
     for(int i = 1; i <= numY; ++i) {
-        Aig_Man_t* delta = Aig_ManDupSimple(SAig);
+        Aig_Obj_t* delta = Aig_ManCo(SAig, 0);
         for(int j = 1; j <= numX; j++) {
-            delta = Aig_Substitute(delta, j, Aig_Not(Aig_ManCi(delta, j - 1)));
+            delta = Aig_Substitute(SAig, delta, j, Aig_Not(Aig_ManCi(SAig, j - 1)));
         }
         for(int j = 1; j <= numY; j++) {
             if(j < i)
-                delta = Aig_SubstituteConst(delta, j, 0);
+                delta = Aig_SubstituteConst(SAig, delta, j, 0);
             else if(j == i)
-                delta = Aig_SubstituteConst(delta, j, 1);
+                delta = Aig_SubstituteConst(SAig, delta, j, 1);
             else
-                delta = Aig_Substitute(delta, j, Aig_Not(Aig_ManCi(delta, numX + j - 1)));
+                delta = Aig_Substitute(SAig, delta, j, Aig_Not(Aig_ManCi(delta, numX + j - 1)));
         }
         for(int j = 1; j <= numX; j++) {
-            delta = Aig_Substitute(delta, j, Aig_ManCi(delta, j - 1));
+            delta = Aig_Substitute(SAig, delta, j, Aig_ManCi(delta, j - 1));
         }
         for(int j = 1; j <= numY; j++) {
             if(j <= i)
-                delta = Aig_SubstituteConst(delta, j, 0);
+                delta = Aig_SubstituteConst(SAig, delta, j, 0);
             else
-                delta = Aig_Substitute(delta, j, Aig_ManCi(delta, numX + j - 1));
+                delta = Aig_Substitute(SAig, delta, j, Aig_ManCi(delta, numX + j - 1));
         }
-        for(int j = numX + numY; j < 2*(numX + numY); j++)
+        // for(int j = numX + numY; j < 2*(numX + numY); j++)
             // Aig_ObjDelete(delta, Aig_ManCi(delta, j));
-        r0[i-1].push_back(delta);
+        r0[i-1].push_back(Aig_ObjCreateCo(SAig, delta));
 
         // reuse delta of the first half of the above for gamma
-        Aig_Man_t* gamma = Aig_ManDupSimple(SAig);
+        Aig_Man_t* gamma = Aig_ManCo(SAig, 0);
         for(int j = 1; j <= numX; j++) {
-            gamma = Aig_Substitute(gamma, j, Aig_Not(Aig_ManCi(gamma, j - 1)));
+            gamma = Aig_Substitute(SAig, gamma, j, Aig_Not(Aig_ManCi(gamma, j - 1)));
         }
         for(int j = 1; j <= numY; j++) {
             if(j <= i)
-                gamma = Aig_SubstituteConst(gamma, j, 0);
+                gamma = Aig_SubstituteConst(SAig, gamma, j, 0);
             else
-                gamma = Aig_Substitute(gamma, j, Aig_Not(Aig_ManCi(gamma, numX + j - 1)));
+                gamma = Aig_Substitute(SAig, gamma, j, Aig_Not(Aig_ManCi(gamma, numX + j - 1)));
         }
         for(int j = 1; j <= numX; j++) {
-            gamma = Aig_Substitute(gamma, j, Aig_ManCi(gamma, j - 1));
+            gamma = Aig_Substitute(SAig, gamma, j, Aig_ManCi(gamma, j - 1));
         }
         for(int j = 1; j <= numY; j++) {
             if(j < i)
-                gamma = Aig_SubstituteConst(gamma, j, 0);
+                gamma = Aig_SubstituteConst(SAig, gamma, j, 0);
             else if(j == i)
-                gamma = Aig_SubstituteConst(gamma, j, 1);
+                gamma = Aig_SubstituteConst(SAig, gamma, j, 1);
             else
-                gamma = Aig_Substitute(gamma, j, Aig_ManCi(gamma, numX + j - 1));
+                gamma = Aig_Substitute(SAig, gamma, j, Aig_ManCi(gamma, numX + j - 1));
         }
-        for(int j = numX + numY; j < 2*(numX + numY); j++)
+        // for(int j = numX + numY; j < 2*(numX + numY); j++)
             // Aig_ObjDelete(gamma, Aig_ManCi(gamma, j));
-        r1[i-1].push_back(gamma);
+        r1[i-1].push_back(Aig_ObjCreateCo(SAig, gamma));
     }
 
     int loopCount = 0;
