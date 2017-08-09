@@ -603,34 +603,34 @@ int main( int argc, char * argv[] )
             else if(j == i)
                 delta = Aig_SubstituteConst(SAig, delta, j, 1);
             else
-                delta = Aig_Substitute(SAig, delta, j, Aig_Not(Aig_ManCi(delta, numX + j - 1)));
+                delta = Aig_Substitute(SAig, delta, j, Aig_Not(Aig_ManCi(SAig, numX + j - 1)));
         }
         for(int j = 1; j <= numX; j++) {
-            delta = Aig_Substitute(SAig, delta, j, Aig_ManCi(delta, j - 1));
+            delta = Aig_Substitute(SAig, delta, j, Aig_ManCi(SAig, j - 1));
         }
         for(int j = 1; j <= numY; j++) {
             if(j <= i)
                 delta = Aig_SubstituteConst(SAig, delta, j, 0);
             else
-                delta = Aig_Substitute(SAig, delta, j, Aig_ManCi(delta, numX + j - 1));
+                delta = Aig_Substitute(SAig, delta, j, Aig_ManCi(SAig, numX + j - 1));
         }
         // for(int j = numX + numY; j < 2*(numX + numY); j++)
             // Aig_ObjDelete(delta, Aig_ManCi(delta, j));
         r0[i-1].push_back(Aig_ObjCreateCo(SAig, delta));
 
         // reuse delta of the first half of the above for gamma
-        Aig_Man_t* gamma = Aig_ManCo(SAig, 0);
+        Aig_Obj_t* gamma = Aig_ManCo(SAig, 0);
         for(int j = 1; j <= numX; j++) {
-            gamma = Aig_Substitute(SAig, gamma, j, Aig_Not(Aig_ManCi(gamma, j - 1)));
+            gamma = Aig_Substitute(SAig, gamma, j, Aig_Not(Aig_ManCi(SAig, j - 1)));
         }
         for(int j = 1; j <= numY; j++) {
             if(j <= i)
                 gamma = Aig_SubstituteConst(SAig, gamma, j, 0);
             else
-                gamma = Aig_Substitute(SAig, gamma, j, Aig_Not(Aig_ManCi(gamma, numX + j - 1)));
+                gamma = Aig_Substitute(SAig, gamma, j, Aig_Not(Aig_ManCi(SAig, numX + j - 1)));
         }
         for(int j = 1; j <= numX; j++) {
-            gamma = Aig_Substitute(SAig, gamma, j, Aig_ManCi(gamma, j - 1));
+            gamma = Aig_Substitute(SAig, gamma, j, Aig_ManCi(SAig, j - 1));
         }
         for(int j = 1; j <= numY; j++) {
             if(j < i)
@@ -638,7 +638,7 @@ int main( int argc, char * argv[] )
             else if(j == i)
                 gamma = Aig_SubstituteConst(SAig, gamma, j, 1);
             else
-                gamma = Aig_Substitute(SAig, gamma, j, Aig_ManCi(gamma, numX + j - 1));
+                gamma = Aig_Substitute(SAig, gamma, j, Aig_ManCi(SAig, numX + j - 1));
         }
         // for(int j = numX + numY; j < 2*(numX + numY); j++)
             // Aig_ObjDelete(gamma, Aig_ManCi(gamma, j));
@@ -648,13 +648,13 @@ int main( int argc, char * argv[] )
     int loopCount = 0;
     while(status == l_True) {
         // CEGAR CALL
-        updateAbsRef(GAig, r0, r1, cex);
+        updateAbsRef(SAig, r0, r1, cex);
         cout << "LOOP COUNT : " << loopCount++ << endl;
 
         cout << "Instantiating new solver..." << endl;
         sat_solver *pSat = sat_solver_new();
 
-        buildSatFormula(GAig, pSat, FAig, r1);
+        buildSatFormula(SAig, pSat, FAig, r1);
         Sat_SolverWriteDimacs(pSat,"solver.dimacs", 0, 0, 0);
 
         cout << "Solving..." << endl;
