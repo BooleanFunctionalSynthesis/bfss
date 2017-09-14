@@ -86,7 +86,7 @@ lit OR(sat_solver* pSat, lit lh, lit rh) {
     // nv -> lh or rh
     Lits[0] = toLitCond( abs(-nv), -nv<0 );
     Lits[1] = toLitCond( abs(lh), lh<0 );
-    Lits[3] = toLitCond( abs(rh), rh<0 );
+    Lits[2] = toLitCond( abs(rh), rh<0 );
     if(!sat_solver_addclause( pSat, Lits, Lits + 3 ))
         assert(false);
 
