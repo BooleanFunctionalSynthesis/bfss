@@ -1,7 +1,7 @@
 # project name (generate executable with this name)
 TARGET   = bfss
 
-export ABC_PATH = ${HOME}/abc
+export ABC_PATH = ${HOME}/Github/abc
 export ABC_INCLUDES = -I$(ABC_PATH) -I$(ABC_PATH)/src
 
 SRCDIR   = src
@@ -12,13 +12,15 @@ LIBDIR   = lib
 
 CC       = g++
 # compiling flags here
-CPP_FLAGS = -g -std=c++11 
+CPP_FLAGS = -g -std=c++11
 
 # linking flags here
 LFLAGS   = -g -std=c++11 $(LIBDIR)/libabc.a -lm -ldl -rdynamic -lreadline -ltermcap -lpthread -lrt -I $(ABC_INCLUDES)
 
 SOURCES  := $(wildcard $(SRCDIR)/*.cpp)
 INCLUDES := $(wildcard $(SRCDIR)/*.h)
+SOURCES  := $(filter-out $(SRCDIR)/bfss_old.cpp, $(SOURCES))
+INCLUDES := $(filter-out $(SRCDIR)/bfss_old.h,  $(INCLUDES))
 OBJECTS  := $(SOURCES:$(SRCDIR)/%.cpp=$(OBJDIR)/%.o)
 rm       = rm -f
 
