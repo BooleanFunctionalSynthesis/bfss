@@ -19,6 +19,13 @@ extern "C" {
 Aig_Man_t * Abc_NtkToDar(Abc_Ntk_t * pNtk, int fExors, int fRegisters);
 }
 
+#define DEBUG
+#ifdef DEBUG
+    #define OUT( x ) cout << x
+#else
+    #define OUT( x )
+#endif
+
 extern vector<int> varsXF, varsXS;
 extern vector<int> varsYF, varsYS; // to be eliminated
 extern int numOrigInputs, numX, numY;
@@ -29,4 +36,4 @@ vector<string> tokenize( const string& p_pcstStr, char delim );
 string type2String(Aig_Type_t t);
 void Equate(sat_solver *pSat, int varA, int varB);
 void Xor(sat_solver *pSat, int varA, int varB);
-Abc_Ntk_t* getNtk(string pFileName);
+Abc_Ntk_t* getNtk(string pFileName, bool fraig);

@@ -351,11 +351,11 @@ void AigToNNF::createAig() {
 	// pNtk->pName = Extra_UtilStrsav("Aig New");
 	Abc_NtkSetName(pNtk,(char*)"Aig New");
 
-	cout <<"Resetting counters"<< endl;
+	OUT("Resetting counters"<< endl);
 	resetCounters();
 	var_num2Id.clear();
 	AigToNNF::readyNodes = queue<node*>();
-	cout <<"pos vars... "<< endl;
+	OUT("pos vars... "<< endl);
 	for(auto inputNode:inputs) {
 		// inputNode->print();
 		currNode = inputNode->flipped? inputNode->neg:inputNode;
@@ -379,7 +379,7 @@ void AigToNNF::createAig() {
 			Abc_ObjAssignName(currObj,(char*)obName.c_str(), NULL);
 		}
 	}
-	cout <<"neg vars... "<< endl;
+	OUT("neg vars... "<< endl);
 	for(auto inputNode:inputs) {
 		// inputNode->print();
 		currNode = inputNode->flipped? inputNode:inputNode->neg;

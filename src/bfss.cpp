@@ -10,13 +10,7 @@
 
 using namespace std;
 
-#define DEBUG
 // #define COMPARE_SAIGS // Uncomment to compare 2 SAigs
-#ifdef DEBUG
-    #define OUT( x ) cout << x
-#else
-    #define OUT( x )
-#endif
 ////////////////////////////////////////////////////////////////////////
 ///                           GLOBALS                                ///
 ////////////////////////////////////////////////////////////////////////
@@ -365,7 +359,7 @@ int main( int argc, char * argv[] )
     varsFile      = benchmarkName + "_elimVars.txt";
 
     OUT("get FNtk..." <<endl);
-    Abc_Ntk_t* FNtk = getNtk(pFileName);
+    Abc_Ntk_t* FNtk = getNtk(pFileName,true);
     OUT("get FAig..." <<endl);
     Aig_Man_t* FAig = Abc_NtkToDar(FNtk, 0, 0);
 
