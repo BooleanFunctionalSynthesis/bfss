@@ -178,9 +178,10 @@ void edge::print() {
 }
 
 queue<node*> AigToNNF::readyNodes = queue<node*>();
-AigToNNF::AigToNNF(string fname): pFileName(fname), pNtk(NULL) {};
+AigToNNF::AigToNNF(string fname): pFileName(fname), pAigName(fname), pNtk(NULL), pSrc(NULL) {};
+AigToNNF::AigToNNF(Aig_Man_t* pAig): pAigName(string(pAig->pName)), pNtk(NULL), pSrc(pAig) {};
 
-void AigToNNF::parse() {
+void AigToNNF::parse_verilog() {
 	node* tempNode;
 	string line;
 	vector<string> words;
@@ -188,6 +189,8 @@ void AigToNNF::parse() {
 	bool w_neg;
 	int numInputs = 0;
 	int numOutputs = 0;
+
+	assert(pFileName != "");
 
 	ifstream file(pFileName);
 	while(!flag and getline(file,line)) {
@@ -216,6 +219,10 @@ void AigToNNF::parse() {
         else if(words[0]=="endmodul") {
             // cout << "endmodule" << endl;
         	flag = true;
+        }
+        else if(words[0]=="module") {
+            // cout << "module" << endl;
+            pAigName = words[1];
         }
         else if(words[0]=="assign") {
         	string tgt = words[1];
@@ -246,6 +253,53 @@ void AigToNNF::parse() {
 	return;
 }
 
+void AigToNNF::parse_aig() {
+	node* nn;
+	int numInputs = 0, i;
+	Aig_Obj_t* pObj, *f0, *f1;
+
+	Aig_ManForEachObj( pSrc, pObj, i ) {
+		if(Aig_ObjIsConst1(pObj)) {
+			// IGNORE
+			// Have not handled the case of the AIG being a constant
+			assert(Aig_ObjRefs(pObj) == 0);
+		}
+		else if(Aig_ObjIsCi(pObj)) {
+			nn = new node(to_string(pObj->Id), t_VAR, ++numInputs);
+			inputs.insert(nn);
+			name2Node[to_string(pObj->Id)] = nn;
+		}
+		else {
+			nn = new node(to_string(pObj->Id), t_AND);
+			name2Node[to_string(pObj->Id)] = nn;
+
+			if(Aig_ObjIsCo(pObj)) {
+				outputs.insert(nn);
+			}
+
+			set<edge> ch;
+			f0 = Aig_ObjFanin0(pObj);
+			f1 = Aig_ObjFanin1(pObj);
+			if(f0!=NULL)
+				ch.insert(edge(Aig_ObjFaninC0(pObj),
+							name2Node[to_string(f0->Id)]));
+
+			if(f1!=NULL)
+				ch.insert(edge(Aig_ObjFaninC1(pObj),
+							name2Node[to_string(f1->Id)]));
+
+			nn->set_children(ch);
+		}
+	}
+}
+
+void AigToNNF::parse() {
+	if(pSrc == NULL)
+		parse_verilog();
+	else
+		parse_aig();
+}
+
 void AigToNNF::process() {
 	for(auto it:outputs)
 		AigToNNF::readyNodes.push(it);
@@ -259,7 +313,7 @@ void AigToNNF::process() {
 
 	// auto tempSet = inputs;
 	// for(auto in:tempSet) {
-	// 	if(in->neg != NULL) 
+	// 	if(in->neg != NULL)
 	// 		inputs.insert(in->neg);
 	// }
 }
@@ -275,7 +329,7 @@ void AigToNNF::print() {
 		if(it.second->neg!=NULL) {
 			it.second->neg->print();
 		}
-	}	
+	}
 }
 
 void AigToNNF::resetCounters() {
@@ -297,18 +351,20 @@ void AigToNNF::createAig() {
 	// pNtk->pName = Extra_UtilStrsav("Aig New");
 	Abc_NtkSetName(pNtk,(char*)"Aig New");
 
-	// cout <<"Resetting counters"<< endl;
+	OUT("Resetting counters"<< endl);
 	resetCounters();
+	var_num2Id.clear();
 	AigToNNF::readyNodes = queue<node*>();
-	// cout <<"pos vars... "<< endl;
+	OUT("pos vars... "<< endl);
 	for(auto inputNode:inputs) {
 		// inputNode->print();
 		currNode = inputNode->flipped? inputNode->neg:inputNode;
 
-		
+
 		currObj = Abc_NtkCreatePi(pNtk);
 		assert(currObj!=NULL);
 		if(currNode!=NULL) {
+			var_num2Id[currNode->var_num] = currObj->Id;
 			obName = currNode->name;
 			Abc_ObjAssignName(currObj,(char*)obName.c_str(), NULL);
 			node2Obj[currNode] = currObj;
@@ -317,12 +373,13 @@ void AigToNNF::createAig() {
 			}
 		}
 		else {
+			var_num2Id[-inputNode->var_num] = currObj->Id;
 			badObjects.insert(currObj);
 			obName = inputNode->name;
 			Abc_ObjAssignName(currObj,(char*)obName.c_str(), NULL);
 		}
 	}
-	// cout <<"neg vars... "<< endl;
+	OUT("neg vars... "<< endl);
 	for(auto inputNode:inputs) {
 		// inputNode->print();
 		currNode = inputNode->flipped? inputNode:inputNode->neg;
@@ -330,6 +387,7 @@ void AigToNNF::createAig() {
 		currObj = Abc_NtkCreatePi(pNtk);
 		assert(currObj!=NULL);
 		if(currNode!=NULL) {
+			var_num2Id[currNode->var_num] = currObj->Id;
 			obName = inputNode->flipped?("neg_"+currNode->name):currNode->name;
 			Abc_ObjAssignName(currObj,(char*)obName.c_str(), NULL);
 			node2Obj[currNode] = currObj;
@@ -338,6 +396,7 @@ void AigToNNF::createAig() {
 			}
 		}
 		else {
+			var_num2Id[-inputNode->var_num] = currObj->Id;
 			badObjects.insert(currObj);
 			obName = inputNode->flipped?("neg_"+inputNode->name):inputNode->name;
 			Abc_ObjAssignName(currObj,(char*)string("neg_"+inputNode->name).c_str(), NULL);
@@ -357,13 +416,10 @@ void AigToNNF::createAig() {
 		lhsObj = node2Obj[childEdge->target];
 		assert(lhsObj!=NULL);
 
-		// cout << "currNode type: " << type2String(currNode->type) << endl;
 		childEdge++;
 		if(childEdge != currNode->children.end()) {
-			// cout << "currNode type: " << type2String(currNode->type) << endl;
 			rhsObj = node2Obj[childEdge->target];
 			assert(rhsObj!=NULL);
-			// cout << "currNode type: " << type2String(currNode->type) << endl;
 		}
 		else {
 			switch(currNode->type) {
@@ -427,7 +483,7 @@ Abc_Ntk_t* AigToNNF::getNtk() {
 
 // void swapAndOr() {
 // 	assert(pNtk != NULL);
-	
+
 // }
 
 int AigToNNF::getNumInputs() {

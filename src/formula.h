@@ -14,7 +14,7 @@ enum node_type
 class node {
 public:
 	node_type type;
-	int var_num;		
+	int var_num;
 	int counter;
 	string name;
 	node* neg; 			// Duplicated node if not NULL
@@ -55,17 +55,22 @@ public:
 
 class AigToNNF {
 	Abc_Ntk_t *pNtk;
+	Aig_Man_t *pSrc;
 public:
 	string pFileName;
-	map<string,int>   name2Id;
+	string pAigName;
 	map<string,node*> name2Node;
 	map<node*,Abc_Obj_t*> node2Obj;
 	set<node*> outputs;
 	set<node*> inputs;
+	map<int, int> var_num2Id;
 	static queue<node*> readyNodes;
 
 	AigToNNF(string fname);
+	AigToNNF(Aig_Man_t* pAig);
 	void parse();
+	void parse_aig();
+	void parse_verilog();
 	void process();
 	void resetCounters();
 	void createAig();

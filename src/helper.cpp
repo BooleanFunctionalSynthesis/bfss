@@ -1,7 +1,5 @@
 #include "helper.h"
 
-static Abc_Frame_t* pAbc;
-
 ////////////////////////////////////////////////////////////////////////
 ///                      HELPER FUNCTIONS                            ///
 ////////////////////////////////////////////////////////////////////////
@@ -41,7 +39,7 @@ string type2String(Aig_Type_t t) {
 void Equate(sat_solver *pSat, int varA, int varB) {
     lit Lits[3];
     assert(varA!=0 && varB!=0);
-    cout << "Equate " << varA << " = " <<varB<<endl;
+    // cout << "Equate " << varA << " = " <<varB<<endl;
     // A -> B
     Lits[0] = toLitCond( abs(-varA), -varA<0 );
     Lits[1] = toLitCond( abs(varB), varB<0 );
@@ -72,7 +70,7 @@ void Xor(sat_solver *pSat, int varA, int varB) {
         assert(false);
 }
 
-Abc_Ntk_t*  getNtk(string pFileName) {
+Abc_Ntk_t*  getNtk(string pFileName, bool fraig) {
     string cmd, initCmd, varsFile, line;
     Abc_Obj_t* pPi, *pCi;
     set<int> varsX;
@@ -89,7 +87,7 @@ Abc_Ntk_t*  getNtk(string pFileName) {
     if (CommandExecute(pAbc, cmd)) { // Read the AIG
         return NULL;
     }
-    cmd = "balance";
+    cmd = fraig?initCmd:"balance";
     if (CommandExecute(pAbc, cmd)) { // Simplify
         return NULL;
     }
