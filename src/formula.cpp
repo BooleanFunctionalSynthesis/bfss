@@ -256,10 +256,15 @@ void AigToNNF::parse_verilog() {
 void AigToNNF::parse_aig() {
 	node* nn;
 	int numInputs = 0, i;
-	Aig_Obj_t* pObj;
+	Aig_Obj_t* pObj, *f0, *f1;
 
 	Aig_ManForEachObj( pSrc, pObj, i ) {
-		if(Aig_ObjIsCi(pObj)) {
+		if(Aig_ObjIsConst1(pObj)) {
+			// IGNORE
+			// Have not handled the case of the AIG being a constant
+			assert(Aig_ObjRefs(pObj) == 0);
+		}
+		else if(Aig_ObjIsCi(pObj)) {
 			nn = new node(to_string(pObj->Id), t_VAR, ++numInputs);
 			inputs.insert(nn);
 			name2Node[to_string(pObj->Id)] = nn;
@@ -273,13 +278,15 @@ void AigToNNF::parse_aig() {
 			}
 
 			set<edge> ch;
-			if(Aig_ObjFanin0(pObj)!=NULL)
+			f0 = Aig_ObjFanin0(pObj);
+			f1 = Aig_ObjFanin1(pObj);
+			if(f0!=NULL)
 				ch.insert(edge(Aig_ObjFaninC0(pObj),
-					           name2Node[to_string(Aig_ObjFanin0(pObj)->Id)]));
+							name2Node[to_string(f0->Id)]));
 
-			if(Aig_ObjFanin1(pObj)!=NULL)
+			if(f1!=NULL)
 				ch.insert(edge(Aig_ObjFaninC1(pObj),
-					           name2Node[to_string(Aig_ObjFanin1(pObj)->Id)]));
+							name2Node[to_string(f1->Id)]));
 
 			nn->set_children(ch);
 		}
