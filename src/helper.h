@@ -19,6 +19,11 @@ extern "C" {
 Aig_Man_t * Abc_NtkToDar(Abc_Ntk_t * pNtk, int fExors, int fRegisters);
 }
 
+extern vector<int> varsXF, varsXS;
+extern vector<int> varsYF, varsYS; // to be eliminated
+extern int numOrigInputs, numX, numY;
+extern Abc_Frame_t* pAbc;
+
 int CommandExecute(Abc_Frame_t* pAbc, string cmd);
 vector<string> tokenize( const string& p_pcstStr, char delim );
 string type2String(Aig_Type_t t);

@@ -36,7 +36,14 @@ void populateVars(Abc_Ntk_t* FNtk, AigToNNF& nnf, string varsFile,
 Aig_Obj_t* Aig_SubstituteConst(Aig_Man_t* pMan, Aig_Obj_t* initAig, int varId, int one);
 Aig_Obj_t* Aig_Substitute(Aig_Man_t* pMan, Aig_Obj_t* initAig, int varId, Aig_Obj_t* func);
 void initializeRs(Aig_Man_t* SAig,vector<vector<Aig_Obj_t*> >& r0, vector<vector<Aig_Obj_t*> >& r1);
-
+Aig_Obj_t* buildF(Aig_Man_t* SAig);
+Aig_Obj_t* buildFPrime(Aig_Man_t* SAig, const Aig_Obj_t* F_SAig);
+void addVarToSolver(sat_solver* pSat, int varNum, int val);
+int getCnfCoVarNum(Cnf_Dat_t* cnf, Aig_Man_t* aig, int nthCo);
+lit addRlToSolver(sat_solver* pSat, Cnf_Dat_t* GCnf, Aig_Man_t* GAig, const vector<Aig_Obj_t*>& r);
+lit addRlToSolver_rec(sat_solver* pSat, Cnf_Dat_t* GCnf, Aig_Man_t* GAig, const vector<Aig_Obj_t*>& r, int start, int end);
+lit OR(sat_solver* pSat, lit lh, lit rh);
+void addCnfToSolver(sat_solver* pSat, Cnf_Dat_t* cnf);
 
 ////////////////////////////////////////////////////////////////////////
 ///                         FUNCTIONS                                ///
@@ -181,6 +188,164 @@ void initializeRs(Aig_Man_t* SAig,
     }
 }
 
+/** Function
+ * Returns a CO representing F; Composes SAig:
+ * replaces x_neg inputs with not(x)
+ * replaces y_neg inputs with not(y)
+ * @param SAig [in out]     Aig Manager
+ */
+Aig_Obj_t* buildF(Aig_Man_t* SAig) {
+    Aig_Obj_t* head = Aig_ManCo(SAig,0);
+    for(int i = 0; i < numX; ++i) {
+        head = Aig_Substitute(SAig, head, varsXS[i], Aig_Not(Aig_ManObj(SAig, varsXS[i])));
+    }
+    for(int i = 0; i < numY; ++i) {
+        head = Aig_Substitute(SAig, head, varsYS[i], Aig_Not(Aig_ManObj(SAig, varsYS[i])));
+    }
+    for(int i = 0; i < numX; ++i) {
+        head = Aig_Substitute(SAig, head, varsXS[i] + numOrigInputs, Aig_ManObj(SAig, varsXS[i]));
+    }
+    for(int i = 0; i < numY; ++i) {
+        head = Aig_Substitute(SAig, head, varsYS[i] + numOrigInputs, Aig_ManObj(SAig, varsYS[i]));
+    }
+    return Aig_ObjCreateCo(SAig, Aig_Not(head));
+}
+
+/** Function
+ * Returns a CO representing F; Composes SAig:
+ * replaces x_neg inputs with not(x)
+ * replaces y     inputs with not(y_neg)
+ * @param SAig [in out]     Aig Manager
+ */
+Aig_Obj_t* buildFPrime(Aig_Man_t* SAig, const Aig_Obj_t* F_SAig) {
+    Aig_Obj_t* head = (Aig_Obj_t*) F_SAig;
+    for(int i = 0; i < numY; ++i) {
+        head = Aig_Substitute(SAig, head, varsYS[i], Aig_ManObj(SAig, varsYS[i] + numOrigInputs));
+    }
+    return Aig_ObjCreateCo(SAig, head);
+}
+
+/** Function
+ * Asserts varNum to have value val
+ * @param pSat      [in out]     Sat Solver
+ * @param varNum    [in]         Variable number
+ * @param val       [in]         Value to be assigned
+ */
+void addVarToSolver(sat_solver* pSat, int varNum, int val) {
+    OUT("addVarToSolver " << ((val)?(varNum):-varNum) << endl);
+    lit l = toLitCond(varNum, val==0);
+    if(!sat_solver_addclause(pSat, &l, &l+1))
+        assert(false);
+}
+
+/** Function
+ * Returns variable number (in CNF) of specified Co
+ * @param cnf       [in]        Cnf
+ * @param aig       [in]        Aig
+ * @param nthCo     [in]        Co
+ */
+int getCnfCoVarNum(Cnf_Dat_t* cnf, Aig_Man_t* aig, int nthCo) {
+    return cnf->pVarNums[((Aig_Obj_t *)Vec_PtrEntry(aig->vCos, nthCo))->Id];
+}
+
+/** Function
+ * Builds a balance OR-tree over elements in r, returns the head of the tree.
+ * @param pSat      [in]        Sat Solver
+ * @param GCnf      [in]        Cnf
+ * @param GAig      [in]        Aig
+ * @param r         [in]        vector of Aig_Obj_t*
+ */
+lit addRlToSolver(sat_solver* pSat, Cnf_Dat_t* GCnf, Aig_Man_t* GAig, const vector<Aig_Obj_t*>& r) {
+
+    for(auto co:r)
+        assert(Aig_ObjIsCo(co));
+
+    return addRlToSolver_rec(pSat, GCnf, GAig, r, 0, r.size());
+}
+
+/** Function
+ * Recursively Builds a balance OR-tree over elements r[start..end] and
+ * returns the head of the tree.
+ * @param pSat      [in out]    Sat Solver
+ * @param GCnf      [in]        Cnf
+ * @param GAig      [in]        Aig
+ * @param r         [in]        vector of Aig_Obj_t*
+ * @param start     [in]
+ * @param end       [in]
+ */
+lit addRlToSolver_rec(sat_solver* pSat, Cnf_Dat_t* GCnf, Aig_Man_t* GAig, const vector<Aig_Obj_t*>& r, int start, int end) {
+
+    assert(end > start);
+
+    if(end == start+1)
+        return GCnf->pVarNums[r[start]->Id];
+
+    int mid = (start+end)/2;
+    lit lh = addRlToSolver_rec(pSat, GCnf, GAig, r, start, mid);
+    lit rh = addRlToSolver_rec(pSat, GCnf, GAig, r, mid, end);
+    lit nv = OR(pSat, lh, rh);
+
+    return nv;
+}
+
+/** Function
+ * Returns a new sat solver variable
+ * @param pSat      [in]        Sat Solver
+ * @param GCnf      [in]        Cnf
+ * @param GAig      [in]        Aig
+ * @param r         [in]        vector of Aig_Obj_t*
+ */
+int sat_solver_newvar(sat_solver* s) {
+    // TODO use sat_solver_addvar
+    sat_solver_setnvars(s, s->size+1);
+    return s->size-1;
+}
+
+/** Function
+ * Returns a new sat solver variable denoting OR of lh and rh
+ * @param pSat		[in]        Sat Solver
+ * @param lh		[in]        lhs
+ * @param rh		[in]        rhs
+ */
+lit OR(sat_solver* pSat, lit lh, lit rh) {
+    int nv = sat_solver_newvar(pSat);
+
+    lit Lits[4];
+    assert(lh!=0 && rh!=0);
+    // nv -> lh or rh
+    Lits[0] = toLitCond( abs(-nv), -nv<0 );
+    Lits[1] = toLitCond( abs(lh), lh<0 );
+    Lits[2] = toLitCond( abs(rh), rh<0 );
+    if(!sat_solver_addclause( pSat, Lits, Lits + 3 ))
+        assert(false);
+
+    // lh -> nv
+    Lits[0] = toLitCond( abs(-lh), -lh<0 );
+    Lits[1] = toLitCond( abs(nv), nv<0 );
+    if(!sat_solver_addclause( pSat, Lits, Lits + 2 ))
+        assert(false);
+
+    // rh -> nv
+    Lits[0] = toLitCond( abs(-rh), -rh<0 );
+    Lits[1] = toLitCond( abs(nv), nv<0 );
+    if(!sat_solver_addclause( pSat, Lits, Lits + 2 ))
+        assert(false);
+
+    return nv;
+}
+
+/** Function
+ * Adds CNF Formula to Solver
+ * @param pSat		[in]        Sat Solver
+ * @param cnf		[in]        Cnf Formula
+ */
+void addCnfToSolver(sat_solver* pSat, Cnf_Dat_t* cnf) {
+	sat_solver_setnvars(pSat, sat_solver_nvars(pSat) + cnf->nVars);
+    for (int i = 0; i < cnf->nClauses; i++)
+        if (!sat_solver_addclause(pSat, cnf->pClauses[i], cnf->pClauses[i+1]))
+            assert(false);
+}
+
 ////////////////////////////////////////////////////////////////////////
 ///                            MAIN                                  ///
 ////////////////////////////////////////////////////////////////////////
@@ -279,6 +444,7 @@ int main( int argc, char * argv[] )
         cout << "#####################################################" << endl;
     #endif
 
+    OUT("Aig_ManCoNum(SAig): " << Aig_ManCoNum(SAig)<<endl);
     populateVars(FNtk, nnf, varsFile,
                     varsXF, varsXS,
                     varsYF, varsYS,
@@ -310,8 +476,70 @@ int main( int argc, char * argv[] )
 
     assert(numX + numY == numOrigInputs);
 
+	// F_SAig      will always be Aig_ManCo( ... , 1)
+	// FPrime_SAig will always be Aig_ManCo( ... , 2)
+	OUT("buildF(SAig)..."<<endl);
+	const Aig_Obj_t* F_SAig = buildF(SAig);
+	OUT("buildFPrime(SAig)..."<<endl);
+	const Aig_Obj_t* FPrime_SAig = buildFPrime(SAig, F_SAig);
     vector<vector<Aig_Obj_t*> > r0(numY), r1(numY);
+	OUT("initializeRs(SAig, r0, r1)..."<<endl);
     initializeRs(SAig, r0, r1);
+
+	OUT("Instantiating new solver..." << endl);
+	sat_solver *pSat = sat_solver_new();
+
+	// Build CNF
+	Cnf_Dat_t* SCnf = Cnf_Derive(SAig, Aig_ManCoNum(SAig));
+	addCnfToSolver(pSat, SCnf);
+
+	#ifdef DEBUG
+		Cnf_DataPrint(SCnf,1);
+
+		cout << "\nSAig: " << endl;
+		Abc_NtkForEachObj(SNtk,pAbcObj,i)
+			cout <<"Node "<<i<<": " << Abc_ObjName(pAbcObj) << endl;
+
+		cout << endl;
+		Aig_ManForEachObj( SAig, pAigObj, i )
+			Aig_ObjPrintVerbose( pAigObj, 1 ), printf( "\n" );
+		cout << endl;
+
+		cout << "Original:    " << Aig_ManCo(SAig,0)->Id <<endl;
+		cout << "F_SAig:      " << F_SAig->Id <<endl;
+		cout << "FPrime_SAig: " << FPrime_SAig->Id <<endl;
+		for(int i = 0; i < r1.size(); i++) {
+			cout<<"r1[i]:       "<<r1[i][0]->Id << endl;;
+		}
+
+	#endif
+
+	// assert F(X, Y) = false, F(X, Y') = true
+	addVarToSolver(pSat, SCnf->pVarNums[F_SAig->Id], 0);
+	addVarToSolver(pSat, SCnf->pVarNums[FPrime_SAig->Id], 1);
+
+	// Assert y_i == -r1[i]
+	for (int i = 0; i < numY; ++i) {
+		Equate(pSat, SCnf->pVarNums[varsYS[i]], -addRlToSolver(pSat, SCnf, SAig, r1[i]));
+	}
+
+	OUT("Simplifying..." << endl);
+	if(!sat_solver_simplify(pSat)) {
+		cout << "\nFormula is trivially unsat\n" << endl;
+		return 0;
+	}
+	else {
+		OUT("Solving..." << endl);
+		int status = sat_solver_solve(pSat, 0, 0, (ABC_INT64_T)0, (ABC_INT64_T)0, (ABC_INT64_T)0, (ABC_INT64_T)0);
+
+		if (status == l_False) {
+			cout << "\nFormula is unsat\n" << endl;
+			return 0;
+		}
+		else if (status == l_True) {
+			cout << "\nFormula is sat; get the CEX\n" << endl;
+		}
+	}
 
     // Stop ABC
     Abc_Stop();
