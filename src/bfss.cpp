@@ -161,6 +161,7 @@ void initializeRs(Aig_Man_t* SAig,
         // for(int j = numX + numY; j < 2*(numX + numY); j++)
             // Aig_ObjDelete(delta, Aig_ManCi(delta, j));
         Aig_ObjCreateCo(SAig, delta);
+        OUT("Pushing " << Aig_ManCoNum(SAig)-1 << " r0["<<i<<"]");
         r0[i].push_back(Aig_ManCoNum(SAig)-1);
 
         // reuse delta of the first half of the above for gamma
@@ -188,6 +189,7 @@ void initializeRs(Aig_Man_t* SAig,
         // for(int j = numX + numY; j < 2*(numX + numY); j++)
             // Aig_ObjDelete(gamma, Aig_ManCi(gamma, j));
         Aig_ObjCreateCo(SAig, gamma);
+        OUT("Pushing " << Aig_ManCoNum(SAig)-1 << " r1["<<i<<"]");
         r1[i].push_back(Aig_ManCoNum(SAig)-1);
     }
 }
@@ -350,12 +352,12 @@ void addCnfToSolver(sat_solver* pSat, Cnf_Dat_t* cnf) {
 }
 
 /** Function
- * Builds the ErrorFormula:
+ * Builds the ErrorFormula (see below) and returns SCnf.
  * F(X,Y') and !F(X,Y) and \forall i (y_i == !r1[i])
  * @param pSat		[in]        Sat Solver
  * @param SAig		[in]        Aig to build the formula from
  */
-void buildErrorFormula(sat_solver* pSat, Aig_Man_t* SAig,
+Cnf_Dat_t* buildErrorFormula(sat_solver* pSat, Aig_Man_t* SAig,
     vector<vector<int> > &r0, vector<vector<int> > &r1) {
     Abc_Obj_t* pAbcObj;
     int i;
@@ -392,6 +394,7 @@ void buildErrorFormula(sat_solver* pSat, Aig_Man_t* SAig,
     for (int i = 0; i < numY; ++i) {
         Equate(pSat, SCnf->pVarNums[varsYS[i]], -addRlToSolver(pSat, SCnf, SAig, r1[i]));
     }
+    return SCnf;
 }
 
 /** Function
@@ -405,13 +408,14 @@ void buildErrorFormula(sat_solver* pSat, Aig_Man_t* SAig,
 bool callSATfindCEX(Aig_Man_t* SAig,vector<int>& cex,
     vector<vector<int> > &r0, vector<vector<int> > &r1) {
     OUT("callSATfindCEX..." );
+    bool return_val;
     sat_solver *pSat = sat_solver_new();
-    buildErrorFormula(pSat, SAig, r0, r1);
+    Cnf_Dat_t *SCnf  = buildErrorFormula(pSat, SAig, r0, r1);
 
     OUT("Simplifying..." );
     if(!sat_solver_simplify(pSat)) {
         OUT("Formula is trivially unsat");
-        return false;
+        return_val = false;
     }
     else {
         OUT("Solving..." );
@@ -419,7 +423,7 @@ bool callSATfindCEX(Aig_Man_t* SAig,vector<int>& cex,
 
         if (status == l_False) {
             OUT("Formula is unsat");
-            return false;
+            return_val = false;
         }
         else if (status == l_True) {
             OUT("Formula is sat; get the CEX");
@@ -451,9 +455,12 @@ bool callSATfindCEX(Aig_Man_t* SAig,vector<int>& cex,
                 }
             #endif
 
-            return true;
+            return_val = true;
         }
     }
+	sat_solver_delete(pSat);
+	Cnf_DataFree(SCnf);
+	return return_val;
 }
 
 /** Function
@@ -518,6 +525,7 @@ void evaluateAig(Aig_Man_t* formula, const vector<int> &cex) {
 Aig_Obj_t* satisfiesVec(Aig_Man_t* formula, const vector<int>& cex, const vector<int>& coObjs) {
     evaluateAig(formula, cex);
     for(int i = 0; i < coObjs.size(); i++) {
+		OUT("Accessing Co "<<coObjs[i]);
         if(Aig_ManCo(formula,coObjs[i])->iData == 1) {
             return Aig_ManCo(formula,coObjs[i]);
         }
@@ -595,9 +603,12 @@ Aig_Obj_t* Aig_AndAigs(Aig_Man_t* pMan, Aig_Obj_t* Aig1, Aig_Obj_t* Aig2) {
 void updateAbsRef(Aig_Man_t* pMan, vector<vector<int> > &r0, vector<vector<int> > &r1,
     const vector<int> &cex) {
 
+	OUT("updateAbsRef...");
     int k, l, i;
     Aig_Obj_t *mu0, *mu1, *mu, *pAigObj;
-    for(k = numY; k >= 0; k--) {
+
+	OUT("Finding k...");
+    for(k = numY-1; k >= 0; k--) {
         if(((mu0 = satisfiesVec(pMan, cex, r0[k])) != NULL) &&
 			((mu1 = satisfiesVec(pMan, cex, r1[k])) != NULL))
             break;
@@ -608,25 +619,28 @@ void updateAbsRef(Aig_Man_t* pMan, vector<vector<int> > &r0, vector<vector<int> 
     mu = Aig_AndAigs(pMan, mu0, mu1);
     l = k + 1;
 
-    OUT("Starting updateAbsRef Loop at at l = "<<l);
     while(true) {
+		OUT("Running updateAbsRef Loop at l = "<<l);
 		assert(l<numY);
 		if(Aig_Support(pMan, mu, varsYS[l])) {
 			if(cex[numX + l] == 1) {
 				mu1 = Aig_SubstituteConst(pMan, mu, varsYS[l], 1);
 				Aig_ObjCreateCo(pMan, mu1);
+				OUT("Pushing " << Aig_ManCoNum(pMan)-1 << " r1["<<l<<"]");
 				r1[l].push_back(Aig_ManCoNum(pMan)-1);
 				if(satisfiesVec(pMan, cex, r0[l]) != NULL) {
 					mu0 = generalize(pMan,cex,r0[l]);
 					mu = Aig_AndAigs(pMan, mu0, mu1);
 				}
 				else {
+					OUT("CEX Solved, breaking...");
 					break;
 				}
 			}
 			else {
 				mu0 = Aig_SubstituteConst(pMan, mu, varsYS[l], 0);
 				Aig_ObjCreateCo(pMan, mu0);
+				OUT("Pushing new node to r0["<<l<<"]...");
 				r0[l].push_back(Aig_ManCoNum(pMan)-1);
 				mu1 = generalize(pMan,cex,r1[l]);
 				mu = Aig_AndAigs(pMan, mu0, mu1);
@@ -634,6 +648,7 @@ void updateAbsRef(Aig_Man_t* pMan, vector<vector<int> > &r0, vector<vector<int> 
 		}
 		l = l+1;
     }
+    OUT("updateAbsRef done...");
     return;
 }
 
@@ -796,10 +811,10 @@ int main( int argc, char * argv[] )
 	numX = varsXS.size();
 	numY = varsYS.size();
 
+    cout << "numX " << numX << endl;
+    cout << "numY " << numY << endl;
+    cout << "numOrigInputs " << numOrigInputs << endl;
     #ifdef DEBUG_CHUNK // Print nnf.inputs, varsXS, varsYS
-        cout << "numX " << numX << endl;
-        cout << "numY " << numY << endl;
-        cout << "numOrigInputs " << numOrigInputs << endl;
         // cout << "varsXF: " << endl;
         // for(auto it : varsXF)
         //     cout << it << " ";
@@ -862,6 +877,7 @@ int main( int argc, char * argv[] )
 		OUT("\nIter " << numloops << ":\tFound CEX!");
 		cout<<'.'<<flush;
 		evaluateAig(SAig, cex);
+		updateAbsRef(SAig, r0, r1, cex);
 		numloops++;
 
 		if(numloops % 1000 == 0) {
