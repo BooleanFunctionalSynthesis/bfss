@@ -557,14 +557,17 @@ bool Aig_Support_rec(Aig_Man_t* pMan, Aig_Obj_t* root, int inpNodeId, map<Aig_Ob
     if(root->Id == inpNodeId)
         return true;
 
+	if(Aig_ObjIsCi(root) || Aig_ObjIsConst1(root))
+		return false;
+
 	if(memo.find(root) != memo.end())
 		return memo[root];
 
     bool result = false;
-    if(root->pFanin0 != NULL)
-        result = result || Aig_Support_rec(pMan, root->pFanin0, inpNodeId, memo);
-    if(root->pFanin1 != NULL)
-        result = result || Aig_Support_rec(pMan, root->pFanin1, inpNodeId, memo);
+    if(Aig_ObjFanin0(root) != NULL)
+        result = result || Aig_Support_rec(pMan, Aig_ObjFanin0(root), inpNodeId, memo);
+    if(Aig_ObjFanin1(root) != NULL)
+        result = result || Aig_Support_rec(pMan, Aig_ObjFanin1(root), inpNodeId, memo);
 
     memo[root] = result;
     return result;
@@ -578,7 +581,7 @@ bool Aig_Support_rec(Aig_Man_t* pMan, Aig_Obj_t* root, int inpNodeId, map<Aig_Ob
  */
 bool Aig_Support(Aig_Man_t* pMan, Aig_Obj_t* root, int inpNodeId) {
 	map<Aig_Obj_t*,bool> memo;
-	return Aig_Support_rec(pMan,root,inpNodeId,memo);
+	return Aig_Support_rec(pMan,Aig_Regular(root),inpNodeId,memo);
 }
 
 /** Function
@@ -700,6 +703,52 @@ Aig_Man_t* compressAigByNtk(Aig_Man_t* SAig) {
 	temp = Abc_NtkToDar(SNtk, 0, 0);
 	Aig_ManStop(SAig);
 	return temp;
+}
+
+
+/** Function
+ * Checks and asserts expected support invariants for r0 r1 F_SAig and FPrime_Saig
+ * @param SAig		[in]		Aig to be compressed
+ * @param r0		[in]
+ * @param r1		[in]
+ */
+void checkSupportSanity(Aig_Man_t*pMan, vector<vector<int> > &r0, vector<vector<int> > &r1) {
+	for (int i = 0; i < numY; ++i) {
+		for(auto co_num:r0[i])
+			for (int j = 0; j <= i; ++j)
+				assert(Aig_Support(pMan, Aig_ManCo(pMan, co_num), varsYS[j]) == false);
+		for(auto co_num:r1[i])
+			for (int j = 0; j <= i; ++j)
+				assert(Aig_Support(pMan, Aig_ManCo(pMan, co_num), varsYS[j]) == false);
+	}
+	for (int i = 0; i < numY; ++i) {
+		for(auto r:r0)
+			for(auto co_num:r)
+				assert(Aig_Support(pMan, Aig_ManCo(pMan, co_num), varsYS[i] + numOrigInputs) == false);
+		for(auto r:r1)
+			for(auto co_num:r)
+				assert(Aig_Support(pMan, Aig_ManCo(pMan, co_num), varsYS[i] + numOrigInputs) == false);
+	}
+	for (int i = 0; i < numX; ++i) {
+		for(auto r:r0)
+			for(auto co_num:r)
+				assert(Aig_Support(pMan, Aig_ManCo(pMan, co_num), varsXS[i] + numOrigInputs) == false);
+		for(auto r:r1)
+			for(auto co_num:r)
+				assert(Aig_Support(pMan, Aig_ManCo(pMan, co_num), varsXS[i] + numOrigInputs) == false);
+	}
+
+	Aig_Obj_t* F_SAig = Aig_ManCo(pMan,1);
+	Aig_Obj_t* FPrime_SAig = Aig_ManCo(pMan,2);
+
+	for (int i = 0; i < numY; ++i) {
+		assert(Aig_Support(pMan, F_SAig, varsYS[i] + numOrigInputs) == false);
+		assert(Aig_Support(pMan, FPrime_SAig, varsYS[i]) == false);
+	}
+	for (int i = 0; i < numX; ++i) {
+		assert(Aig_Support(pMan, F_SAig, varsXS[i] + numOrigInputs) == false);
+		assert(Aig_Support(pMan, FPrime_SAig, varsXS[i] + numOrigInputs) == false);
+	}
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -841,6 +890,10 @@ int main( int argc, char * argv[] )
 
     assert(numX + numY == numOrigInputs);
 
+	OUT("Cleaning up...");
+	int removed = Aig_ManCleanup(SAig);
+	OUT("Removed "<<removed<<" nodes");
+
 	// F_SAig      will always be Aig_ManCo( ... , 1)
 	// FPrime_SAig will always be Aig_ManCo( ... , 2)
 	cout << "buildF(SAig)..."<<endl;
@@ -852,6 +905,9 @@ int main( int argc, char * argv[] )
 	clock_t compose_start = clock();
     initializeRs(SAig, r0, r1);
 	clock_t compose_end = clock();
+
+	cout << "checkSupportSanity(SAig, r0, r1)..."<<endl;
+	checkSupportSanity(SAig, r0, r1);
 
 	#ifdef DEBUG_CHUNK // Print SAig
         cout << "\nSAig: " << endl;
@@ -869,6 +925,9 @@ int main( int argc, char * argv[] )
         Aig_ManForEachObj( SAig, pAigObj, i )
             Aig_ObjPrintVerbose( pAigObj, 1 ), printf( "\n" );
     #endif
+
+	cout << "checkSupportSanity(SAig, r0, r1)..."<<endl;
+	checkSupportSanity(SAig, r0, r1);
 
     // CEGAR Loop
     cout << "Starting CEGAR Loop..."<<endl;
