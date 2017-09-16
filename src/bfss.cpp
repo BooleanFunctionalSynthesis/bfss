@@ -5,6 +5,7 @@
 #include <bits/stdc++.h>
 #include <fstream>
 #include <sstream>
+#include <ctime>
 #include "helper.h"
 #include "formula.h"
 
@@ -64,27 +65,34 @@ void populateVars(Abc_Ntk_t* FNtk, AigToNNF& nnf, string varsFile,
     Abc_Obj_t* pPi;
     string line;
 
-    OUT( "Prim Inputs F:" << endl);
+    OUT( "Prim Inputs F:" );
     Abc_NtkForEachCi( FNtk, pPi, i ) {
         string variable_name = Abc_ObjName(pPi);
         name2IdF[variable_name] = pPi->Id;
-        OUT( i << ": " << pPi->Id << ", " << variable_name << endl);
+        OUT( i << ": " << pPi->Id << ", " << variable_name );
     }
     for(auto it:name2IdF)
         id2NameF[it.second] = it.first;
 
-    OUT( "Reading vars to elim..." <<endl);
+    OUT( "Reading vars to elim..." );
     auto name2IdFTemp = name2IdF;
     ifstream varsStream(varsFile);
+    if(!varsStream.is_open())
+        cout << "Var File " + varsFile + " does not exist!" << endl;
+    assert(varsStream.is_open());
     while (getline(varsStream, line)) {
-        varsYF.push_back(name2IdFTemp[line]);
-        name2IdFTemp.erase(line);
+        if(line != "") {
+            auto it = name2IdFTemp.find(line);
+            assert(it != name2IdFTemp.end());
+            varsYF.push_back(it->second);
+            name2IdFTemp.erase(it);
+        }
     }
     for(auto it:name2IdFTemp) {
         varsXF.push_back(it.second);
     }
 
-    OUT( "Populating varsXS varsYS..." <<endl);
+    OUT( "Populating varsXS varsYS..." );
     for(auto it : varsXF)
         varsXS.push_back(nnf.var_num2Id[it]);
     for(auto it : varsYF)
@@ -226,7 +234,7 @@ Aig_Obj_t* buildFPrime(Aig_Man_t* SAig, const Aig_Obj_t* F_SAig) {
  * @param val       [in]         Value to be assigned
  */
 void addVarToSolver(sat_solver* pSat, int varNum, int val) {
-    OUT("addVarToSolver " << ((val)?(varNum):-varNum) << endl);
+    OUT("addVarToSolver " << ((val)?(varNum):-varNum) );
     lit l = toLitCond(varNum, val==0);
     if(!sat_solver_addclause(pSat, &l, &l+1))
         assert(false);
@@ -340,49 +348,338 @@ void addCnfToSolver(sat_solver* pSat, Cnf_Dat_t* cnf) {
             assert(false);
 }
 
+/** Function
+ * Builds the ErrorFormula:
+ * F(X,Y') and !F(X,Y) and \forall i (y_i == !r1[i])
+ * @param pSat		[in]        Sat Solver
+ * @param SAig		[in]        Aig to build the formula from
+ */
+void buildErrorFormula(sat_solver* pSat, Aig_Man_t* SAig,
+    vector<vector<Aig_Obj_t* > > &r0, vector<vector<Aig_Obj_t* > > &r1) {
+    Abc_Obj_t* pAbcObj;
+    int i;
+
+    // Build CNF
+    Cnf_Dat_t* SCnf = Cnf_Derive(SAig, Aig_ManCoNum(SAig));
+    addCnfToSolver(pSat, SCnf);
+
+    #ifdef DEBUG_CHUNK
+        Cnf_DataPrint(SCnf,1);
+
+        // cout << "\nSAig: " << endl;
+        // Abc_NtkForEachObj(SNtk,pAbcObj,i)
+        //     cout <<"Node "<<i<<": " << Abc_ObjName(pAbcObj) << endl;
+
+        // cout << endl;
+        // Aig_ManForEachObj( SAig, pAigObj, i )
+        //     Aig_ObjPrintVerbose( pAigObj, 1 ), printf( "\n" );
+        // cout << endl;
+
+        // cout << "Original:    " << Aig_ManCo(SAig,0)->Id <<endl;
+        // cout << "F_SAig:      " << Aig_ManCo(SAig,1)->Id <<endl;
+        // cout << "FPrime_SAig: " << Aig_ManCo(SAig,2)->Id <<endl;
+        // for(int i = 0; i < r1.size(); i++) {
+        //     cout<<"r1[i]:       "<<r1[i][0]->Id << endl;;
+        // }
+    #endif
+
+    // assert F(X, Y) = false, F(X, Y') = true
+    addVarToSolver(pSat, SCnf->pVarNums[Aig_ManCo(SAig,1)->Id], 0);
+    addVarToSolver(pSat, SCnf->pVarNums[Aig_ManCo(SAig,2)->Id], 1);
+
+    // Assert y_i == -r1[i]
+    for (int i = 0; i < numY; ++i) {
+        Equate(pSat, SCnf->pVarNums[varsYS[i]], -addRlToSolver(pSat, SCnf, SAig, r1[i]));
+    }
+}
+
+/** Function
+ * Builds the ErrorFormula, Calls Sat Solver on it, populates cex.
+ * Returns false if UNSAT.
+ * F(X,Y') and !F(X,Y) and \forall i (y_i == !r1[i])
+ * @param pSat		[in]		Sat Solver
+ * @param SAig		[in]		Aig to build the formula from
+ * @param cex		[out]		Counter-example, contains values of X Y neg_X neg_Y in order.
+ */
+bool callSATfindCEX(Aig_Man_t* SAig,vector<int>& cex,
+    vector<vector<Aig_Obj_t* > > &r0, vector<vector<Aig_Obj_t* > > &r1) {
+    OUT("Instantiating new solver..." );
+    sat_solver *pSat = sat_solver_new();
+    buildErrorFormula(pSat, SAig, r0, r1);
+
+    OUT("Simplifying..." );
+    if(!sat_solver_simplify(pSat)) {
+        cout << "\nFormula is trivially unsat\n" << endl;
+        return false;
+    }
+    else {
+        OUT("Solving..." );
+        int status = sat_solver_solve(pSat, 0, 0, (ABC_INT64_T)0, (ABC_INT64_T)0, (ABC_INT64_T)0, (ABC_INT64_T)0);
+
+        if (status == l_False) {
+            cout << "\nFormula is unsat\n" << endl;
+            return false;
+        }
+        else if (status == l_True) {
+            cout << "\nFormula is sat; get the CEX\n" << endl;
+
+            cex.resize(2*numOrigInputs);
+            for (int i = 0; i < numX; ++i) {
+                cex[i] = varsXS[i];
+            }
+            for (int i = 0; i < numY; ++i) {
+                cex[numX + i] = varsYS[i];
+            }
+            for (int i = 0; i < numX; ++i) {
+                cex[numOrigInputs + i] = varsXS[i] + numOrigInputs;
+            }
+            for (int i = 0; i < numY; ++i) {
+                cex[numOrigInputs + numX + i] = varsYS[i] + numOrigInputs;
+            }
+
+            // for(auto e:cex)
+            //     cout<<e<<endl;
+            // cout<<endl<<endl;
+
+            int * v = Sat_SolverGetModel(pSat, &cex[0], cex.size());
+            cex = vector<int>(v,v+cex.size());
+
+            #ifdef DEBUG_CHUNK
+                for (int i = 0; i < cex.size(); ++i) {
+                    cout<<i<<":\t"<<cex[i]<<endl;
+                }
+            #endif
+
+            return true;
+        }
+    }
+}
+
+/** Function
+ * This evaluates all nodes of the Aig using values from cex
+ * The value of the node is stored in pObj->iData
+ * @param formula	[in]		Aig Manager
+ * @param cex		[in]		counter-example
+ */
+void evaluateAig(Aig_Man_t* formula, const vector<int> &cex) {
+    // assert(cex.size() == Aig_ManCiNum(formula));
+    int i;
+    Aig_Obj_t* pObj;
+
+    for (int i = 0; i < numX; ++i) {
+		Aig_ManObj(formula, varsXS[i])->iData = cex[i];
+    }
+    for (int i = 0; i < numY; ++i) {
+		Aig_ManObj(formula, varsYS[i])->iData = cex[numX + i];
+    }
+    for (int i = 0; i < numX; ++i) {
+		Aig_ManObj(formula, varsXS[i]+numOrigInputs)->iData = cex[i+numOrigInputs];
+    }
+    for (int i = 0; i < numY; ++i) {
+		Aig_ManObj(formula, varsYS[i]+numOrigInputs)->iData = cex[i+numX+numOrigInputs];
+    }
+
+    Aig_ManForEachObj(formula, pObj, i) {
+        // cout << "Evaluating node " << pObj->Id << endl;
+        if(pObj->Id > 2*numOrigInputs) {
+            pObj->iData = 1;
+            int ld, rd;
+            if(Aig_ObjFanin0(pObj) != NULL) {
+                ld = Aig_ObjFanin0(pObj)->iData;
+                if(Aig_IsComplement(pObj->pFanin0))
+                    ld = 1 - ld;
+
+                // cout << "\tld = " << ld << endl;
+                pObj->iData *= ld;
+            }
+            if(Aig_ObjFanin1(pObj) != NULL) {
+                rd = Aig_ObjFanin1(pObj)->iData;
+                if(Aig_IsComplement(pObj->pFanin1))
+                    rd = 1 - rd;
+
+                // cout << "\trd = " << ld << endl;
+                pObj->iData *= rd;
+            }
+        }
+        // cout << "\tEvaluated node " << pObj->Id <<"\t= "<<pObj->iData<<endl;
+    }
+    return;
+}
+
+/** Function
+ * Finds an element in coObjs that satisfies cex.
+ * Returns the object, if found. Else, returns NULL.
+ * Call evaluateAig(...) before this function.
+ * @param formula	[in]		Aig Manager
+ * @param cex 		[in]		Counterexample
+ * @param coObjs	[in]		Aig Objects to check
+ */
+Aig_Obj_t* satisfiesVec(Aig_Man_t* formula, const vector<int>& cex, const vector<Aig_Obj_t* >& coObjs) {
+    evaluateAig(formula, cex);
+    for(int i = 0; i < coObjs.size(); i++) {
+        if(coObjs[i]->iData == 1) {
+            return coObjs[i];
+        }
+    }
+    return NULL;
+}
+
+/** Function
+ * Performs the function of the GENERALIZE routine as mentioned in FMCAD paper.
+ * @param pMan		[in]		Aig Manager
+ * @param cex		[in]		counter-example to be generalized
+ * @param rl		[in]		Underaproximations of Cant-be sets
+ */
+static inline Aig_Obj_t* generalize(Aig_Man_t*pMan, vector<int> cex, const vector<Aig_Obj_t* >& rl) {
+	return satisfiesVec(pMan, cex, rl);
+}
+
+/** Function
+ * Recursively checks if inpNodeId lies in support of root.
+ * @param pMan		[in]		Aig Manager
+ * @param root		[in]		Function to check support of
+ * @param inpNodeId	[in]		ID of input variable to be checked
+ * @param memo		[in]		A map for memoization
+ */
+bool Aig_Support_rec(Aig_Man_t* pMan, Aig_Obj_t* root, int inpNodeId, map<Aig_Obj_t*,bool>& memo) {
+    if(root == NULL)
+		return false;
+
+    if(root->Id == inpNodeId)
+        return true;
+
+	if(memo.find(root) != memo.end())
+		return memo[root];
+
+    bool result = false;
+    if(root->pFanin0 != NULL)
+        result = result || Aig_Support_rec(pMan, root->pFanin0, inpNodeId, memo);
+    if(root->pFanin1 != NULL)
+        result = result || Aig_Support_rec(pMan, root->pFanin1, inpNodeId, memo);
+
+    memo[root] = result;
+    return result;
+}
+
+/** Function
+ * Checks if inpNodeId lies in support of root.
+ * @param pMan		[in]		Aig Manager
+ * @param root		[in]		Function to check support of
+ * @param inpNodeId	[in]		ID of input variable to be checked
+ */
+bool Aig_Support(Aig_Man_t* pMan, Aig_Obj_t* root, int inpNodeId) {
+	map<Aig_Obj_t*,bool> memo;
+	return Aig_Support_rec(pMan,root,inpNodeId,memo);
+}
+
+/** Function
+ * Returns And of Aig1 and Aig2
+ * @param pMan		[in]		Aig Manager
+ * @param Aig1		[in]
+ * @param Aig2		[in]
+ */
+Aig_Obj_t* Aig_AndAigs(Aig_Man_t* pMan, Aig_Obj_t* Aig1, Aig_Obj_t* Aig2) {
+    Aig_Obj_t* lhs = Aig_ObjIsCo(Aig1)? Aig1->pFanin0: Aig1;
+    Aig_Obj_t* rhs = Aig_ObjIsCo(Aig2)? Aig2->pFanin0: Aig2;
+    return Aig_And(pMan, lhs, rhs);
+}
+
+/** Function
+ * This updates r0 and r1 while eliminating cex
+ * @param pMan		[in]		Aig Manager
+ * @param r0		[in out]	Underaproximations of Cant-be-0 sets
+ * @param r1		[in out]	Underaproximations of Cant-be-1 sets
+ * @param cex		[in]		counter-example
+ */
+void updateAbsRef(Aig_Man_t* pMan, vector<vector<Aig_Obj_t* > > &r0, vector<vector<Aig_Obj_t* > > &r1,
+    const vector<int> &cex) {
+
+    int k, l, i;
+    Aig_Obj_t *mu0, *mu1, *mu, *pAigObj;
+    for(k = numY; k >= 0; k--) {
+        if(((mu0 = satisfiesVec(pMan, cex, r0[k])) != NULL) &&
+			((mu1 = satisfiesVec(pMan, cex, r1[k])) != NULL))
+            break;
+    }
+    assert(k >= 0);
+    // mu0 = generalize(pMan,cex, r0[k]);
+    // mu1 = generalize(pMan,cex, r1[k]);
+    mu = Aig_AndAigs(pMan, mu0, mu1);
+    l = k + 1;
+
+    OUT("Starting updateAbsRef Loop at at l = "<<l);
+    while(true) {
+		assert(l<numY);
+		if(Aig_Support(pMan, mu, varsYS[l])) {
+			if(cex[numX + l] == 1) {
+				mu1 = Aig_SubstituteConst(pMan, mu, varsYS[l], 1);
+				r1[l].push_back(Aig_ObjCreateCo(pMan, mu1));
+				if(satisfiesVec(pMan, cex, r0[l]) != NULL) {
+					mu0 = generalize(pMan,cex,r0[l]);
+					mu = Aig_AndAigs(pMan, mu0, mu1);
+				}
+				else {
+					break;
+				}
+			}
+			else {
+				mu0 = Aig_SubstituteConst(pMan, mu, varsYS[l], 0);
+				r0[l].push_back(Aig_ObjCreateCo(pMan, mu0));
+				mu1 = generalize(pMan,cex,r1[l]);
+				mu = Aig_AndAigs(pMan, mu0, mu1);
+			}
+		}
+		l = l+1;
+    }
+    return;
+}
+
 ////////////////////////////////////////////////////////////////////////
 ///                            MAIN                                  ///
 ////////////////////////////////////////////////////////////////////////
 int main( int argc, char * argv[] )
 {
-	string pFileName, cmd, initCmd, varsFile, line, benchmarkName;
-    Abc_Obj_t* pPi, *pCi, *pAbcObj;
-    Aig_Obj_t* pAigObj, *negVarObj;
+	string pFileName, varsFile, benchmarkName;
+	Abc_Obj_t* pAbcObj;
+	Aig_Obj_t* pAigObj;
     map<string, int> name2IdF;
     map<int, string> id2NameF;
-    int i, j, liftVal, cummLiftF = 0, cummLiftS = 0;
+	int i, j;
     vector<int> cex;
 
-    assert(argc == 2);
+	assert(argc >= 2);
     benchmarkName = string(argv[1]);
-    pFileName     = benchmarkName + ".v";
-    varsFile      = benchmarkName + "_elimVars.txt";
+	pFileName     = benchmarkName;
+	varsFile      = benchmarkName.substr(0,benchmarkName.find_last_of('.')) +
+					((argc==2)?"_varstoelim.txt":string(argv[2]));
 
-    OUT("get FNtk..." <<endl);
+	clock_t main_start = clock();
+
+    OUT("get FNtk..." );
     Abc_Ntk_t* FNtk = getNtk(pFileName,true);
-    OUT("get FAig..." <<endl);
+    OUT("get FAig..." );
     Aig_Man_t* FAig = Abc_NtkToDar(FNtk, 0, 0);
 
     AigToNNF nnf(FAig);
-    OUT("parse..." <<endl);
+    OUT("parse..." );
     nnf.parse();
     numOrigInputs = nnf.getNumInputs();
-    OUT("process..." <<endl);
+    OUT("process..." );
     nnf.process();
-    OUT("createAig..." <<endl);
+    OUT("createAig..." );
     nnf.createAig();
-    OUT("getNtk..." <<endl);
+    OUT("getNtk..." );
     Abc_Ntk_t* SNtk = nnf.getNtk();
     Aig_Man_t* SAig = Abc_NtkToDar(SNtk, 0, 0);
 
-    #ifdef DEBUG
+    #ifdef DEBUG_CHUNK
         // cout << "\nAig_ManPrintVerbose FAig: " << endl;
         // Aig_ManPrintVerbose(FAig,1);
         // cout << "\nAig_ManPrintVerbose SAig: " << endl;
         // Aig_ManPrintVerbose(SAig,1);
         cout << "\nFAig: " << endl;
         Abc_NtkForEachObj(FNtk,pAbcObj,i)
-            cout <<"Node "<<i<<": " << Abc_ObjName(pAbcObj) << endl;
+            cout <<"FAig Node "<<i<<": " << Abc_ObjName(pAbcObj) << endl;
 
         cout << endl;
         Aig_ManForEachObj( FAig, pAigObj, i )
@@ -390,7 +687,7 @@ int main( int argc, char * argv[] )
 
         cout << "\nSAig: " << endl;
         Abc_NtkForEachObj(SNtk,pAbcObj,i)
-            cout <<"Node "<<i<<": " << Abc_ObjName(pAbcObj) << endl;
+            cout <<"SAig Node "<<i<<": " << Abc_ObjName(pAbcObj) << endl;
 
         cout << endl;
         Aig_ManForEachObj( SAig, pAigObj, i )
@@ -399,17 +696,17 @@ int main( int argc, char * argv[] )
 
     #ifdef COMPARE_SAIGS // Compare SAig1 to old SAig
         AigToNNF nnf2(pFileName);
-        OUT("nnf2 parse..." <<endl);
+        OUT("nnf2 parse..." );
         nnf2.parse();
-        OUT("nnf2 process..." <<endl);
+        OUT("nnf2 process..." );
         nnf2.process();
-        OUT("nnf2 resetCounters..." <<endl);
+        OUT("nnf2 resetCounters..." );
         nnf2.resetCounters();
-        OUT("nnf2 createAig..." <<endl);
+        OUT("nnf2 createAig..." );
         nnf2.createAig();
-        OUT("nnf2 getNtk..." <<endl);
+        OUT("nnf2 getNtk..." );
         Abc_Ntk_t* SNtk2 = nnf2.getNtk();
-        OUT("nnf2 get AIGs..." <<endl);
+        OUT("nnf2 get AIGs..." );
         Aig_Man_t* SAig2 = Abc_NtkToDar(SNtk2, 0, 0);
 
         cout << "Compare SAig1 to old SAig" << endl;
@@ -438,26 +735,32 @@ int main( int argc, char * argv[] )
         cout << "#####################################################" << endl;
     #endif
 
-    OUT("Aig_ManCoNum(SAig): " << Aig_ManCoNum(SAig)<<endl);
+    OUT("Aig_ManCoNum(SAig): " << Aig_ManCoNum(SAig));
     populateVars(FNtk, nnf, varsFile,
                     varsXF, varsXS,
                     varsYF, varsYS,
                     name2IdF, id2NameF);
-    numX = varsXF.size();
-    numY = varsYF.size();
+	numX = varsXS.size();
+	numY = varsYS.size();
 
-    #ifdef DEBUG
+    #ifdef DEBUG_CHUNK
         cout << "numX " << numX << endl;
         cout << "numY " << numY << endl;
         cout << "numOrigInputs " << numOrigInputs << endl;
-        cout << "varsXF: " << endl;
-        for(auto it : varsXF)
-            cout << it << " ";
-        cout<<endl;
-        cout << "varsYF: " << endl;
-        for(auto it : varsYF)
-            cout << it << " ";
-        cout<<endl;
+        // cout << "varsXF: " << endl;
+        // for(auto it : varsXF)
+        //     cout << it << " ";
+        // cout<<endl;
+        // cout << "varsYF: " << endl;
+        // for(auto it : varsYF)
+        //     cout << it << " ";
+        // cout<<endl;
+        cout << "nnf.inputs: " << endl;
+        for(auto it: nnf.inputs) {
+            cout << it->var_num << " ";
+        }
+        cout << endl;
+
         cout << "varsXS: " << endl;
         for(auto it : varsXS)
             cout << it << " ";
@@ -472,68 +775,35 @@ int main( int argc, char * argv[] )
 
 	// F_SAig      will always be Aig_ManCo( ... , 1)
 	// FPrime_SAig will always be Aig_ManCo( ... , 2)
-	OUT("buildF(SAig)..."<<endl);
+	cout << "buildF(SAig)..."<<endl;
 	const Aig_Obj_t* F_SAig = buildF(SAig);
-	OUT("buildFPrime(SAig)..."<<endl);
+	cout << "buildFPrime(SAig)..."<<endl;
 	const Aig_Obj_t* FPrime_SAig = buildFPrime(SAig, F_SAig);
     vector<vector<Aig_Obj_t*> > r0(numY), r1(numY);
-	OUT("initializeRs(SAig, r0, r1)..."<<endl);
+	cout << "initializeRs(SAig, r0, r1)..."<<endl;
+	clock_t compose_start = clock();
     initializeRs(SAig, r0, r1);
+	clock_t compose_end = clock();
 
-	OUT("Instantiating new solver..." << endl);
-	sat_solver *pSat = sat_solver_new();
+	OUT("Cleaning up" );
+	int removed = Aig_ManCleanup(SAig);
 
-	// Build CNF
-	Cnf_Dat_t* SCnf = Cnf_Derive(SAig, Aig_ManCoNum(SAig));
-	addCnfToSolver(pSat, SCnf);
-
-	#ifdef DEBUG
-		Cnf_DataPrint(SCnf,1);
-
-		cout << "\nSAig: " << endl;
-		Abc_NtkForEachObj(SNtk,pAbcObj,i)
-			cout <<"Node "<<i<<": " << Abc_ObjName(pAbcObj) << endl;
-
-		cout << endl;
-		Aig_ManForEachObj( SAig, pAigObj, i )
-			Aig_ObjPrintVerbose( pAigObj, 1 ), printf( "\n" );
-		cout << endl;
-
-		cout << "Original:    " << Aig_ManCo(SAig,0)->Id <<endl;
-		cout << "F_SAig:      " << F_SAig->Id <<endl;
-		cout << "FPrime_SAig: " << FPrime_SAig->Id <<endl;
-		for(int i = 0; i < r1.size(); i++) {
-			cout<<"r1[i]:       "<<r1[i][0]->Id << endl;;
-		}
-
-	#endif
-
-	// assert F(X, Y) = false, F(X, Y') = true
-	addVarToSolver(pSat, SCnf->pVarNums[F_SAig->Id], 0);
-	addVarToSolver(pSat, SCnf->pVarNums[FPrime_SAig->Id], 1);
-
-	// Assert y_i == -r1[i]
-	for (int i = 0; i < numY; ++i) {
-		Equate(pSat, SCnf->pVarNums[varsYS[i]], -addRlToSolver(pSat, SCnf, SAig, r1[i]));
+    // CEGAR Loop
+    cout << "Starting CEGAR Loop..."<<endl;
+    int numloops = 0;
+	while(callSATfindCEX(SAig, cex, r0, r1)) {
+		cout << "\nIter " << numloops << ":\tFound CEX!" << endl;
+		evaluateAig(SAig, cex);
+		numloops++;
 	}
 
-	OUT("Simplifying..." << endl);
-	if(!sat_solver_simplify(pSat)) {
-		cout << "\nFormula is trivially unsat\n" << endl;
-		return 0;
-	}
-	else {
-		OUT("Solving..." << endl);
-		int status = sat_solver_solve(pSat, 0, 0, (ABC_INT64_T)0, (ABC_INT64_T)0, (ABC_INT64_T)0, (ABC_INT64_T)0);
+	cout << "Found Skolem Functions" << endl;
+	cout << "Num Iterations: " << numloops << endl;
 
-		if (status == l_False) {
-			cout << "\nFormula is unsat\n" << endl;
-			return 0;
-		}
-		else if (status == l_True) {
-			cout << "\nFormula is sat; get the CEX\n" << endl;
-		}
-	}
+	clock_t main_end = clock();
+
+    cout<< "Total time:   " <<double( main_end-main_start)/CLOCKS_PER_SEC << endl;
+    cout<< "Compose time: " <<double( compose_end-compose_start)/CLOCKS_PER_SEC << endl;
 
     // Stop ABC
     Abc_Stop();

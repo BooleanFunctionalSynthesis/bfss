@@ -20,8 +20,9 @@ Aig_Man_t * Abc_NtkToDar(Abc_Ntk_t * pNtk, int fExors, int fRegisters);
 }
 
 #define DEBUG
+// #define DEBUG_CHUNK
 #ifdef DEBUG
-    #define OUT( x ) cout << x
+    #define OUT( x ) cout << x << endl
 #else
     #define OUT( x )
 #endif
