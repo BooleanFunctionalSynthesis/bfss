@@ -1,9 +1,5 @@
 #include "helper.h"
 
-class edge;
-class node;
-class AigToNNF;
-
 enum node_type
 {
 	t_AND,
