@@ -17,12 +17,13 @@ extern "C" {
 #include "opt/mfs/mfsInt.h"
 #include "bool/kit/kit.h"
 Aig_Man_t * Abc_NtkToDar(Abc_Ntk_t * pNtk, int fExors, int fRegisters);
+Abc_Ntk_t * Abc_NtkFromAigPhase(Aig_Man_t * pMan);
 }
 
 #define DEBUG
-// #define DEBUG_CHUNK
+#define DEBUG_CHUNK
 #ifdef DEBUG
-    #define OUT( x ) cout << x << endl
+    #define OUT( x ) cout <<'\t' << x << endl
 #else
     #define OUT( x )
 #endif
