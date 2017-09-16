@@ -21,7 +21,7 @@ Abc_Ntk_t * Abc_NtkFromAigPhase(Aig_Man_t * pMan);
 }
 
 #define DEBUG
-#define DEBUG_CHUNK
+// #define DEBUG_CHUNK
 #ifdef DEBUG
     #define OUT( x ) cout <<'\t' << x << endl
 #else
