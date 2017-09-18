@@ -197,6 +197,27 @@ Aig_Obj_t* Aig_Substitute(Aig_Man_t* pMan, Aig_Obj_t* initAig, int varId, Aig_Ob
         return afterCompose;
 }
 
+Aig_Obj_t* Aig_SubstituteVec(Aig_Man_t* pMan, Aig_Obj_t* initAig, vector<int>& varIdVec, 
+    vector<Aig_Obj_t*>& funcVec) {
+    Aig_Obj_t* currFI = Aig_ObjIsCo(Aig_Regular(initAig))? initAig->pFanin0: initAig;
+    for (int i = 0; i < funcVec.size(); ++i) {
+        funcVec[i] = Aig_ObjIsCo(Aig_Regular(funcVec[i]))? funcVec[i]->pFanin0: funcVec[i];
+    }
+    for (int i = 0; i < varIdVec.size(); ++i) {
+        varIdVec[i]--;    
+    }
+    Aig_Obj_t* afterCompose = Aig_ComposeVec(pMan, currFI, funcVec, varIdVec);
+    if(Aig_ObjIsCo(Aig_Regular(afterCompose))) {
+        OUT(afterCompose);
+        Aig_ObjPrintVerbose(Aig_Regular(afterCompose),1);
+        cout << endl;
+        assert(false);
+        return Aig_ObjChild0(afterCompose);
+    }
+    else
+        return afterCompose;
+}
+
 /** Function
  * Composes inputs of SAig with appropriate delta and gamma, makes the resulting
  * objects COs and stores them in r0 and r1.
@@ -204,56 +225,82 @@ Aig_Obj_t* Aig_Substitute(Aig_Man_t* pMan, Aig_Obj_t* initAig, int varId, Aig_Ob
  * @param r0   [out]        Underapproximates the Cannot-be-0 sets
  * @param r1   [out]        Underapproximates the Cannot-be-1 sets
  */
-void initializeRs(Aig_Man_t* SAig,
-    vector<vector<int> >& r0, vector<vector<int> >& r1) {
+void initializeR0(Aig_Man_t* SAig, vector<vector<int> >& r0) {
     for(int i = 0; i < numY; ++i) {
+        vector<Aig_Obj_t* > funcVec;
+        vector<int> varIdVec;
         Aig_Obj_t* delta = Aig_ManCo(SAig, 0);
         for(int j = 0; j < numX; j++) {
-            delta = Aig_Substitute(SAig, delta, varsXS[j], Aig_Not(Aig_ManObj(SAig, varsXS[j])));
+            funcVec.push_back(Aig_Not(Aig_ManObj(SAig, varsXS[j])));
+            varIdVec.push_back(varsXS[j]);
         }
         for(int j = 0; j < numY; j++) {
-            if(j < i)
-                delta = Aig_SubstituteConst(SAig, delta, varsYS[j], 0);
-            else if(j == i)
-                delta = Aig_SubstituteConst(SAig, delta, varsYS[j], 1);
-            else
-                delta = Aig_Substitute(SAig, delta, varsYS[j], Aig_Not(Aig_ManObj(SAig, varsYS[j])));
+            if(j < i) {
+                funcVec.push_back(Aig_ManConst0(SAig));
+                varIdVec.push_back(varsYS[j]);
+            } else if(j == i) {
+                funcVec.push_back(Aig_ManConst1(SAig));
+                varIdVec.push_back(varsYS[j]);
+            } else {
+                funcVec.push_back(Aig_Not(Aig_ManObj(SAig, varsYS[j])));
+                varIdVec.push_back(varsYS[j]);
+            }
         }
         for(int j = 0; j < numX; j++) {
-            delta = Aig_Substitute(SAig, delta, numOrigInputs + varsXS[j], Aig_ManObj(SAig, varsXS[j]));
+            funcVec.push_back(Aig_ManObj(SAig, varsXS[j]));
+            varIdVec.push_back(numOrigInputs + varsXS[j]);
         }
         for(int j = 0; j < numY; j++) {
-            if(j <= i)
-                delta = Aig_SubstituteConst(SAig, delta, numOrigInputs + varsYS[j], 0);
-            else
-                delta = Aig_Substitute(SAig, delta, numOrigInputs + varsYS[j], Aig_ManObj(SAig, varsYS[j]));
+            if(j <= i) {
+                funcVec.push_back(Aig_ManConst0(SAig));
+                varIdVec.push_back(numOrigInputs + varsYS[j]);
+            } else {
+                funcVec.push_back(Aig_ManObj(SAig, varsYS[j]));
+                varIdVec.push_back(numOrigInputs + varsYS[j]);
+            }
         }
+        delta = Aig_SubstituteVec(SAig, delta, varIdVec, funcVec);
         Aig_ObjCreateCo(SAig, delta);
         OUT("Pushing " << Aig_ManCoNum(SAig)-1 << " r0["<<i<<"]");
         r0[i].push_back(Aig_ManCoNum(SAig)-1);
+    }
+}
 
-        // reuse delta of the first half of the above for gamma
+void initializeR1(Aig_Man_t* SAig, vector<vector<int> >& r1) {
+    for(int i = 0; i < numY; ++i) {
+        std::vector<Aig_Obj_t* > funcVec;
+        std::vector<int> varIdVec;
         Aig_Obj_t* gamma = Aig_ManCo(SAig, 0);
         for(int j = 0; j < numX; j++) {
-            gamma = Aig_Substitute(SAig, gamma, varsXS[j], Aig_Not(Aig_ManObj(SAig, varsXS[j])));
+            funcVec.push_back(Aig_Not(Aig_ManObj(SAig, varsXS[j])));
+            varIdVec.push_back(varsXS[j]);
         }
         for(int j = 0; j < numY; j++) {
-            if(j <= i)
-                gamma = Aig_SubstituteConst(SAig, gamma, varsYS[j], 0);
-            else
-                gamma = Aig_Substitute(SAig, gamma, varsYS[j], Aig_Not(Aig_ManObj(SAig, varsYS[j])));
+            if(j <= i) {
+                funcVec.push_back(Aig_ManConst0(SAig));
+                varIdVec.push_back(varsYS[j]);
+            } else {
+                funcVec.push_back(Aig_Not(Aig_ManObj(SAig, varsYS[j])));
+                varIdVec.push_back(varsYS[j]);
+            }
         }
         for(int j = 0; j < numX; j++) {
-            gamma = Aig_Substitute(SAig, gamma, numOrigInputs + varsXS[j], Aig_ManObj(SAig, varsXS[j]));
+            funcVec.push_back(Aig_ManObj(SAig, varsXS[j]));
+            varIdVec.push_back(numOrigInputs + varsXS[j]);
         }
         for(int j = 0; j < numY; j++) {
-            if(j < i)
-                gamma = Aig_SubstituteConst(SAig, gamma, numOrigInputs + varsYS[j], 0);
-            else if(j == i)
-                gamma = Aig_SubstituteConst(SAig, gamma, numOrigInputs + varsYS[j], 1);
-            else
-                gamma = Aig_Substitute(SAig, gamma, numOrigInputs + varsYS[j], Aig_ManObj(SAig, varsYS[j]));
+            if(j < i) {
+                funcVec.push_back(Aig_ManConst0(SAig));
+                varIdVec.push_back(numOrigInputs + varsYS[j]);
+            } else if(j == i) {
+                funcVec.push_back(Aig_ManConst1(SAig));
+                varIdVec.push_back(numOrigInputs + varsYS[j]);
+            } else {
+                funcVec.push_back(Aig_ManObj(SAig, varsYS[j]));
+                varIdVec.push_back(numOrigInputs + varsYS[j]);
+            }
         }
+        gamma = Aig_SubstituteVec(SAig, gamma, varIdVec, funcVec);
         Aig_ObjCreateCo(SAig, gamma);
         OUT("Pushing " << Aig_ManCoNum(SAig)-1 << " r1["<<i<<"]");
         r1[i].push_back(Aig_ManCoNum(SAig)-1);
@@ -268,18 +315,25 @@ void initializeRs(Aig_Man_t* SAig,
  */
 Aig_Obj_t* buildF(Aig_Man_t* SAig) {
     Aig_Obj_t* head = Aig_ManCo(SAig,0);
+    vector<Aig_Obj_t* > funcVec;
+    vector<int> iVarVec;
     for(int i = 0; i < numX; ++i) {
-        head = Aig_Substitute(SAig, head, varsXS[i], Aig_Not(Aig_ManObj(SAig, varsXS[i])));
+        funcVec.push_back(Aig_Not(Aig_ManObj(SAig, varsXS[i])));
+        iVarVec.push_back(varsXS[i]);
     }
     for(int i = 0; i < numY; ++i) {
-        head = Aig_Substitute(SAig, head, varsYS[i], Aig_Not(Aig_ManObj(SAig, varsYS[i])));
+        funcVec.push_back(Aig_Not(Aig_ManObj(SAig, varsYS[i])));
+        iVarVec.push_back(varsYS[i]);
     }
     for(int i = 0; i < numX; ++i) {
-        head = Aig_Substitute(SAig, head, varsXS[i] + numOrigInputs, Aig_ManObj(SAig, varsXS[i]));
+        funcVec.push_back(Aig_ManObj(SAig, varsXS[i]));
+        iVarVec.push_back(varsXS[i] + numOrigInputs);
     }
     for(int i = 0; i < numY; ++i) {
-        head = Aig_Substitute(SAig, head, varsYS[i] + numOrigInputs, Aig_ManObj(SAig, varsYS[i]));
+        funcVec.push_back(Aig_ManObj(SAig, varsYS[i]));
+        iVarVec.push_back(varsYS[i] + numOrigInputs);
     }
+    head = Aig_SubstituteVec(SAig, head, iVarVec, funcVec);
     return Aig_ObjCreateCo(SAig, Aig_Not(head));
 }
 
@@ -291,9 +345,13 @@ Aig_Obj_t* buildF(Aig_Man_t* SAig) {
  */
 Aig_Obj_t* buildFPrime(Aig_Man_t* SAig, const Aig_Obj_t* F_SAig) {
     Aig_Obj_t* head = (Aig_Obj_t*) F_SAig;
+    vector<Aig_Obj_t* > funcVec;
+    vector<int> iVarVec;
     for(int i = 0; i < numY; ++i) {
-        head = Aig_Substitute(SAig, head, varsYS[i], Aig_ManObj(SAig, varsYS[i] + numOrigInputs));
+        funcVec.push_back(Aig_ManObj(SAig, varsYS[i] + numOrigInputs));
+        iVarVec.push_back(varsYS[i]);
     }
+    head = Aig_SubstituteVec(SAig, head, iVarVec, funcVec);
     return Aig_ObjCreateCo(SAig, head);
 }
 
@@ -1051,12 +1109,15 @@ bool verifyResult(Aig_Man_t* SAig, vector<vector<int> >& r0,
     // Cnf_DataPrint(FCnf,1);
     cout<<F_num<<endl;
     cout<<getCnfCoVarNum(FCnf, SAig, F_num)<<endl;
-    addVarToSolver(pSat, getCnfCoVarNum(FCnf, SAig, F_num), 0);
-    addVarToSolver(pSat, getCnfCoVarNum(FCnf, SAig, (deleteCos?0:1)), 1);
-
+    // addVarToSolver(pSat, getCnfCoVarNum(FCnf, SAig, F_num), 0);
+    // addVarToSolver(pSat, getCnfCoVarNum(FCnf, SAig, (deleteCos?0:1)), 1);
+    lit LA[3];
+    LA[0] = toLitCond(getCnfCoVarNum(FCnf, SAig, F_num),1);
+    LA[1] = toLitCond(getCnfCoVarNum(FCnf, SAig, (deleteCos?0:1)),0);
 
     bool return_val;
-    int status = sat_solver_solve(pSat, 0, 0, (ABC_INT64_T)0, (ABC_INT64_T)0, (ABC_INT64_T)0, (ABC_INT64_T)0);
+    // int status = sat_solver_solve(pSat, 0, 0, (ABC_INT64_T)0, (ABC_INT64_T)0, (ABC_INT64_T)0, (ABC_INT64_T)0);
+    int status = sat_solver_solve(pSat, LA, LA+2, (ABC_INT64_T)0, (ABC_INT64_T)0, (ABC_INT64_T)0, (ABC_INT64_T)0);
     if (status == l_False) {
         OUT("Verified!");
         return_val = true;
@@ -1068,4 +1129,51 @@ bool verifyResult(Aig_Man_t* SAig, vector<vector<int> >& r0,
     sat_solver_delete(pSat);
     Cnf_DataFree(FCnf);
     return return_val;
+}
+
+void Aig_ComposeVec_rec( Aig_Man_t * p, Aig_Obj_t * pObj, vector<Aig_Obj_t *>& pFuncVec, 
+    vector<Aig_Obj_t* >& iVarObjVec ) {
+    assert( !Aig_IsComplement(pObj) );
+    if ( Aig_ObjIsMarkA(pObj) )
+        return;
+    if ( Aig_ObjIsConst1(pObj) || Aig_ObjIsCi(pObj) ) {
+        pObj->pData = pObj;
+        int i = 0;
+        for (auto iVarObj: iVarObjVec) {
+            if(pObj == iVarObj) {
+                pObj->pData = pFuncVec[i]; 
+            }
+            i++;
+        }
+        // pObj->pData = pFuncVec[idS[pObj->Id] - 1];
+        return;
+    }
+    Aig_ComposeVec_rec( p, Aig_ObjFanin0(pObj), pFuncVec, iVarObjVec ); 
+    Aig_ComposeVec_rec( p, Aig_ObjFanin1(pObj), pFuncVec, iVarObjVec );
+    pObj->pData = Aig_And( p, Aig_ObjChild0Copy(pObj), Aig_ObjChild1Copy(pObj) );
+    assert( !Aig_ObjIsMarkA(pObj) ); // loop detection
+    Aig_ObjSetMarkA( pObj );
+}
+
+Aig_Obj_t * Aig_ComposeVec( Aig_Man_t * p, Aig_Obj_t * pRoot, vector<Aig_Obj_t *>& pFuncVec, 
+    vector<int>& iVarVec )
+{
+    // quit if the PI variable is not defined
+    for(auto iVar: iVarVec) {
+        if ( iVar >= Aig_ManCiNum(p) )
+        {
+            printf( "Aig_Compose(): The PI variable %d is not defined.\n", iVar );
+            return NULL;
+        }
+    }
+    // recursively perform composition
+    vector<Aig_Obj_t *> iVarObjVec(iVarVec.size());
+    int i = 0;
+    for (auto iVar: iVarVec) {
+        iVarObjVec[i++] = Aig_ManCi(p, iVar);
+    }
+    Aig_ComposeVec_rec( p, Aig_Regular(pRoot), pFuncVec, iVarObjVec );
+    // clear the markings
+    Aig_ConeUnmark_rec( Aig_Regular(pRoot) );
+    return Aig_NotCond( (Aig_Obj_t *)Aig_Regular(pRoot)->pData, Aig_IsComplement(pRoot) );
 }

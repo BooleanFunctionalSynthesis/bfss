@@ -78,3 +78,9 @@ Aig_Obj_t* OR_rec(Aig_Man_t* SAig, vector<int>& nodes, int start, int end);
 Aig_Obj_t* newOR(Aig_Man_t* SAig, vector<int>& nodes);
 bool verifyResult(Aig_Man_t* SAig, vector<vector<int> >& r0,
     vector<vector<int> >& r1, bool deleteCos);
+Aig_Obj_t* Aig_SubstituteVec(Aig_Man_t* pMan, Aig_Obj_t* initAig, vector<int>& varIdVec, 
+    vector<Aig_Obj_t*>& funcVec);
+void Aig_ComposeVec_rec( Aig_Man_t * p, Aig_Obj_t * pObj, vector<Aig_Obj_t *>& pFuncVec, 
+    vector<Aig_Obj_t* >& iVarObjVec );
+Aig_Obj_t * Aig_ComposeVec( Aig_Man_t * p, Aig_Obj_t * pRoot, vector<Aig_Obj_t *>& pFuncVec, 
+    vector<int>& iVarVec );
