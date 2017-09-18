@@ -20,8 +20,8 @@ Aig_Man_t * Abc_NtkToDar(Abc_Ntk_t * pNtk, int fExors, int fRegisters);
 Abc_Ntk_t * Abc_NtkFromAigPhase(Aig_Man_t * pMan);
 }
 
-#define DEBUG
-#define DEBUG_CHUNK
+// #define DEBUG
+// #define DEBUG_CHUNK
 // #define COMPARE_SAIGS // Uncomment to compare 2 SAigs
 #ifdef DEBUG
     #define OUT( x ) cout <<'\t' << x << endl

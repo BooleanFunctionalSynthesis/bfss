@@ -195,14 +195,14 @@ int main( int argc, char * argv[] )
 	SAig = compressAigByNtk(SAig);
 	assert(SAig != NULL);
 	Aig_ManPrintStats( SAig );
-	#ifdef DEBUG_CHUNK // Print SAig
+    #ifdef DEBUG_CHUNK // Print SAig, checkSupportSanity
         cout << "\nSAig: " << endl;
         Aig_ManForEachObj( SAig, pAigObj, i )
             Aig_ObjPrintVerbose( pAigObj, 1 ), printf( "\n" );
-    #endif
 
-	// cout << "checkSupportSanity(SAig, r0, r1)..."<<endl;
-	// checkSupportSanity(SAig, r0, r1);
+        cout << "checkSupportSanity(SAig, r0, r1)..."<<endl;
+        checkSupportSanity(SAig, r0, r1);
+    #endif
 
     // CEGAR Loop
     cout << "Starting CEGAR Loop..."<<endl;
@@ -211,11 +211,14 @@ int main( int argc, char * argv[] )
 		OUT("\nIter " << numloops << ":\tFound CEX!");
 		cout<<'.'<<flush;
 		evaluateAig(SAig, cex);
-		checkCexSanity(SAig, cex, r0, r1);
+        #ifdef DEBUG_CHUNK
+            checkCexSanity(SAig, cex, r0, r1);
+        #endif
 		updateAbsRef(SAig, r0, r1, cex);
 		numloops++;
 
-		if(numloops % 1000 == 0) {
+		if(numloops % 50 == 0) {
+            cout << endl;
 			Aig_ManPrintStats( SAig );
 			cout << "\nCompressing SAig..." << endl;
 			SAig = compressAigByNtk(SAig);
@@ -223,6 +226,7 @@ int main( int argc, char * argv[] )
 			Aig_ManPrintStats( SAig );
 		}
 	}
+    cout<<endl;
 
 
     #ifdef DEBUG_CHUNK // Print SAig

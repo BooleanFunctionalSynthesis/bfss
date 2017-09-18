@@ -1,6 +1,8 @@
 #include "helper.h"
 #include "formula.h"
 
+map<int,bool> CoEval;
+
 ////////////////////////////////////////////////////////////////////////
 ///                      HELPER FUNCTIONS                            ///
 ////////////////////////////////////////////////////////////////////////
@@ -201,14 +203,14 @@ Aig_Obj_t* Aig_Substitute(Aig_Man_t* pMan, Aig_Obj_t* initAig, int varId, Aig_Ob
         return afterCompose;
 }
 
-Aig_Obj_t* Aig_SubstituteVec(Aig_Man_t* pMan, Aig_Obj_t* initAig, vector<int>& varIdVec, 
+Aig_Obj_t* Aig_SubstituteVec(Aig_Man_t* pMan, Aig_Obj_t* initAig, vector<int>& varIdVec,
     vector<Aig_Obj_t*>& funcVec) {
     Aig_Obj_t* currFI = Aig_ObjIsCo(Aig_Regular(initAig))? initAig->pFanin0: initAig;
     for (int i = 0; i < funcVec.size(); ++i) {
         funcVec[i] = Aig_ObjIsCo(Aig_Regular(funcVec[i]))? funcVec[i]->pFanin0: funcVec[i];
     }
     for (int i = 0; i < varIdVec.size(); ++i) {
-        varIdVec[i]--;    
+        varIdVec[i]--;
     }
     Aig_Obj_t* afterCompose = Aig_ComposeVec(pMan, currFI, funcVec, varIdVec);
     if(Aig_ObjIsCo(Aig_Regular(afterCompose))) {
@@ -574,12 +576,15 @@ bool callSATfindCEX(Aig_Man_t* SAig,vector<int>& cex,
                 cex[numOrigInputs + numX + i] = SCnf->pVarNums[varsYS[i] + numOrigInputs];
             }
 
-            // for(auto e:cex)
-            //     cout<<e<<endl;
-            // cout<<endl<<endl;
-
             int * v = Sat_SolverGetModel(pSat, &cex[0], cex.size());
             cex = vector<int>(v,v+cex.size());
+
+            int i;
+            Aig_Obj_t* pAigObj;
+            CoEval.clear();
+            Aig_ManForEachCo(SAig,pAigObj,i) {
+                CoEval[i] = sat_solver_var_value(pSat, SCnf->pVarNums[pAigObj->Id]);
+            }
 
             #ifdef DEBUG_CHUNK
 				OUT("Serial#  AigPID  Cnf-VarNum  CEX");
@@ -675,10 +680,12 @@ Aig_Obj_t* satisfiesVec(Aig_Man_t* formula, const vector<int>& cex, const vector
     OUT("satisfiesVec...");
     for(int i = 0; i < coObjs.size(); i++) {
         OUT("Accessing Co "<<coObjs[i]<<" Id "<< Aig_ManCo(formula,coObjs[i])->Id);
-        if(Aig_ManCo(formula,coObjs[i])->iData == 1) {
-            OUT("Satisfied ID " << Aig_ManCo(formula,coObjs[i])->Id);
-            return Aig_ManCo(formula,coObjs[i]);
-        }
+        // if(Aig_ManCo(formula,coObjs[i])->iData == 1) {
+        //     OUT("Satisfied ID " << Aig_ManCo(formula,coObjs[i])->Id);
+        //     return Aig_ManCo(formula,coObjs[i]);
+        // }
+        if(CoEval[coObjs[i]])
+              return Aig_ManCo(formula,coObjs[i]);
     }
     OUT("Nothing satisfied");
     return NULL;
@@ -1120,7 +1127,7 @@ void checkCexSanity(Aig_Man_t* pMan, vector<int>& cex, vector<vector<int> >& r0,
     }
 }
 
-void Aig_ComposeVec_rec( Aig_Man_t * p, Aig_Obj_t * pObj, vector<Aig_Obj_t *>& pFuncVec, 
+void Aig_ComposeVec_rec( Aig_Man_t * p, Aig_Obj_t * pObj, vector<Aig_Obj_t *>& pFuncVec,
     vector<Aig_Obj_t* >& iVarObjVec ) {
     assert( !Aig_IsComplement(pObj) );
     if ( Aig_ObjIsMarkA(pObj) )
@@ -1130,21 +1137,21 @@ void Aig_ComposeVec_rec( Aig_Man_t * p, Aig_Obj_t * pObj, vector<Aig_Obj_t *>& p
         int i = 0;
         for (auto iVarObj: iVarObjVec) {
             if(pObj == iVarObj) {
-                pObj->pData = pFuncVec[i]; 
+                pObj->pData = pFuncVec[i];
             }
             i++;
         }
         // pObj->pData = pFuncVec[idS[pObj->Id] - 1];
         return;
     }
-    Aig_ComposeVec_rec( p, Aig_ObjFanin0(pObj), pFuncVec, iVarObjVec ); 
+    Aig_ComposeVec_rec( p, Aig_ObjFanin0(pObj), pFuncVec, iVarObjVec );
     Aig_ComposeVec_rec( p, Aig_ObjFanin1(pObj), pFuncVec, iVarObjVec );
     pObj->pData = Aig_And( p, Aig_ObjChild0Copy(pObj), Aig_ObjChild1Copy(pObj) );
     assert( !Aig_ObjIsMarkA(pObj) ); // loop detection
     Aig_ObjSetMarkA( pObj );
 }
 
-Aig_Obj_t * Aig_ComposeVec( Aig_Man_t * p, Aig_Obj_t * pRoot, vector<Aig_Obj_t *>& pFuncVec, 
+Aig_Obj_t * Aig_ComposeVec( Aig_Man_t * p, Aig_Obj_t * pRoot, vector<Aig_Obj_t *>& pFuncVec,
     vector<int>& iVarVec )
 {
     // quit if the PI variable is not defined
