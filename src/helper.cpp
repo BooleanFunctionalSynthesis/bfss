@@ -562,16 +562,16 @@ bool callSATfindCEX(Aig_Man_t* SAig,vector<int>& cex,
 
             cex.resize(2*numOrigInputs);
             for (int i = 0; i < numX; ++i) {
-                cex[i] = varsXS[i];
+                cex[i] = SCnf->pVarNums[varsXS[i]];
             }
             for (int i = 0; i < numY; ++i) {
-                cex[numX + i] = varsYS[i];
+                cex[numX + i] = SCnf->pVarNums[varsYS[i]];
             }
             for (int i = 0; i < numX; ++i) {
-                cex[numOrigInputs + i] = varsXS[i] + numOrigInputs;
+                cex[numOrigInputs + i] = SCnf->pVarNums[varsXS[i] + numOrigInputs];
             }
             for (int i = 0; i < numY; ++i) {
-                cex[numOrigInputs + numX + i] = varsYS[i] + numOrigInputs;
+                cex[numOrigInputs + numX + i] = SCnf->pVarNums[varsYS[i] + numOrigInputs];
             }
 
             // for(auto e:cex)
@@ -1115,10 +1115,8 @@ void checkCexSanity(Aig_Man_t* pMan, vector<int>& cex, vector<vector<int> >& r0,
 
     for (int i = 0; i < numY; ++i)
     {
-        if(cex[numX + i] == 0) {
-            OUT("\t checking for i=" << i);
-            assert(satisfiesVec(pMan, cex, r1[i]));
-        }
+        OUT("\t checking for i=" << i);
+        assert((cex[numX + i]==1) ^ (satisfiesVec(pMan, cex, r1[i])!=NULL));
     }
 }
 
