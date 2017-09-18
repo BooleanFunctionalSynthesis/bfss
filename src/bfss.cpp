@@ -173,7 +173,8 @@ int main( int argc, char * argv[] )
     vector<vector<int> > r0(numY), r1(numY);
 	cout << "initializeRs(SAig, r0, r1)..."<<endl;
 	clock_t compose_start = clock();
-    initializeRs(SAig, r0, r1);
+    initializeR0(SAig, r0);
+    initializeR1(SAig, r1);
 	clock_t compose_end = clock();
 
 	// cout << "checkSupportSanity(SAig, r0, r1)..."<<endl;

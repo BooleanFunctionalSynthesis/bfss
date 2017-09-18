@@ -50,7 +50,8 @@ void populateVars(Abc_Ntk_t* FNtk, AigToNNF& nnf, string varsFile,
                     map<string,int>& name2IdF, map<int,string>& id2NameF);
 Aig_Obj_t* Aig_SubstituteConst(Aig_Man_t* pMan, Aig_Obj_t* initAig, int varId, int one);
 Aig_Obj_t* Aig_Substitute(Aig_Man_t* pMan, Aig_Obj_t* initAig, int varId, Aig_Obj_t* func);
-void initializeRs(Aig_Man_t* SAig,vector<vector<int> >& r0, vector<vector<int> >& r1);
+void initializeR0(Aig_Man_t* SAig,vector<vector<int> >& r0);
+void initializeR1(Aig_Man_t* SAig,vector<vector<int> >& r1);
 Aig_Obj_t* buildF(Aig_Man_t* SAig);
 Aig_Obj_t* buildFPrime(Aig_Man_t* SAig, const Aig_Obj_t* F_SAig);
 void addVarToSolver(sat_solver* pSat, int varNum, int val);
@@ -78,3 +79,9 @@ Aig_Obj_t* OR_rec(Aig_Man_t* SAig, vector<int>& nodes, int start, int end);
 Aig_Obj_t* newOR(Aig_Man_t* SAig, vector<int>& nodes);
 bool verifyResult(Aig_Man_t* SAig, vector<vector<int> >& r0,
     vector<vector<int> >& r1, bool deleteCos);
+Aig_Obj_t* Aig_SubstituteVec(Aig_Man_t* pMan, Aig_Obj_t* initAig, vector<int>& varIdVec, 
+    vector<Aig_Obj_t*>& funcVec);
+void Aig_ComposeVec_rec( Aig_Man_t * p, Aig_Obj_t * pObj, vector<Aig_Obj_t *>& pFuncVec, 
+    vector<Aig_Obj_t* >& iVarObjVec );
+Aig_Obj_t * Aig_ComposeVec( Aig_Man_t * p, Aig_Obj_t * pRoot, vector<Aig_Obj_t *>& pFuncVec, 
+    vector<int>& iVarVec );
