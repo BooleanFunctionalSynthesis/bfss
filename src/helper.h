@@ -20,13 +20,13 @@ Aig_Man_t * Abc_NtkToDar(Abc_Ntk_t * pNtk, int fExors, int fRegisters);
 Abc_Ntk_t * Abc_NtkFromAigPhase(Aig_Man_t * pMan);
 }
 
-#define DEBUG
-#define DEBUG_CHUNK
+// #define DEBUG
+// #define DEBUG_CHUNK
 // #define COMPARE_SAIGS // Uncomment to compare 2 SAigs
 #ifdef DEBUG
-    #define OUT( x ) cout <<'\t' << x << endl
+	#define OUT( x ) cout <<'\t' << x << endl
 #else
-    #define OUT( x )
+	#define OUT( x )
 #endif
 
 extern vector<int> varsXF, varsXS;
@@ -45,9 +45,9 @@ void Equate(sat_solver *pSat, int varA, int varB);
 void Xor(sat_solver *pSat, int varA, int varB);
 Abc_Ntk_t* getNtk(string pFileName, bool fraig);
 void populateVars(Abc_Ntk_t* FNtk, AigToNNF& nnf, string varsFile,
-                    vector<int>& varsXF, vector<int>& varsXS,
-                    vector<int>& varsYF, vector<int>& varsYS,
-                    map<string,int>& name2IdF, map<int,string>& id2NameF);
+					vector<int>& varsXF, vector<int>& varsXS,
+					vector<int>& varsYF, vector<int>& varsYS,
+					map<string,int>& name2IdF, map<int,string>& id2NameF);
 Aig_Obj_t* Aig_SubstituteConst(Aig_Man_t* pMan, Aig_Obj_t* initAig, int varId, int one);
 Aig_Obj_t* Aig_Substitute(Aig_Man_t* pMan, Aig_Obj_t* initAig, int varId, Aig_Obj_t* func);
 void initializeR0(Aig_Man_t* SAig,vector<vector<int> >& r0);
@@ -61,9 +61,9 @@ lit addRlToSolver_rec(sat_solver* pSat, Cnf_Dat_t* GCnf, Aig_Man_t* GAig, const 
 lit OR(sat_solver* pSat, lit lh, lit rh);
 void addCnfToSolver(sat_solver* pSat, Cnf_Dat_t* cnf);
 Cnf_Dat_t* buildErrorFormula(sat_solver* pSat, Aig_Man_t* SAig,
-    vector<vector<int> > &r0, vector<vector<int> > &r1);
+	vector<vector<int> > &r0, vector<vector<int> > &r1);
 bool callSATfindCEX(Aig_Man_t* SAig,vector<int>& cex,
-    vector<vector<int> > &r0, vector<vector<int> > &r1);
+	vector<vector<int> > &r0, vector<vector<int> > &r1);
 void evaluateAig(Aig_Man_t* formula, const vector<int> &cex);
 Aig_Obj_t* satisfiesVec(Aig_Man_t* formula, const vector<int>& cex, const vector<int>& coObjs);
 static inline Aig_Obj_t* generalize(Aig_Man_t*pMan, vector<int> cex, const vector<int>& rl);
@@ -71,19 +71,19 @@ bool Aig_Support_rec(Aig_Man_t* pMan, Aig_Obj_t* root, int inpNodeId, map<Aig_Ob
 bool Aig_Support(Aig_Man_t* pMan, Aig_Obj_t* root, int inpNodeId);
 Aig_Obj_t* Aig_AndAigs(Aig_Man_t* pMan, Aig_Obj_t* Aig1, Aig_Obj_t* Aig2);
 void updateAbsRef(Aig_Man_t* pMan, vector<vector<int> > &r0, vector<vector<int> > &r1,
-    const vector<int> &cex);
+	const vector<int> &cex);
 Aig_Man_t* compressAig(Aig_Man_t* SAig);
 Aig_Man_t* compressAigByNtk(Aig_Man_t* SAig);
 void checkSupportSanity(Aig_Man_t*pMan, vector<vector<int> > &r0, vector<vector<int> > &r1);
 Aig_Obj_t* OR_rec(Aig_Man_t* SAig, vector<int>& nodes, int start, int end);
 Aig_Obj_t* newOR(Aig_Man_t* SAig, vector<int>& nodes);
 bool verifyResult(Aig_Man_t* SAig, vector<vector<int> >& r0,
-    vector<vector<int> >& r1, bool deleteCos);
+	vector<vector<int> >& r1, bool deleteCos);
 void checkCexSanity(Aig_Man_t* pMan, vector<int>& cex, vector<vector<int> >& r0,
-    vector<vector<int> >& r1);
+	vector<vector<int> >& r1);
 Aig_Obj_t* Aig_SubstituteVec(Aig_Man_t* pMan, Aig_Obj_t* initAig, vector<int>& varIdVec, 
-    vector<Aig_Obj_t*>& funcVec);
+	vector<Aig_Obj_t*>& funcVec);
 void Aig_ComposeVec_rec( Aig_Man_t * p, Aig_Obj_t * pObj, vector<Aig_Obj_t *>& pFuncVec, 
-    vector<Aig_Obj_t* >& iVarObjVec );
+	vector<Aig_Obj_t* >& iVarObjVec );
 Aig_Obj_t * Aig_ComposeVec( Aig_Man_t * p, Aig_Obj_t * pRoot, vector<Aig_Obj_t *>& pFuncVec, 
-    vector<int>& iVarVec );
+	vector<int>& iVarVec );
