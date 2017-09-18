@@ -171,7 +171,7 @@ void edge::add_bubble() {
 	bubble = !bubble;
 }
 bool edge::operator<( const edge& rhs ) const {
-    return (target<rhs.target) || (target==rhs.target && !bubble && rhs.bubble);
+	return (target<rhs.target) || (target==rhs.target && !bubble && rhs.bubble);
 }
 void edge::print() {
 	cout <<bubble<<" "<<target;
@@ -195,59 +195,59 @@ void AigToNNF::parse_verilog() {
 	ifstream file(pFileName);
 	while(!flag and getline(file,line)) {
 		// cout <<"got line: "<<line<< endl;
-	    words = tokenize(line, ' ');
-	    words.back() = words.back().substr(0,words.back().length()-1);
-        if(words[0]=="input") {
-        	numInputs++;
-            tempNode = new node(words[1],t_VAR,numInputs);
-            inputs.insert(tempNode);
-            // cout << "storing " << words[1] << " to " << tempNode << endl;
-        	name2Node[words[1]] = tempNode;
-        }
-        else if(words[0]=="output") {
-        	numOutputs++;
-            tempNode = new node(words[1],t_AND);
-            outputs.insert(tempNode);
-            // cout << "storing " << words[1] << " to " << tempNode << endl;
-        	name2Node[words[1]] = tempNode;
-        }
-        else if(words[0]=="wire") {
-            tempNode = new node(words[1],t_AND);
-            // cout << "storing " << words[1] << " to " << tempNode << endl;
-        	name2Node[words[1]] = tempNode;
-        }
-        else if(words[0]=="endmodul") {
-            // cout << "endmodule" << endl;
-        	flag = true;
-        }
-        else if(words[0]=="module") {
-            // cout << "module" << endl;
-            pAigName = words[1];
-        }
-        else if(words[0]=="assign") {
-        	string tgt = words[1];
+		words = tokenize(line, ' ');
+		words.back() = words.back().substr(0,words.back().length()-1);
+		if(words[0]=="input") {
+			numInputs++;
+			tempNode = new node(words[1],t_VAR,numInputs);
+			inputs.insert(tempNode);
+			// cout << "storing " << words[1] << " to " << tempNode << endl;
+			name2Node[words[1]] = tempNode;
+		}
+		else if(words[0]=="output") {
+			numOutputs++;
+			tempNode = new node(words[1],t_AND);
+			outputs.insert(tempNode);
+			// cout << "storing " << words[1] << " to " << tempNode << endl;
+			name2Node[words[1]] = tempNode;
+		}
+		else if(words[0]=="wire") {
+			tempNode = new node(words[1],t_AND);
+			// cout << "storing " << words[1] << " to " << tempNode << endl;
+			name2Node[words[1]] = tempNode;
+		}
+		else if(words[0]=="endmodul") {
+			// cout << "endmodule" << endl;
+			flag = true;
+		}
+		else if(words[0]=="module") {
+			// cout << "module" << endl;
+			pAigName = words[1];
+		}
+		else if(words[0]=="assign") {
+			string tgt = words[1];
 
-            // cout << "accessing " << tgt << endl;
-        	node* t = name2Node[tgt];
-        	assert(t!=NULL);
+			// cout << "accessing " << tgt << endl;
+			node* t = name2Node[tgt];
+			assert(t!=NULL);
 
-        	int iter = 0;
-        	set<edge> ch;
-        	for (auto word:words) {
-        		if(word=="&" || word=="=" || (iter++)<=1)
-        			continue;
+			int iter = 0;
+			set<edge> ch;
+			for (auto word:words) {
+				if(word=="&" || word=="=" || (iter++)<=1)
+					continue;
 				w_neg = (word[0] == '~');
 				if(w_neg)
 					word = word.substr(1,string::npos);
 
 				ch.insert(edge(w_neg,name2Node[word]));
-            	// cout << "accessing " << word << endl;
+				// cout << "accessing " << word << endl;
 				assert(name2Node[word]!=NULL);
-        	}
-            // cout << "set_children.. " << endl;
-        	t->set_children(ch);
-            // cout << "set_children! " << endl;
-        }
+			}
+			// cout << "set_children.. " << endl;
+			t->set_children(ch);
+			// cout << "set_children! " << endl;
+		}
 	}
 	// cout << "parsed! " << endl;
 	return;
@@ -492,9 +492,9 @@ int AigToNNF::getNumInputs() {
 
 
 string type2String(node_type t) {
-    switch(t) {
-        case t_AND: return "t_AND";
-        case t_OR: return "t_OR";
-        case t_VAR: return "t_VAR";
-    }
+	switch(t) {
+		case t_AND: return "t_AND";
+		case t_OR: return "t_OR";
+		case t_VAR: return "t_VAR";
+	}
 }
