@@ -50,7 +50,8 @@ void populateVars(Abc_Ntk_t* FNtk, AigToNNF& nnf, string varsFile,
                     map<string,int>& name2IdF, map<int,string>& id2NameF);
 Aig_Obj_t* Aig_SubstituteConst(Aig_Man_t* pMan, Aig_Obj_t* initAig, int varId, int one);
 Aig_Obj_t* Aig_Substitute(Aig_Man_t* pMan, Aig_Obj_t* initAig, int varId, Aig_Obj_t* func);
-void initializeRs(Aig_Man_t* SAig,vector<vector<int> >& r0, vector<vector<int> >& r1);
+void initializeR0(Aig_Man_t* SAig,vector<vector<int> >& r0);
+void initializeR1(Aig_Man_t* SAig,vector<vector<int> >& r1);
 Aig_Obj_t* buildF(Aig_Man_t* SAig);
 Aig_Obj_t* buildFPrime(Aig_Man_t* SAig, const Aig_Obj_t* F_SAig);
 void addVarToSolver(sat_solver* pSat, int varNum, int val);
