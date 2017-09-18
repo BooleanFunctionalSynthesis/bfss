@@ -211,6 +211,7 @@ int main( int argc, char * argv[] )
 		OUT("\nIter " << numloops << ":\tFound CEX!");
 		cout<<'.'<<flush;
 		evaluateAig(SAig, cex);
+		checkCexSanity(SAig, cex, r0, r1);
 		updateAbsRef(SAig, r0, r1, cex);
 		numloops++;
 
@@ -240,7 +241,6 @@ int main( int argc, char * argv[] )
     cout<< "Total time:   " <<double( main_end-main_start)/CLOCKS_PER_SEC << endl;
     cout<< "Compose time: " <<double( compose_end-compose_start)/CLOCKS_PER_SEC << endl;
 
-    OUT("Verifying Result");
     assert(verifyResult(SAig, r0, r1,0));
 
     // Stop ABC
