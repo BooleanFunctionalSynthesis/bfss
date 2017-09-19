@@ -1,8 +1,6 @@
 #include "helper.h"
 #include "formula.h"
 
-map<int,bool> CoEval;
-
 ////////////////////////////////////////////////////////////////////////
 ///                      HELPER FUNCTIONS                            ///
 ////////////////////////////////////////////////////////////////////////
@@ -523,8 +521,8 @@ Cnf_Dat_t* buildErrorFormula(sat_solver* pSat, Aig_Man_t* SAig,
 	Sat_SolverWriteDimacs(pSat,"sat_solver.dimacs",NULL,NULL,1);
 	for (int i = 0; i < numY; ++i) {
 		int l = -addRlToSolver(pSat, SCnf, SAig, r1[i]);
-		OUT("equating  ID:     "<<varsYS[i]<<"="<<-Aig_ManCo(SAig,r1[i][0])->Id);
-		OUT("          varNum: "<<SCnf->pVarNums[varsYS[i]]<<"="<<l);
+		// OUT("equating  ID:     "<<varsYS[i]<<"="<<-Aig_ManCo(SAig,r1[i][0])->Id);
+		// OUT("          varNum: "<<SCnf->pVarNums[varsYS[i]]<<"="<<l);
 		Equate(pSat, SCnf->pVarNums[varsYS[i]], l);
 		Sat_SolverWriteDimacs(pSat,(char*)("sat_solver.dimacs-" + to_string(i)).c_str(),NULL,NULL,1);
 	}
@@ -578,13 +576,6 @@ bool callSATfindCEX(Aig_Man_t* SAig,vector<int>& cex,
 
 			int * v = Sat_SolverGetModel(pSat, &cex[0], cex.size());
 			cex = vector<int>(v,v+cex.size());
-
-			int i;
-			Aig_Obj_t* pAigObj;
-			CoEval.clear();
-			Aig_ManForEachCo(SAig,pAigObj,i) {
-				CoEval[i] = sat_solver_var_value(pSat, SCnf->pVarNums[pAigObj->Id]);
-			}
 
 			#ifdef DEBUG_CHUNK
 				OUT("Serial#  AigPID  Cnf-VarNum  CEX");
@@ -680,12 +671,10 @@ Aig_Obj_t* satisfiesVec(Aig_Man_t* formula, const vector<int>& cex, const vector
 	OUT("satisfiesVec...");
 	for(int i = 0; i < coObjs.size(); i++) {
 		OUT("Accessing Co "<<coObjs[i]<<" Id "<< Aig_ManCo(formula,coObjs[i])->Id);
-		// if(Aig_ManCo(formula,coObjs[i])->iData == 1) {
-		//     OUT("Satisfied ID " << Aig_ManCo(formula,coObjs[i])->Id);
-		//     return Aig_ManCo(formula,coObjs[i]);
-		// }
-		if(CoEval[coObjs[i]])
-			  return Aig_ManCo(formula,coObjs[i]);
+		if(Aig_ManCo(formula,coObjs[i])->iData == 1) {
+		    OUT("Satisfied ID " << Aig_ManCo(formula,coObjs[i])->Id);
+		    return Aig_ManCo(formula,coObjs[i]);
+		}
 	}
 	OUT("Nothing satisfied");
 	return NULL;
@@ -697,7 +686,7 @@ Aig_Obj_t* satisfiesVec(Aig_Man_t* formula, const vector<int>& cex, const vector
  * @param cex       [in]        counter-example to be generalized
  * @param rl        [in]        Underaproximations of Cant-be sets
  */
-static inline Aig_Obj_t* generalize(Aig_Man_t*pMan, vector<int> cex, const vector<int>& rl) {
+Aig_Obj_t* generalize(Aig_Man_t*pMan, vector<int> cex, const vector<int>& rl) {
 	return satisfiesVec(pMan, cex, rl);
 }
 
