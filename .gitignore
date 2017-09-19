@@ -33,3 +33,10 @@
 
 # Binaries
 bin/*
+
+# Unigen
+doalarm
+sharpSAT
+unigen
+UniGen2.py
+

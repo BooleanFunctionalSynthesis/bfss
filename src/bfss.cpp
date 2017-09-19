@@ -14,6 +14,7 @@ using namespace std;
 ////////////////////////////////////////////////////////////////////////
 ///                           GLOBALS                                ///
 ////////////////////////////////////////////////////////////////////////
+vector<int> varsSInv;
 vector<int> varsXF, varsXS;
 vector<int> varsYF, varsYS; // to be eliminated
 int numOrigInputs, numX, numY;
@@ -208,7 +209,7 @@ int main( int argc, char * argv[] )
 	cout << "Starting CEGAR Loop..."<<endl;
 	int numloops = 0;
 	while(getNextCEX(SAig, cex, r0, r1)) {
-		OUT("\nIter " << numloops << ":\tFound CEX!");
+		OUT("Iter " << numloops << ":\tFound CEX!");
 		cout<<'.'<<flush;
 		evaluateAig(SAig, cex);
 		#ifdef DEBUG_CHUNK

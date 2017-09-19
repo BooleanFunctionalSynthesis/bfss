@@ -161,6 +161,15 @@ void populateVars(Abc_Ntk_t* FNtk, AigToNNF& nnf, string varsFile,
 		varsXS.push_back(nnf.var_num2Id[it]);
 	for(auto it : varsYF)
 		varsYS.push_back(nnf.var_num2Id[it]);
+
+	for (int i = 0; i < numX; ++i) {
+		varsSInv[varsXS[i]] = i;
+		varsSInv[numOrigInputs + varsXS[i]] = numOrigInputs + i;
+	}
+	for (int i = 0; i < numY; ++i) {
+		varsSInv[varsYS[i]] = numX + i;
+		varsSInv[numOrigInputs + varsYS[i]] = numOrigInputs + numX + i;
+	}
 }
 
 /** Function
@@ -633,6 +642,7 @@ bool getNextCEX(Aig_Man_t* SAig,vector<int>& cex,
 				cout << endl;
 			#endif
 
+			// Check if currCEX still statisfies the error formula
 			assert(currCEX.size() == 2*numOrigInputs);
 			for (int i = numY-1; i >= 0; --i)
 			{
@@ -682,69 +692,78 @@ bool populateStoredCEX(Aig_Man_t* SAig,
 	Cnf_Dat_t *SCnf  = buildErrorFormula(pSat, SAig, r0, r1);
 
 	OUT("Simplifying..." );
-	if(!sat_solver_simplify(pSat)) { // Found Skolem Functions
-		OUT("Formula is trivially unsat");
-		sat_solver_delete(pSat);
-		Cnf_DataFree(SCnf);
-		return false;
-	}
+	// if(!sat_solver_simplify(pSat)) { // Found Skolem Functions
+	// 	OUT("Formula is trivially unsat");
+	// 	sat_solver_delete(pSat);
+	// 	Cnf_DataFree(SCnf);
+	// 	return false;
+	// }
 
+	// Compute IS
+	vector<int> IS(2*numOrigInputs);
+	for(int i=0; i<numX; ++i)
+		IS[i] = SCnf->pVarNums[varsXS[i]];
+	for(int i=0; i<numY; ++i)
+		IS[numX + i] = SCnf->pVarNums[varsYS[i]];
+	for(int i=0; i<numX; ++i)
+		IS[numOrigInputs + i] = SCnf->pVarNums[numOrigInputs + varsXS[i]];
+	for(int i=0; i<numY; ++i)
+		IS[numOrigInputs + numX + i] = SCnf->pVarNums[numOrigInputs + varsYS[i]];
 	// TODO: Print Dimacs
+	Sat_SolverWriteDimacsAndIS(pSat, UNIGEN_INPUT_FNAME, 0, 0, 1, IS);
+
 	// TODO: Call Unigen
+	unigen_call(UNIGEN_INPUT_FNAME, 1);
+
 	// TODO: Read CEX
-
-	OUT("Solving..." );
-	int status = sat_solver_solve(pSat, 0, 0, (ABC_INT64_T)0, (ABC_INT64_T)0, (ABC_INT64_T)0, (ABC_INT64_T)0);
-
-	if (status == l_False) {
-		OUT("Formula is unsat");
-		return_val = false;
-	}
-	else if (status == l_True) {
-		OUT("Formula is sat; get the CEX");
-
-		vector<int> cex(2*numOrigInputs);
-		for (int i = 0; i < numX; ++i) {
-			cex[i] = SCnf->pVarNums[varsXS[i]];
-		}
-		for (int i = 0; i < numY; ++i) {
-			cex[numX + i] = SCnf->pVarNums[varsYS[i]];
-		}
-		for (int i = 0; i < numX; ++i) {
-			cex[numOrigInputs + i] = SCnf->pVarNums[varsXS[i] + numOrigInputs];
-		}
-		for (int i = 0; i < numY; ++i) {
-			cex[numOrigInputs + numX + i] = SCnf->pVarNums[varsYS[i] + numOrigInputs];
-		}
-
-		int * v = Sat_SolverGetModel(pSat, &cex[0], cex.size());
-		cex = vector<int>(v,v+cex.size());
-
-		storedCEX.push(cex);
-
-		#ifdef DEBUG_CHUNK
-			OUT("Serial#  AigPID  Cnf-VarNum  CEX");
-			OUT("__X__:");
-			for (int i = 0; i < numX; ++i) {
-				OUT(i<<":\t"<<varsXS[i]<<":\t"<<SCnf->pVarNums[Aig_ManObj(SAig, varsXS[i])->Id]<<":\t"<<cex[i]);
-			}
-			OUT("__Y__:");
-			for (int i = 0; i < numY; ++i) {
-				OUT(i<<":\t"<<varsYS[i]<<":\t"<<SCnf->pVarNums[Aig_ManObj(SAig, varsYS[i])->Id]<<":\t"<<cex[numX+i]);
-				OUT("\t"<<Aig_ManCo(SAig, r1[i][0])->Id<<"\t"<<SCnf->pVarNums[Aig_ManCo(SAig, r1[i][0])->Id]<<"\t"<<sat_solver_var_value(pSat, SCnf->pVarNums[Aig_ManCo(SAig, r1[i][0])->Id]));
-			}
-			OUT("_!X__:");
-			for (int i = 0; i < numX; ++i) {
-				OUT(i<<":\t"<<varsXS[i]+numOrigInputs<<":\t"<<SCnf->pVarNums[Aig_ManObj(SAig, varsXS[i]+numOrigInputs)->Id]<<":\t"<<cex[i+numOrigInputs]);
-			}
-			OUT("_!Y__:");
-			for (int i = 0; i < numY; ++i) {
-				OUT(i<<":\t"<<varsYS[i]+numOrigInputs<<":\t"<<SCnf->pVarNums[Aig_ManObj(SAig, varsYS[i]+numOrigInputs)->Id]<<":\t"<<cex[numX+i+numOrigInputs]);
-			}
-		#endif
-
+	map<int, int> varNum2ID;
+	for(int i=0; i<numX; ++i)
+		varNum2ID[SCnf->pVarNums[varsXS[i]]] = i;
+	for(int i=0; i<numY; ++i)
+		varNum2ID[SCnf->pVarNums[varsYS[i]]] = numX + i;
+	for(int i=0; i<numX; ++i)
+		varNum2ID[SCnf->pVarNums[numOrigInputs + varsXS[i]]] = numOrigInputs + i;
+	for(int i=0; i<numY; ++i)
+		varNum2ID[SCnf->pVarNums[numOrigInputs + varsYS[i]]] = numOrigInputs + numX + i;
+	
+	if(unigen_fetchModels(varNum2ID)) {
+		OUT("Formula is SAT, stored CEXs");
 		return_val = true;
 	}
+	else {
+		OUT("UNIGEN Failed, resorting to ABC's solver");
+		OUT("Solving..." );
+		
+		int status = sat_solver_solve(pSat, 0, 0, (ABC_INT64_T)0, (ABC_INT64_T)0, (ABC_INT64_T)0, (ABC_INT64_T)0);
+
+		if (status == l_False) {
+			OUT("Formula is unsat");
+			return_val = false;
+		}
+		else if (status == l_True) {
+			OUT("Formula is sat; storing CEX");
+
+			vector<int> cex(2*numOrigInputs);
+			for (int i = 0; i < numX; ++i) {
+				cex[i] = SCnf->pVarNums[varsXS[i]];
+			}
+			for (int i = 0; i < numY; ++i) {
+				cex[numX + i] = SCnf->pVarNums[varsYS[i]];
+			}
+			for (int i = 0; i < numX; ++i) {
+				cex[numOrigInputs + i] = SCnf->pVarNums[varsXS[i] + numOrigInputs];
+			}
+			for (int i = 0; i < numY; ++i) {
+				cex[numOrigInputs + numX + i] = SCnf->pVarNums[varsYS[i] + numOrigInputs];
+			}
+			int * v = Sat_SolverGetModel(pSat, &cex[0], cex.size());
+			cex = vector<int>(v,v+cex.size());
+
+			storedCEX.push(cex);
+			return_val = true;
+		}
+	}
+
 	sat_solver_delete(pSat);
 	Cnf_DataFree(SCnf);
 	return return_val;
@@ -990,7 +1009,7 @@ Aig_Man_t* compressAigByNtk(Aig_Man_t* SAig) {
 
 	OUT("Cleaning up...");
 	int removed = Aig_ManCleanup(SAig);
-	OUT("Removed "<<removed<<" nodes");
+	cout << "Removed " << removed <<" nodes" << endl;
 
 	Abc_Ntk_t * SNtk = Abc_NtkFromAigPhase(SAig);
 	Abc_FrameSetCurrentNetwork(pAbc, SNtk);
@@ -1305,4 +1324,118 @@ Aig_Obj_t * Aig_ComposeVec( Aig_Man_t * p, Aig_Obj_t * pRoot, vector<Aig_Obj_t *
 	// clear the markings
 	Aig_ConeUnmark_rec( Aig_Regular(pRoot) );
 	return Aig_NotCond( (Aig_Obj_t *)Aig_Regular(pRoot)->pData, Aig_IsComplement(pRoot) );
+}
+
+static void Sat_SolverClauseWriteDimacs( FILE * pFile, clause * pC, int fIncrement )
+{
+    int i;
+    for ( i = 0; i < (int)pC->size; i++ )
+        fprintf( pFile, "%s%d ", (lit_sign(pC->lits[i])? "-": ""),  lit_var(pC->lits[i]) + (fIncrement>0) );
+    if ( fIncrement )
+        fprintf( pFile, "0" );
+    fprintf( pFile, "\n" );
+}
+
+void Sat_SolverWriteDimacsAndIS( sat_solver * p, char * pFileName,
+	lit* assumpBegin, lit* assumpEnd, int incrementVars, vector<int>&IS ) {
+    Sat_Mem_t * pMem = &p->Mem;
+    FILE * pFile;
+    clause * c;
+    int i, k, nUnits;
+
+    // count the number of unit clauses
+    nUnits = 0;
+    for ( i = 0; i < p->size; i++ )
+        if ( p->levels[i] == 0 && p->assigns[i] != 3 )
+            nUnits++;
+
+    // start the file
+    pFile = pFileName ? fopen( pFileName, "wb" ) : stdout;
+    if ( pFile == NULL )
+    {
+        printf( "Sat_SolverWriteDimacs(): Cannot open the ouput file.\n" );
+        return;
+    }
+
+    fprintf( pFile, "p cnf %d %d\n", p->size, Sat_MemEntryNum(&p->Mem, 0)-1+Sat_MemEntryNum(&p->Mem, 1)+nUnits+(int)(assumpEnd-assumpBegin) );
+
+    // TODO: Print Independent Support
+    i=0;
+    fprintf( pFile, "c ind ");
+    for(auto it:IS) {
+    	if(i == 10) {
+    		fprintf( pFile, "0\nc ind ");
+    		i = 0;
+    	}
+    	fprintf( pFile, "%d ", it);
+    	i++;
+    }
+    fprintf( pFile, "0\n");
+
+    // write the original clauses
+    Sat_MemForEachClause( pMem, c, i, k )
+        Sat_SolverClauseWriteDimacs( pFile, c, incrementVars );
+
+    // write zero-level assertions
+    for ( i = 0; i < p->size; i++ )
+        if ( p->levels[i] == 0 && p->assigns[i] != 3 ) // varX
+            fprintf( pFile, "%s%d%s\n",
+                     (p->assigns[i] == 1)? "-": "",    // var0
+                     i + (int)(incrementVars>0),
+                     (incrementVars) ? " 0" : "");
+
+    // write the assump
+    if (assumpBegin) {
+        for (; assumpBegin != assumpEnd; assumpBegin++) {
+            fprintf( pFile, "%s%d%s\n",
+                     lit_sign(*assumpBegin)? "-": "",
+                     lit_var(*assumpBegin) + (int)(incrementVars>0),
+                     (incrementVars) ? " 0" : "");
+        }
+    }
+
+    fprintf( pFile, "\n" );
+    if ( pFileName ) fclose( pFile );
+}
+
+void unigen_call(string fname, int nSamples) {
+	assert(fname.find(' ') == string::npos);
+	system("rm -rf " UNIGEN_OUT"/");
+	string cmd = "python2 " UNIGEN_PY" -samples="+to_string(nSamples)+" "+fname+" " UNIGEN_OUT">/dev/null";
+	cout << "Calling unigen: " << cmd << endl;
+	system(cmd.c_str());
+}
+
+bool unigen_fetchModels(map<int, int>& varNum2ID) {
+	ifstream infile(UNIGEN_OUT"/" UNIGEN_MODEL_FNAME);
+	if(!infile.is_open()) {
+		cout << "File : " << UNIGEN_OUT"/" UNIGEN_MODEL_FNAME << " not found" << endl;
+		assert(false);
+		return false;
+	}
+
+	bool flag = false;
+	string line;
+	vector<unordered_map<int, int> > models;
+	while(getline(infile, line)) {
+		if(line == " " || line == "")
+			continue;
+		istringstream iss(line);
+		vector<string> model;
+		for(string s; iss >> s; ) {
+			model.push_back(s);
+		}
+		model[0] = model[0].substr(1);
+		model.pop_back();
+
+		vector<int> cex(2*numOrigInputs);
+		for(auto it: model) {
+			int modelVal = stoi(it);
+			cex[varNum2ID[abs(modelVal)]] = (modelVal > 0) ? 1 : 0;
+		}
+		storedCEX.push(cex);
+		flag = true;
+	}
+	cout << "storedCEX.size() = " << storedCEX.size() << endl;
+	return flag;
 }

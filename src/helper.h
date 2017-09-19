@@ -21,15 +21,22 @@ Aig_Man_t * Abc_NtkToDar(Abc_Ntk_t * pNtk, int fExors, int fRegisters);
 Abc_Ntk_t * Abc_NtkFromAigPhase(Aig_Man_t * pMan);
 }
 
-// #define DEBUG
+#define UNIGEN_FNAME 		"errorFormula"
+#define UNIGEN_INPUT_FNAME 	UNIGEN_FNAME".cnf"
+#define UNIGEN_MODEL_FNAME	UNIGEN_FNAME".txt"
+#define UNIGEN_PY 			"UniGen2.py"
+#define UNIGEN_OUT 			"out"
+
+#define DEBUG
 // #define DEBUG_CHUNK
 // #define COMPARE_SAIGS // Uncomment to compare 2 SAigs
 #ifdef DEBUG
-	#define OUT( x ) cout <<'\t' << x << endl
+	#define OUT( x ) cout << "DEBUG: " << x << endl
 #else
 	#define OUT( x )
 #endif
 
+extern vector<int> varsSInv;
 extern vector<int> varsXF, varsXS;
 extern vector<int> varsYF, varsYS; // to be eliminated
 extern int numOrigInputs, numX, numY;
@@ -91,4 +98,8 @@ Aig_Obj_t* 		Aig_SubstituteVec(Aig_Man_t* pMan, Aig_Obj_t* initAig, vector<int>&
 void 			Aig_ComposeVec_rec( Aig_Man_t * p, Aig_Obj_t * pObj, vector<Aig_Obj_t *>& pFuncVec,
 					vector<Aig_Obj_t* >& iVarObjVec );
 Aig_Obj_t*	 	Aig_ComposeVec( Aig_Man_t * p, Aig_Obj_t * pRoot, vector<Aig_Obj_t *>& pFuncVec,
-				vector<int>& iVarVec );
+					vector<int>& iVarVec );
+void 			Sat_SolverWriteDimacsAndIS( sat_solver * p, char * pFileName,
+					lit* assumpBegin, lit* assumpEnd, int incrementVars, vector<int>&IS );
+void 			unigen_call(string fname, int nSamples);
+bool 			unigen_fetchModels(map<int, int>& varNum2ID);
