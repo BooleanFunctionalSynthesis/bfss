@@ -1,6 +1,8 @@
 #include "helper.h"
 #include "formula.h"
 
+stack<vector<int> > storedCEX;
+
 ////////////////////////////////////////////////////////////////////////
 ///                      HELPER FUNCTIONS                            ///
 ////////////////////////////////////////////////////////////////////////
@@ -600,6 +602,148 @@ bool callSATfindCEX(Aig_Man_t* SAig,vector<int>& cex,
 
 			return_val = true;
 		}
+	}
+	sat_solver_delete(pSat);
+	Cnf_DataFree(SCnf);
+	return return_val;
+}
+
+/** Function
+ * Returns next stored satisfying CEX. Calls Unigen if no CEX are stored.
+ * Note: Uses only X-part of CEX
+ * @param pSat      [in]        Sat Solver
+ * @param SAig      [in]        Aig to build the formula from
+ * @param cex       [out]       Counter-example, contains values of X Y neg_X neg_Y in order.
+ * @param r0        [in]        Underapproximations of cant-be-0 sets.
+ * @param r1        [in]        Underapproximations of cant-be-1 sets.
+ */
+bool getNextCEX(Aig_Man_t* SAig,vector<int>& cex,
+	vector<vector<int> > &r0, vector<vector<int> > &r1) {
+	OUT("getNextCEX...");
+
+	while(true) {
+		while(!storedCEX.empty()) {
+			vector<int> currCEX = storedCEX.top();
+			storedCEX.pop();
+			OUT("popping cex");
+
+			#ifdef DEBUG_CHUNK
+				for(auto it:currCEX)
+					cout << it << " ";
+				cout << endl;
+			#endif
+
+			assert(currCEX.size() == 2*numOrigInputs);
+			for (int i = numY-1; i >= 0; --i)
+			{
+				evaluateAig(SAig,currCEX);
+				bool r1i = false;
+				for(auto r1El: r1[i]) {
+					if(Aig_ManCo(SAig, r1El)->iData == 1) {
+						r1i = true;
+						break;
+					}
+				}
+				currCEX[numX + i] = (int) !r1i;
+			}
+			evaluateAig(SAig,currCEX);
+
+			#ifdef DEBUG_CHUNK
+				OUT("final cex:");
+				for(auto it:currCEX)
+					cout << it << " ";
+				cout << endl;
+			#endif
+
+			if(Aig_ManCo(SAig, 1)->iData != 1) { //CEX still spurious, return
+				OUT("CEX still spurious, returning...");
+				cex = currCEX;
+				return true;
+			}
+		}
+
+		// Ran out of CEX, fetch new
+		if (populateStoredCEX(SAig, r0, r1) == false)
+			return false;
+	}
+}
+
+/** Function
+ * Calls Unigen on the error formula, populates storedCEX
+ * @param SAig      [in]        Aig to build the formula from
+ * @param r0        [in]        Underapproximations of cant-be-0 sets.
+ * @param r1        [in]        Underapproximations of cant-be-1 sets.
+ */
+bool populateStoredCEX(Aig_Man_t* SAig,
+	vector<vector<int> > &r0, vector<vector<int> > &r1) {
+	OUT("populating Stored CEX...");
+	bool return_val;
+	sat_solver *pSat = sat_solver_new();
+	Cnf_Dat_t *SCnf  = buildErrorFormula(pSat, SAig, r0, r1);
+
+	OUT("Simplifying..." );
+	if(!sat_solver_simplify(pSat)) { // Found Skolem Functions
+		OUT("Formula is trivially unsat");
+		sat_solver_delete(pSat);
+		Cnf_DataFree(SCnf);
+		return false;
+	}
+
+	// TODO: Print Dimacs
+	// TODO: Call Unigen
+	// TODO: Read CEX
+
+	OUT("Solving..." );
+	int status = sat_solver_solve(pSat, 0, 0, (ABC_INT64_T)0, (ABC_INT64_T)0, (ABC_INT64_T)0, (ABC_INT64_T)0);
+
+	if (status == l_False) {
+		OUT("Formula is unsat");
+		return_val = false;
+	}
+	else if (status == l_True) {
+		OUT("Formula is sat; get the CEX");
+
+		vector<int> cex(2*numOrigInputs);
+		for (int i = 0; i < numX; ++i) {
+			cex[i] = SCnf->pVarNums[varsXS[i]];
+		}
+		for (int i = 0; i < numY; ++i) {
+			cex[numX + i] = SCnf->pVarNums[varsYS[i]];
+		}
+		for (int i = 0; i < numX; ++i) {
+			cex[numOrigInputs + i] = SCnf->pVarNums[varsXS[i] + numOrigInputs];
+		}
+		for (int i = 0; i < numY; ++i) {
+			cex[numOrigInputs + numX + i] = SCnf->pVarNums[varsYS[i] + numOrigInputs];
+		}
+
+		int * v = Sat_SolverGetModel(pSat, &cex[0], cex.size());
+		cex = vector<int>(v,v+cex.size());
+
+		storedCEX.push(cex);
+
+		#ifdef DEBUG_CHUNK
+			OUT("Serial#  AigPID  Cnf-VarNum  CEX");
+			OUT("__X__:");
+			for (int i = 0; i < numX; ++i) {
+				OUT(i<<":\t"<<varsXS[i]<<":\t"<<SCnf->pVarNums[Aig_ManObj(SAig, varsXS[i])->Id]<<":\t"<<cex[i]);
+			}
+			OUT("__Y__:");
+			for (int i = 0; i < numY; ++i) {
+				OUT(i<<":\t"<<varsYS[i]<<":\t"<<SCnf->pVarNums[Aig_ManObj(SAig, varsYS[i])->Id]<<":\t"<<cex[numX+i]);
+				OUT("\t"<<Aig_ManCo(SAig, r1[i][0])->Id<<"\t"<<SCnf->pVarNums[Aig_ManCo(SAig, r1[i][0])->Id]<<"\t"<<sat_solver_var_value(pSat, SCnf->pVarNums[Aig_ManCo(SAig, r1[i][0])->Id]));
+			}
+			OUT("_!X__:");
+			for (int i = 0; i < numX; ++i) {
+				OUT(i<<":\t"<<varsXS[i]+numOrigInputs<<":\t"<<SCnf->pVarNums[Aig_ManObj(SAig, varsXS[i]+numOrigInputs)->Id]<<":\t"<<cex[i+numOrigInputs]);
+			}
+			OUT("_!Y__:");
+			for (int i = 0; i < numY; ++i) {
+				OUT(i<<":\t"<<varsYS[i]+numOrigInputs<<":\t"<<SCnf->pVarNums[Aig_ManObj(SAig, varsYS[i]+numOrigInputs)->Id]<<":\t"<<cex[numX+i+numOrigInputs]);
+			}
+		#endif
+
+		return_val = true;
 	}
 	sat_solver_delete(pSat);
 	Cnf_DataFree(SCnf);

@@ -1,6 +1,7 @@
 #include <bits/stdc++.h>
 #include <fstream>
 #include <sstream>
+#include <stack>
 using namespace std;
 
 extern "C" {
@@ -63,6 +64,10 @@ void 			addCnfToSolver(sat_solver* pSat, Cnf_Dat_t* cnf);
 Cnf_Dat_t* 		buildErrorFormula(sat_solver* pSat, Aig_Man_t* SAig,
 					vector<vector<int> > &r0, vector<vector<int> > &r1);
 bool 			callSATfindCEX(Aig_Man_t* SAig,vector<int>& cex,
+					vector<vector<int> > &r0, vector<vector<int> > &r1);
+bool 			getNextCEX(Aig_Man_t* SAig,vector<int>& cex,
+					vector<vector<int> > &r0, vector<vector<int> > &r1);
+bool 			populateStoredCEX(Aig_Man_t* SAig,
 					vector<vector<int> > &r0, vector<vector<int> > &r1);
 void 			evaluateAig(Aig_Man_t* formula, const vector<int> &cex);
 Aig_Obj_t* 		satisfiesVec(Aig_Man_t* formula, const vector<int>& cex, const vector<int>& coObjs);

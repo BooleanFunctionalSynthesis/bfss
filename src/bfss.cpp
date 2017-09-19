@@ -207,7 +207,7 @@ int main( int argc, char * argv[] )
 	// CEGAR Loop
 	cout << "Starting CEGAR Loop..."<<endl;
 	int numloops = 0;
-	while(callSATfindCEX(SAig, cex, r0, r1)) {
+	while(getNextCEX(SAig, cex, r0, r1)) {
 		OUT("\nIter " << numloops << ":\tFound CEX!");
 		cout<<'.'<<flush;
 		evaluateAig(SAig, cex);
