@@ -191,11 +191,11 @@ int main( int argc, char * argv[] )
  //            Aig_ObjPrintVerbose( pAigObj, 1 ), printf( "\n" );
  //    #endif
 	cout << "Created SAig..." << endl;
-	Aig_ManPrintStats( SAig );
-	cout << "Compressing SAig..." << endl;
-	SAig = compressAigByNtk(SAig);
-	assert(SAig != NULL);
-	Aig_ManPrintStats( SAig );
+	// Aig_ManPrintStats( SAig );
+	// cout << "Compressing SAig..." << endl;
+	// SAig = compressAigByNtk(SAig);
+	// assert(SAig != NULL);
+	// Aig_ManPrintStats( SAig );
 	#ifdef DEBUG_CHUNK // Print SAig, checkSupportSanity
 		cout << "\nSAig: " << endl;
 		Aig_ManForEachObj( SAig, pAigObj, i )
@@ -219,7 +219,7 @@ int main( int argc, char * argv[] )
 		numloops++;
 
 		if(numloops % 50 == 0) {
-			cout << numloops << endl;
+			cout << numloops;
 			// Aig_ManPrintStats( SAig );
 			// cout << "\nCompressing SAig..." << endl;
 			// SAig = compressAigByNtk(SAig);

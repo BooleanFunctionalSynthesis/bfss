@@ -626,7 +626,7 @@ bool callSATfindCEX(Aig_Man_t* SAig,vector<int>& cex,
  * @param r0        [in]        Underapproximations of cant-be-0 sets.
  * @param r1        [in]        Underapproximations of cant-be-1 sets.
  */
-bool getNextCEX(Aig_Man_t* SAig,vector<int>& cex,
+bool getNextCEX(Aig_Man_t*&SAig,vector<int>& cex,
 	vector<vector<int> > &r0, vector<vector<int> > &r1) {
 	OUT("getNextCEX...");
 
@@ -676,13 +676,13 @@ bool getNextCEX(Aig_Man_t* SAig,vector<int>& cex,
 			}
 		}
 
-		// // Compressing before calling unigen
-		// cout << endl;
-		// Aig_ManPrintStats( SAig );
-		// cout << "\nCompressing SAig..." << endl;
-		// SAig = compressAigByNtk(SAig);
-		// assert(SAig != NULL);
-		// Aig_ManPrintStats( SAig );
+		// Compressing before calling unigen
+		cout << endl;
+		Aig_ManPrintStats( SAig );
+		cout << "\nCompressing SAig..." << endl;
+		SAig = compressAigByNtk(SAig);
+		assert(SAig != NULL);
+		Aig_ManPrintStats( SAig );
 
 		// Ran out of CEX, fetch new
 		if (populateStoredCEX(SAig, r0, r1) == false)

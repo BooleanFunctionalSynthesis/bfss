@@ -74,7 +74,7 @@ Cnf_Dat_t* 		buildErrorFormula(sat_solver* pSat, Aig_Man_t* SAig,
 					vector<vector<int> > &r0, vector<vector<int> > &r1);
 bool 			callSATfindCEX(Aig_Man_t* SAig,vector<int>& cex,
 					vector<vector<int> > &r0, vector<vector<int> > &r1);
-bool 			getNextCEX(Aig_Man_t* SAig,vector<int>& cex,
+bool 			getNextCEX(Aig_Man_t*&SAig,vector<int>& cex,
 					vector<vector<int> > &r0, vector<vector<int> > &r1);
 bool 			populateStoredCEX(Aig_Man_t* SAig,
 					vector<vector<int> > &r0, vector<vector<int> > &r1);
