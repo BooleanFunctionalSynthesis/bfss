@@ -25,9 +25,11 @@ Abc_Ntk_t * Abc_NtkFromAigPhase(Aig_Man_t * pMan);
 #define UNIGEN_INPUT_FNAME 	UNIGEN_FNAME".cnf"
 #define UNIGEN_MODEL_FNAME	UNIGEN_FNAME".txt"
 #define UNIGEN_PY 			"UniGen2.py"
-#define UNIGEN_OUT 			"out"
+#define UNIGEN_OUT_DIR		"out"
+#define UNIGEN_OUTPUT		"unigen_output.txt"
+#define UNIGEN_SAMPLES		110
 
-#define DEBUG
+// #define DEBUG
 // #define DEBUG_CHUNK
 // #define COMPARE_SAIGS // Uncomment to compare 2 SAigs
 #ifdef DEBUG

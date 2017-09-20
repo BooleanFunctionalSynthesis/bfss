@@ -529,13 +529,13 @@ Cnf_Dat_t* buildErrorFormula(sat_solver* pSat, Aig_Man_t* SAig,
 	// LA[1] = toLitCond(SCnf->pVarNums[Aig_ManCo(SAig,2)->Id],0);
 
 	// Assert y_i == -r1[i]
-	Sat_SolverWriteDimacs(pSat,"sat_solver.dimacs",NULL,NULL,1);
+	Sat_SolverWriteDimacs(pSat,"sat_solver.dimacs",NULL,NULL,0);
 	for (int i = 0; i < numY; ++i) {
 		int l = -addRlToSolver(pSat, SCnf, SAig, r1[i]);
-		// OUT("equating  ID:     "<<varsYS[i]<<"="<<-Aig_ManCo(SAig,r1[i][0])->Id);
-		// OUT("          varNum: "<<SCnf->pVarNums[varsYS[i]]<<"="<<l);
+		OUT("equating  ID:     "<<varsYS[i]<<"="<<-Aig_ManCo(SAig,r1[i][0])->Id);
+		OUT("          varNum: "<<SCnf->pVarNums[varsYS[i]]<<"="<<l);
 		Equate(pSat, SCnf->pVarNums[varsYS[i]], l);
-		Sat_SolverWriteDimacs(pSat,(char*)("sat_solver.dimacs-" + to_string(i)).c_str(),NULL,NULL,1);
+		Sat_SolverWriteDimacs(pSat,(char*)("sat_solver.dimacs-" + to_string(i)).c_str(),NULL,NULL,0);
 	}
 	return SCnf;
 }
@@ -633,7 +633,7 @@ bool getNextCEX(Aig_Man_t* SAig,vector<int>& cex,
 	while(true) {
 		while(!storedCEX.empty()) {
 			vector<int> currCEX = storedCEX.top();
-			storedCEX.pop();
+			// storedCEX.pop(); For milking
 			OUT("popping cex");
 
 			#ifdef DEBUG_CHUNK
@@ -670,7 +670,19 @@ bool getNextCEX(Aig_Man_t* SAig,vector<int>& cex,
 				cex = currCEX;
 				return true;
 			}
+			else {
+				// For milking
+				storedCEX.pop();
+			}
 		}
+
+		// // Compressing before calling unigen
+		// cout << endl;
+		// Aig_ManPrintStats( SAig );
+		// cout << "\nCompressing SAig..." << endl;
+		// SAig = compressAigByNtk(SAig);
+		// assert(SAig != NULL);
+		// Aig_ManPrintStats( SAig );
 
 		// Ran out of CEX, fetch new
 		if (populateStoredCEX(SAig, r0, r1) == false)
@@ -710,10 +722,10 @@ bool populateStoredCEX(Aig_Man_t* SAig,
 	for(int i=0; i<numY; ++i)
 		IS[numOrigInputs + numX + i] = SCnf->pVarNums[numOrigInputs + varsYS[i]];
 	// TODO: Print Dimacs
-	Sat_SolverWriteDimacsAndIS(pSat, UNIGEN_INPUT_FNAME, 0, 0, 1, IS);
+	Sat_SolverWriteDimacsAndIS(pSat, UNIGEN_INPUT_FNAME, 0, 0, 0, IS);
 
 	// TODO: Call Unigen
-	unigen_call(UNIGEN_INPUT_FNAME, 1);
+	unigen_call(UNIGEN_INPUT_FNAME, UNIGEN_SAMPLES);
 
 	// TODO: Read CEX
 	map<int, int> varNum2ID;
@@ -1332,9 +1344,9 @@ static void Sat_SolverClauseWriteDimacs( FILE * pFile, clause * pC, int fIncreme
     int i;
     for ( i = 0; i < (int)pC->size; i++ )
         fprintf( pFile, "%s%d ", (lit_sign(pC->lits[i])? "-": ""),  lit_var(pC->lits[i]) + (fIncrement>0) );
-    if ( fIncrement )
-        fprintf( pFile, "0" );
-    fprintf( pFile, "\n" );
+    // if ( fIncrement )
+    //     fprintf( pFile, "0" );
+    fprintf( pFile, "0\n" );
 }
 
 void Sat_SolverWriteDimacsAndIS( sat_solver * p, char * pFileName,
@@ -1343,7 +1355,7 @@ void Sat_SolverWriteDimacsAndIS( sat_solver * p, char * pFileName,
     FILE * pFile;
     clause * c;
     int i, k, nUnits;
-    assert(incrementVars==1);
+    assert(incrementVars==0);
 
     // count the number of unit clauses
     nUnits = 0;
@@ -1381,18 +1393,16 @@ void Sat_SolverWriteDimacsAndIS( sat_solver * p, char * pFileName,
     // write zero-level assertions
     for ( i = 0; i < p->size; i++ )
         if ( p->levels[i] == 0 && p->assigns[i] != 3 ) // varX
-            fprintf( pFile, "%s%d%s\n",
+            fprintf( pFile, "%s%d 0\n",
                      (p->assigns[i] == 1)? "-": "",    // var0
-                     i + (int)(incrementVars>0),
-                     (incrementVars) ? " 0" : "");
+                     i);
 
     // write the assump
     if (assumpBegin) {
         for (; assumpBegin != assumpEnd; assumpBegin++) {
-            fprintf( pFile, "%s%d%s\n",
+            fprintf( pFile, "%s%d 0\n",
                      lit_sign(*assumpBegin)? "-": "",
-                     lit_var(*assumpBegin) + (int)(incrementVars>0),
-                     (incrementVars) ? " 0" : "");
+                     lit_var(*assumpBegin));
         }
     }
 
@@ -1402,16 +1412,16 @@ void Sat_SolverWriteDimacsAndIS( sat_solver * p, char * pFileName,
 
 void unigen_call(string fname, int nSamples) {
 	assert(fname.find(' ') == string::npos);
-	system("rm -rf " UNIGEN_OUT"/");
-	string cmd = "python2 " UNIGEN_PY" -samples="+to_string(nSamples)+" "+fname+" " UNIGEN_OUT">/dev/null";
+	system("rm -rf " UNIGEN_OUT_DIR"/");
+	string cmd = "python2 " UNIGEN_PY" -samples="+to_string(nSamples)+" "+fname+" " UNIGEN_OUT_DIR" >" UNIGEN_OUTPUT ;
 	cout << "Calling unigen: " << cmd << endl;
 	system(cmd.c_str());
 }
 
 bool unigen_fetchModels(map<int, int>& varNum2ID) {
-	ifstream infile(UNIGEN_OUT"/" UNIGEN_MODEL_FNAME);
+	ifstream infile(UNIGEN_OUT_DIR"/" UNIGEN_MODEL_FNAME);
 	if(!infile.is_open()) {
-		cout << "File : " << UNIGEN_OUT"/" UNIGEN_MODEL_FNAME << " not found" << endl;
+		cout << "File : " << UNIGEN_OUT_DIR"/" UNIGEN_MODEL_FNAME << " not found" << endl;
 		assert(false);
 		return false;
 	}

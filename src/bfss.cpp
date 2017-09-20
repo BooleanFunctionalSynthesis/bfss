@@ -219,12 +219,12 @@ int main( int argc, char * argv[] )
 		numloops++;
 
 		if(numloops % 50 == 0) {
-			cout << endl;
-			Aig_ManPrintStats( SAig );
-			cout << "\nCompressing SAig..." << endl;
-			SAig = compressAigByNtk(SAig);
-			assert(SAig != NULL);
-			Aig_ManPrintStats( SAig );
+			cout << numloops << endl;
+			// Aig_ManPrintStats( SAig );
+			// cout << "\nCompressing SAig..." << endl;
+			// SAig = compressAigByNtk(SAig);
+			// assert(SAig != NULL);
+			// Aig_ManPrintStats( SAig );
 		}
 	}
 	cout<<endl;
