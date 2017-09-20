@@ -1343,6 +1343,7 @@ void Sat_SolverWriteDimacsAndIS( sat_solver * p, char * pFileName,
     FILE * pFile;
     clause * c;
     int i, k, nUnits;
+    assert(incrementVars==1);
 
     // count the number of unit clauses
     nUnits = 0;
