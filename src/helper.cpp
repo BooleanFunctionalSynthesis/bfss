@@ -725,43 +725,44 @@ bool populateStoredCEX(Aig_Man_t* SAig,
 		varNum2ID[SCnf->pVarNums[numOrigInputs + varsXS[i]]] = numOrigInputs + i;
 	for(int i=0; i<numY; ++i)
 		varNum2ID[SCnf->pVarNums[numOrigInputs + varsYS[i]]] = numOrigInputs + numX + i;
-	
+
 	if(unigen_fetchModels(varNum2ID)) {
 		OUT("Formula is SAT, stored CEXs");
 		return_val = true;
 	}
 	else {
-		OUT("UNIGEN Failed, resorting to ABC's solver");
-		OUT("Solving..." );
-		
-		int status = sat_solver_solve(pSat, 0, 0, (ABC_INT64_T)0, (ABC_INT64_T)0, (ABC_INT64_T)0, (ABC_INT64_T)0);
+		OUT("UNIGEN says UNSAT, not resorting to ABC's solver");
+		return_val = false;
+		// OUT("Solving..." );
 
-		if (status == l_False) {
-			OUT("Formula is unsat");
-			return_val = false;
-		}
-		else if (status == l_True) {
-			OUT("Formula is sat; storing CEX");
+		// int status = sat_solver_solve(pSat, 0, 0, (ABC_INT64_T)0, (ABC_INT64_T)0, (ABC_INT64_T)0, (ABC_INT64_T)0);
 
-			vector<int> cex(2*numOrigInputs);
-			for (int i = 0; i < numX; ++i) {
-				cex[i] = SCnf->pVarNums[varsXS[i]];
-			}
-			for (int i = 0; i < numY; ++i) {
-				cex[numX + i] = SCnf->pVarNums[varsYS[i]];
-			}
-			for (int i = 0; i < numX; ++i) {
-				cex[numOrigInputs + i] = SCnf->pVarNums[varsXS[i] + numOrigInputs];
-			}
-			for (int i = 0; i < numY; ++i) {
-				cex[numOrigInputs + numX + i] = SCnf->pVarNums[varsYS[i] + numOrigInputs];
-			}
-			int * v = Sat_SolverGetModel(pSat, &cex[0], cex.size());
-			cex = vector<int>(v,v+cex.size());
+		// if (status == l_False) {
+		// 	OUT("Formula is unsat");
+		// 	return_val = false;
+		// }
+		// else if (status == l_True) {
+		// 	OUT("Formula is sat; storing CEX");
 
-			storedCEX.push(cex);
-			return_val = true;
-		}
+		// 	vector<int> cex(2*numOrigInputs);
+		// 	for (int i = 0; i < numX; ++i) {
+		// 		cex[i] = SCnf->pVarNums[varsXS[i]];
+		// 	}
+		// 	for (int i = 0; i < numY; ++i) {
+		// 		cex[numX + i] = SCnf->pVarNums[varsYS[i]];
+		// 	}
+		// 	for (int i = 0; i < numX; ++i) {
+		// 		cex[numOrigInputs + i] = SCnf->pVarNums[varsXS[i] + numOrigInputs];
+		// 	}
+		// 	for (int i = 0; i < numY; ++i) {
+		// 		cex[numOrigInputs + numX + i] = SCnf->pVarNums[varsYS[i] + numOrigInputs];
+		// 	}
+		// 	int * v = Sat_SolverGetModel(pSat, &cex[0], cex.size());
+		// 	cex = vector<int>(v,v+cex.size());
+
+		// 	storedCEX.push(cex);
+		// 	return_val = true;
+		// }
 	}
 
 	sat_solver_delete(pSat);
