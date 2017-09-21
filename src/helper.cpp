@@ -2,6 +2,9 @@
 #include "formula.h"
 
 stack<vector<int> > storedCEX;
+bool new_flag = true;
+bool SwitchToABCSolver = false;
+int numUnigenCalls = 0;
 
 ////////////////////////////////////////////////////////////////////////
 ///                      HELPER FUNCTIONS                            ///
@@ -552,6 +555,31 @@ bool callSATfindCEX(Aig_Man_t* SAig,vector<int>& cex,
 	vector<vector<int> > &r0, vector<vector<int> > &r1) {
 	OUT("callSATfindCEX..." );
 	bool return_val;
+
+	// Milking to check if CEX is still valid
+	if(true) {
+		// cout << "milking"<<endl;
+		for (int i = numY-1; i >= 0; --i)
+		{
+			evaluateAig(SAig,cex);
+			bool r1i = false;
+			for(auto r1El: r1[i]) {
+				if(Aig_ManCo(SAig, r1El)->iData == 1) {
+					r1i = true;
+					break;
+				}
+			}
+			cex[numX + i] = (int) !r1i;
+		}
+		evaluateAig(SAig,cex);
+
+		if(Aig_ManCo(SAig, 1)->iData != 1) { //CEX still spurious, return
+			// cout << "CEX still spurious, returning..." << endl;
+			return true;
+		}
+	}
+	// cout << "milked, not spurious"<<endl;
+
 	sat_solver *pSat = sat_solver_new();
 	Cnf_Dat_t *SCnf  = buildErrorFormula(pSat, SAig, r0, r1);
 
@@ -562,7 +590,11 @@ bool callSATfindCEX(Aig_Man_t* SAig,vector<int>& cex,
 	}
 	else {
 		OUT("Solving..." );
-		int status = sat_solver_solve(pSat, 0, 0, (ABC_INT64_T)0, (ABC_INT64_T)0, (ABC_INT64_T)0, (ABC_INT64_T)0);
+		vector<lit> assumptions = setAllNegX(SCnf, SAig, false);
+		int status = sat_solver_solve(pSat,
+						&assumptions[0], &assumptions[0] + numX,
+						(ABC_INT64_T)0, (ABC_INT64_T)0,
+						(ABC_INT64_T)0, (ABC_INT64_T)0);
 
 		if (status == l_False) {
 			OUT("Formula is unsat");
@@ -668,11 +700,20 @@ bool getNextCEX(Aig_Man_t*&SAig,vector<int>& cex,
 			if(Aig_ManCo(SAig, 1)->iData != 1) { //CEX still spurious, return
 				OUT("CEX still spurious, returning...");
 				cex = currCEX;
+				if(new_flag) {
+					cout<<"#";
+					new_flag = false;
+				}
 				return true;
 			}
 			else {
+				if(new_flag) {
+					cout<<"-";
+					new_flag = false;
+				}
 				// For milking
 				storedCEX.pop();
+				new_flag = true;
 			}
 		}
 
@@ -700,81 +741,103 @@ bool populateStoredCEX(Aig_Man_t* SAig,
 	vector<vector<int> > &r0, vector<vector<int> > &r1) {
 	OUT("populating Stored CEX...");
 	bool return_val;
+	int status;
+
 	sat_solver *pSat = sat_solver_new();
 	Cnf_Dat_t *SCnf  = buildErrorFormula(pSat, SAig, r0, r1);
 
 	OUT("Simplifying..." );
-	// if(!sat_solver_simplify(pSat)) { // Found Skolem Functions
-	// 	OUT("Formula is trivially unsat");
-	// 	sat_solver_delete(pSat);
-	// 	Cnf_DataFree(SCnf);
-	// 	return false;
-	// }
+	if(!sat_solver_simplify(pSat)) { // Found Skolem Functions
+		OUT("Formula is trivially unsat");
+		sat_solver_delete(pSat);
+		Cnf_DataFree(SCnf);
+		return false;
+	}
 
-	// Compute IS
-	vector<int> IS(2*numOrigInputs);
-	for(int i=0; i<numX; ++i)
-		IS[i] = SCnf->pVarNums[varsXS[i]];
-	for(int i=0; i<numY; ++i)
-		IS[numX + i] = SCnf->pVarNums[varsYS[i]];
-	for(int i=0; i<numX; ++i)
-		IS[numOrigInputs + i] = SCnf->pVarNums[numOrigInputs + varsXS[i]];
-	for(int i=0; i<numY; ++i)
-		IS[numOrigInputs + numX + i] = SCnf->pVarNums[numOrigInputs + varsYS[i]];
-	// TODO: Print Dimacs
-	Sat_SolverWriteDimacsAndIS(pSat, UNIGEN_INPUT_FNAME, 0, 0, 0, IS);
+	if( ! SwitchToABCSolver) {
+		// Compute IS
+		vector<int> IS;
+		for(int i=0; i<numX; ++i) // X
+			IS.push_back(SCnf->pVarNums[varsXS[i]]);
+		for(int i=0; i<numY; ++i) // neg_Y
+			IS.push_back(SCnf->pVarNums[numOrigInputs + varsYS[i]]);
 
-	// TODO: Call Unigen
-	unigen_call(UNIGEN_INPUT_FNAME, UNIGEN_SAMPLES);
+		// Print Dimacs
+		vector<lit> assumptions = setAllNegX(SCnf, SAig, false);
+		Sat_SolverWriteDimacsAndIS(pSat, UNIGEN_DIMAC_FPATH,
+			&assumptions[0], &assumptions[0] + numX, 0, IS);
 
-	// TODO: Read CEX
-	map<int, int> varNum2ID;
-	for(int i=0; i<numX; ++i)
-		varNum2ID[SCnf->pVarNums[varsXS[i]]] = i;
-	for(int i=0; i<numY; ++i)
-		varNum2ID[SCnf->pVarNums[varsYS[i]]] = numX + i;
-	for(int i=0; i<numX; ++i)
-		varNum2ID[SCnf->pVarNums[numOrigInputs + varsXS[i]]] = numOrigInputs + i;
-	for(int i=0; i<numY; ++i)
-		varNum2ID[SCnf->pVarNums[numOrigInputs + varsYS[i]]] = numOrigInputs + numX + i;
-
-	if(unigen_fetchModels(varNum2ID)) {
-		OUT("Formula is SAT, stored CEXs");
-		return_val = true;
+		// Call Unigen
+		status = unigen_call(UNIGEN_DIMAC_FPATH, UNIGEN_SAMPLES);
 	}
 	else {
-		OUT("UNIGEN says UNSAT, not resorting to ABC's solver");
+		status = -1; // Switch to ABC
+	}
+
+	if(status == 0) { // UNSAT
+		OUT("Formula is UNSAT");
 		return_val = false;
-		// OUT("Solving..." );
+	}
+	else if(status == 1) { // Successful
+		// Read CEX
+		map<int, int> varNum2ID;
+		for(int i=0; i<numX; ++i)
+			varNum2ID[SCnf->pVarNums[varsXS[i]]] = i;
+		for(int i=0; i<numY; ++i)
+			varNum2ID[SCnf->pVarNums[varsYS[i]]] = numX + i;
+		for(int i=0; i<numX; ++i)
+			varNum2ID[SCnf->pVarNums[numOrigInputs + varsXS[i]]] = numOrigInputs + i;
+		for(int i=0; i<numY; ++i)
+			varNum2ID[SCnf->pVarNums[numOrigInputs + varsYS[i]]] = numOrigInputs + numX + i;
 
-		// int status = sat_solver_solve(pSat, 0, 0, (ABC_INT64_T)0, (ABC_INT64_T)0, (ABC_INT64_T)0, (ABC_INT64_T)0);
+		if(unigen_fetchModels(varNum2ID)) {
+			OUT("Formula is SAT, stored CEXs");
+			return_val = true;
+		}
+		else {
+			OUT("Formula is UNSAT");
+			return_val = false;
+		}
+	}
+	else { // Too little solutions
+		assert(status == -1);
+		OUT("UNIGEN says too little solutions");
+		cout << "\nSwitching to ABC's solver" << endl;
 
-		// if (status == l_False) {
-		// 	OUT("Formula is unsat");
-		// 	return_val = false;
-		// }
-		// else if (status == l_True) {
-		// 	OUT("Formula is sat; storing CEX");
+		SwitchToABCSolver = true;
 
-		// 	vector<int> cex(2*numOrigInputs);
-		// 	for (int i = 0; i < numX; ++i) {
-		// 		cex[i] = SCnf->pVarNums[varsXS[i]];
-		// 	}
-		// 	for (int i = 0; i < numY; ++i) {
-		// 		cex[numX + i] = SCnf->pVarNums[varsYS[i]];
-		// 	}
-		// 	for (int i = 0; i < numX; ++i) {
-		// 		cex[numOrigInputs + i] = SCnf->pVarNums[varsXS[i] + numOrigInputs];
-		// 	}
-		// 	for (int i = 0; i < numY; ++i) {
-		// 		cex[numOrigInputs + numX + i] = SCnf->pVarNums[varsYS[i] + numOrigInputs];
-		// 	}
-		// 	int * v = Sat_SolverGetModel(pSat, &cex[0], cex.size());
-		// 	cex = vector<int>(v,v+cex.size());
+		vector<lit> assumptions = setAllNegX(SCnf, SAig, false);
+		status = sat_solver_solve(pSat,
+						&assumptions[0], &assumptions[0] + numX,
+						(ABC_INT64_T)0, (ABC_INT64_T)0,
+						(ABC_INT64_T)0, (ABC_INT64_T)0);
 
-		// 	storedCEX.push(cex);
-		// 	return_val = true;
-		// }
+		if (status == l_False) {
+			OUT("Formula is unsat");
+			return_val = false;
+		}
+		else if (status == l_True) {
+			OUT("Formula is sat; storing CEX");
+
+			vector<int> cex(2*numOrigInputs);
+			for (int i = 0; i < numX; ++i) {
+				cex[i] = SCnf->pVarNums[varsXS[i]];
+			}
+			for (int i = 0; i < numY; ++i) {
+				cex[numX + i] = SCnf->pVarNums[varsYS[i]];
+			}
+			for (int i = 0; i < numX; ++i) {
+				cex[numOrigInputs + i] = SCnf->pVarNums[varsXS[i] + numOrigInputs];
+			}
+			for (int i = 0; i < numY; ++i) {
+				cex[numOrigInputs + numX + i] = SCnf->pVarNums[varsYS[i] + numOrigInputs];
+			}
+			int * v = Sat_SolverGetModel(pSat, &cex[0], cex.size());
+			cex = vector<int>(v,v+cex.size());
+
+			storedCEX.push(cex);
+			return_val = true;
+		}
 	}
 
 	sat_solver_delete(pSat);
@@ -998,7 +1061,7 @@ void updateAbsRef(Aig_Man_t* pMan, vector<vector<int> > &r0, vector<vector<int> 
 Aig_Man_t* compressAig(Aig_Man_t* SAig) {
 	OUT("Cleaning up...");
 	int removed = Aig_ManCleanup(SAig);
-	OUT("Removed "<<removed<<" nodes");
+	cout << "Removed " << removed <<" nodes" << endl;
 
 	Aig_Man_t* temp = SAig;
 	// Dar_ManCompress2( Aig_Man_t * pAig, int fBalance,
@@ -1390,6 +1453,10 @@ void Sat_SolverWriteDimacsAndIS( sat_solver * p, char * pFileName,
     Sat_MemForEachClause( pMem, c, i, k )
         Sat_SolverClauseWriteDimacs( pFile, c, incrementVars );
 
+    // write the learned clauses
+	Sat_MemForEachLearned( pMem, c, i, k )
+		Sat_SolverClauseWriteDimacs( pFile, c, incrementVars );
+
     // write zero-level assertions
     for ( i = 0; i < p->size; i++ )
         if ( p->levels[i] == 0 && p->assigns[i] != 3 ) // varX
@@ -1410,18 +1477,38 @@ void Sat_SolverWriteDimacsAndIS( sat_solver * p, char * pFileName,
     if ( pFileName ) fclose( pFile );
 }
 
-void unigen_call(string fname, int nSamples) {
+/**Function
+ * returns 0  when unsat
+ * returns -1 when sat but number of solutions is too small
+ * returns  1 when sat and models succesfully populated UNIGEN_MODEL_FPATH
+ */
+int unigen_call(string fname, int nSamples) {
 	assert(fname.find(' ') == string::npos);
-	system("rm -rf " UNIGEN_OUT_DIR"/");
-	string cmd = "python2 " UNIGEN_PY" -samples="+to_string(nSamples)+" "+fname+" " UNIGEN_OUT_DIR" >" UNIGEN_OUTPUT ;
-	cout << "Calling unigen: " << cmd << endl;
+	system("rm -rf " UNIGEN_OUT_DIR "/");
+	string cmd = "python2 " UNIGEN_PY " -threads=4 -samples="+to_string(nSamples)+" "+fname+" " UNIGEN_OUT_DIR " > " UNIGEN_OUTPT_FPATH+to_string(numUnigenCalls) ;
+	cout << "\nCalling unigen: " << cmd << endl;
 	system(cmd.c_str());
+	numUnigenCalls++;
+
+	// Check for SAT
+	ifstream infile(UNIGEN_OUTPT_FPATH);
+	if(!infile.is_open()){
+		cout << "Failed to open file : " UNIGEN_OUTPT_FPATH <<endl;
+	}
+	string line;
+	while(getline(infile, line)) {
+		if(line.find("number of solutions is too small")!=string::npos)
+			return -1;
+		else if(line.find("input formula is unsatisfiable")!=string::npos)
+			return 0;
+	}
+	return 1;
 }
 
 bool unigen_fetchModels(map<int, int>& varNum2ID) {
-	ifstream infile(UNIGEN_OUT_DIR"/" UNIGEN_MODEL_FNAME);
+	ifstream infile(UNIGEN_MODEL_FPATH);
 	if(!infile.is_open()) {
-		cout << "File : " << UNIGEN_OUT_DIR"/" UNIGEN_MODEL_FNAME << " not found" << endl;
+		cout << "File : " UNIGEN_MODEL_FPATH " not found" << endl;
 		assert(false);
 		return false;
 	}
@@ -1450,4 +1537,12 @@ bool unigen_fetchModels(map<int, int>& varNum2ID) {
 	}
 	cout << "storedCEX.size() = " << storedCEX.size() << endl;
 	return flag;
+}
+
+vector<lit> setAllNegX(Cnf_Dat_t* SCnf, Aig_Man_t* SAig, int val) {
+	vector<lit> res(numX);
+	for (int i = 0; i < numX; ++i) {
+		res[i] = toLitCond(SCnf->pVarNums[numOrigInputs + varsXS[i]], (int) val==0);
+	}
+	return res;
 }

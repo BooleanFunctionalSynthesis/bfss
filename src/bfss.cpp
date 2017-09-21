@@ -168,9 +168,9 @@ int main( int argc, char * argv[] )
 	// F_SAig      will always be Aig_ManCo( ... , 1)
 	// FPrime_SAig will always be Aig_ManCo( ... , 2)
 	cout << "buildF(SAig)..."<<endl;
-	const Aig_Obj_t* F_SAig = buildF(SAig);
+	Aig_Obj_t* F_SAig = buildF(SAig);
 	cout << "buildFPrime(SAig)..."<<endl;
-	const Aig_Obj_t* FPrime_SAig = buildFPrime(SAig, F_SAig);
+	Aig_Obj_t* FPrime_SAig = buildFPrime(SAig, F_SAig);
 	vector<vector<int> > r0(numY), r1(numY);
 	cout << "initializeRs(SAig, r0, r1)..."<<endl;
 	clock_t compose_start = clock();
@@ -180,6 +180,12 @@ int main( int argc, char * argv[] )
 
 	// cout << "checkSupportSanity(SAig, r0, r1)..."<<endl;
 	// checkSupportSanity(SAig, r0, r1);
+
+	// Patch 0th Output of SAig to F
+	pAigObj = Aig_ManCo(SAig,0);
+	F_SAig  = Aig_ManCo(SAig,1);
+	F_SAig  = Aig_ObjChild0(F_SAig);
+	Aig_ObjPatchFanin0(SAig, pAigObj, F_SAig);
 
 	// #ifdef DEBUG_CHUNK // Print SAig
  //        cout << "\nSAig: " << endl;
@@ -205,9 +211,11 @@ int main( int argc, char * argv[] )
 		checkSupportSanity(SAig, r0, r1);
 	#endif
 
+	cex = vector<int>(2*numOrigInputs, 0);
 	// CEGAR Loop
 	cout << "Starting CEGAR Loop..."<<endl;
 	int numloops = 0;
+	// while(callSATfindCEX(SAig, cex, r0, r1)) {
 	while(getNextCEX(SAig, cex, r0, r1)) {
 		OUT("Iter " << numloops << ":\tFound CEX!");
 		cout<<'.'<<flush;

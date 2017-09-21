@@ -21,13 +21,16 @@ Aig_Man_t * Abc_NtkToDar(Abc_Ntk_t * pNtk, int fExors, int fRegisters);
 Abc_Ntk_t * Abc_NtkFromAigPhase(Aig_Man_t * pMan);
 }
 
-#define UNIGEN_FNAME 		"errorFormula"
-#define UNIGEN_INPUT_FNAME 	UNIGEN_FNAME".cnf"
-#define UNIGEN_MODEL_FNAME	UNIGEN_FNAME".txt"
-#define UNIGEN_PY 			"UniGen2.py"
 #define UNIGEN_OUT_DIR		"out"
-#define UNIGEN_OUTPUT		"unigen_output.txt"
-#define UNIGEN_SAMPLES		110
+#define UNIGEN_INPUT_FNAME 	"errorFormula"
+#define UNIGEN_OUTPT_FNAME	"unigen_output.txt"
+#define UNIGEN_DIMAC_FNAME 	UNIGEN_INPUT_FNAME ".cnf"
+#define UNIGEN_MODEL_FNAME	UNIGEN_INPUT_FNAME ".txt"
+#define UNIGEN_OUTPT_FPATH	UNIGEN_OUTPT_FNAME
+#define UNIGEN_MODEL_FPATH	UNIGEN_OUT_DIR "/" UNIGEN_MODEL_FNAME
+#define UNIGEN_DIMAC_FPATH 	UNIGEN_DIMAC_FNAME
+#define UNIGEN_PY 			"UniGen2.py"
+#define UNIGEN_SAMPLES		22
 
 // #define DEBUG
 // #define DEBUG_CHUNK
@@ -103,5 +106,6 @@ Aig_Obj_t*	 	Aig_ComposeVec( Aig_Man_t * p, Aig_Obj_t * pRoot, vector<Aig_Obj_t 
 					vector<int>& iVarVec );
 void 			Sat_SolverWriteDimacsAndIS( sat_solver * p, char * pFileName,
 					lit* assumpBegin, lit* assumpEnd, int incrementVars, vector<int>&IS );
-void 			unigen_call(string fname, int nSamples);
+int 			unigen_call(string fname, int nSamples);
 bool 			unigen_fetchModels(map<int, int>& varNum2ID);
+vector<lit>		setAllNegX(Cnf_Dat_t* SCnf, Aig_Man_t* SAig, int val);
