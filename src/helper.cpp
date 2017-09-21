@@ -718,12 +718,12 @@ bool getNextCEX(Aig_Man_t*&SAig,vector<int>& cex,
 		}
 
 		// Compressing before calling unigen
-		cout << endl;
-		Aig_ManPrintStats( SAig );
-		cout << "\nCompressing SAig..." << endl;
-		SAig = compressAigByNtk(SAig);
-		assert(SAig != NULL);
-		Aig_ManPrintStats( SAig );
+		// cout << endl;
+		// Aig_ManPrintStats( SAig );
+		// cout << "\nCompressing SAig..." << endl;
+		// SAig = compressAigByNtk(SAig);
+		// assert(SAig != NULL);
+		// Aig_ManPrintStats( SAig );
 
 		// Ran out of CEX, fetch new
 		if (populateStoredCEX(SAig, r0, r1) == false)
@@ -1483,12 +1483,12 @@ void Sat_SolverWriteDimacsAndIS( sat_solver * p, char * pFileName,
  * returns  1 when sat and models succesfully populated UNIGEN_MODEL_FPATH
  */
 int unigen_call(string fname, int nSamples) {
+	numUnigenCalls++;
 	assert(fname.find(' ') == string::npos);
 	system("rm -rf " UNIGEN_OUT_DIR "/");
 	string cmd = "python2 " UNIGEN_PY " -threads=4 -samples="+to_string(nSamples)+" "+fname+" " UNIGEN_OUT_DIR " > " UNIGEN_OUTPT_FPATH+to_string(numUnigenCalls) ;
 	cout << "\nCalling unigen: " << cmd << endl;
 	system(cmd.c_str());
-	numUnigenCalls++;
 
 	// Check for SAT
 	ifstream infile(UNIGEN_OUTPT_FPATH + to_string(numUnigenCalls));
