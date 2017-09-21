@@ -802,7 +802,8 @@ bool populateStoredCEX(Aig_Man_t* SAig,
 	else { // Too little solutions
 		assert(status == -1);
 		OUT("UNIGEN says too little solutions");
-		cout << "\nSwitching to ABC's solver" << endl;
+		if(!SwitchToABCSolver)
+			cout << "\nSwitching to ABC's solver" << endl;
 
 		SwitchToABCSolver = true;
 

@@ -228,8 +228,9 @@ int main( int argc, char * argv[] )
 
 		if(numloops % 50 == 0) {
 			cout << numloops;
+			cout << endl;
 			Aig_ManPrintStats( SAig );
-			cout << "\nCompressing SAig..." << endl;
+			cout << "Compressing SAig..." << endl;
 			SAig = compressAigByNtk(SAig);
 			// SAig = compressAig(SAig);
 			assert(SAig != NULL);
