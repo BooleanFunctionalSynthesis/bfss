@@ -1491,7 +1491,7 @@ int unigen_call(string fname, int nSamples) {
 	numUnigenCalls++;
 
 	// Check for SAT
-	ifstream infile(UNIGEN_OUTPT_FPATH);
+	ifstream infile(UNIGEN_OUTPT_FPATH + to_string(numUnigenCalls));
 	if(!infile.is_open()){
 		cout << "Failed to open file : " UNIGEN_OUTPT_FPATH <<endl;
 	}
