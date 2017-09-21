@@ -37,6 +37,14 @@ bin/*
 # Unigen
 doalarm
 sharpSAT
+sharpSAT-bin
 unigen
 UniGen2.py
 
+errorFormula.cnf
+out*
+out/*
+sat_solver.dimacs*
+tempout
+unigen_output*
+*.zip

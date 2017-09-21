@@ -1494,6 +1494,7 @@ int unigen_call(string fname, int nSamples) {
 	ifstream infile(UNIGEN_OUTPT_FPATH + to_string(numUnigenCalls));
 	if(!infile.is_open()){
 		cout << "Failed to open file : " UNIGEN_OUTPT_FPATH <<endl;
+		assert(false);
 	}
 	string line;
 	while(getline(infile, line)) {
