@@ -1549,10 +1549,11 @@ vector<lit> setAllNegX(Cnf_Dat_t* SCnf, Aig_Man_t* SAig, int val) {
 }
 
 
-int findK2Max(Aig_Man_t* SAig, vector<int>&cex) {
+int findK2Max(Aig_Man_t* SAig, vector<int>&cex, 
+	vector<vector<int> >&r0, vector<vector<int> >&r1) {
 
 	Aig_Obj_t *mu0, *mu1, *mu, *pAigObj;
-	int k1Max;
+	int k1Max, return_val;
 
 	// Calculate Ys from X
 	for (int i = numY-1; i >= 0; --i)
@@ -1572,28 +1573,76 @@ int findK2Max(Aig_Man_t* SAig, vector<int>&cex) {
 	// Assuming we know k1Max
 	// k1Max = ??
 
-	if(checkIsK2Unsat(SAig, cex, int k1Max)) {
+	sat_solver *pSat = sat_solver_new();
+	Cnf_Dat_t *SCnf = Cnf_Derive(SAig,2);
+	addCnfToSolver(pSat, SCnf);
 
+	// Push X values
+	for (int i = 0; i < numX; ++i) {
+		lit p = toLitCond(SCnf->pVarNums[varsXS[i]],(int)cex[i]==0);
+		sat_solver_push(pSat, p);
 	}
 
-	return res;
-}
-
-int findK2Max_rec(Aig_Man_t* SAig, vector<int>&cex, int k_start, int k_end) {
-	if(k_start + 1 == k_end)
-		return k_start;
-
-	int k_mid = (k_start + k_end)/2;
-	if(checkIsK2Unsat(SAig,cex,k_mid)) { // Going Right
-		// pop()
-		return findK2Max_rec(SAig, cex, k_mid, k_end);
+	// Check for k2==k1
+	if(checkIsFUnsat(pSat, SCnf, cex, k1Max)) {
+		return_val = k1Max;
 	}
 	else {
-		return findK2Max_rec(SAig, cex, k_start, k_mid);
+		return_val = findK2Max_rec(pSat, SCnf, cex, k1Max+1, numY-1);
+	}
+
+	sat_solver_delete(pSat);
+	Cnf_DataFree(SCnf);
+	return return_val;
+}
+
+// INV: k_end => SAT; k_start-1=> UNSAT
+int findK2Max_rec(sat_solver* pSat, Cnf_Dat_t* SCnf, vector<int>&cex, int k_start, int k_end) {
+	assert(k_start<=k_end);
+	if(k_start == k_end)
+		return k_start-1;
+	if(k_start + 1 == k_end)
+		if(checkIsFUnsat(pSat,SCnf,cex, k_start))
+			return  k_start;
+		else
+			return k_start-1;
+
+	int k_mid = (k_start + k_end)/2;
+	if(checkIsFUnsat(pSat,SCnf,cex, k_mid)) { // Going Right
+		sat_solver_rollback(pSat);
+		return findK2Max_rec(pSat,SCnf, cex, k_mid+1, k_end);
+	}
+	else {
+		return findK2Max_rec(pSat,SCnf, cex, k_start, k_mid);
 	}
 }
 
-bool checkIsK2Unsat(Aig_Man_t* SAig, vector<int>&cex, int k_start) {
+bool checkIsFUnsat(sat_solver* pSat, Cnf_Dat_t* SCnf, vector<int>&cex, int k) {
+	assert(k < numY-1);
+	sat_solver_bookmark(pSat);
 
+	// Push counterexamples from k+1 till numY-1 (excluded)
+	for (int i = numY; i > k; --i) {
+		lit p = toLitCond(SCnf->pVarNums[varsYS[i]],(int)cex[numX + i]==0);
+		sat_solver_push(pSat, p);
+	}
 
+	if(!sat_solver_simplify(pSat)) {
+		OUT("Trivially unsat");
+		return true;
+	}
+
+	int status = sat_solver_solve(pSat, 0, 0,
+					(ABC_INT64_T)0, (ABC_INT64_T)0,
+					(ABC_INT64_T)0, (ABC_INT64_T)0);
+
+	if (status == l_False) {
+		OUT("Unsat");
+		return true;
+	}
+	else {
+		assert(status == l_True);
+		OUT("Sat");
+		return false;
+	}
 }

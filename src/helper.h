@@ -109,3 +109,6 @@ void 			Sat_SolverWriteDimacsAndIS( sat_solver * p, char * pFileName,
 int 			unigen_call(string fname, int nSamples);
 bool 			unigen_fetchModels(map<int, int>& varNum2ID);
 vector<lit>		setAllNegX(Cnf_Dat_t* SCnf, Aig_Man_t* SAig, int val);
+int 			findK2Max(Aig_Man_t* SAig, vector<int>&cex, vector<vector<int> >&r0, vector<vector<int> >&r1);
+int 			findK2Max_rec(sat_solver* pSat, Cnf_Dat_t* SCnf, vector<int>&cex, int k_start, int k_end);
+bool 			checkIsFUnsat(sat_solver* pSat, Cnf_Dat_t* SCnf, vector<int>&cex, int k);
