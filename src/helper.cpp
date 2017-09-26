@@ -3,6 +3,7 @@
 
 vector<vector<int> > storedCEX;
 vector<int> storedCEX_k1;
+vector<int> storedCEX_k2;
 bool new_flag = true;
 bool SwitchToABCSolver = false;
 int numUnigenCalls = 0;
@@ -730,6 +731,14 @@ bool getNextCEX(Aig_Man_t*&SAig,vector<int>& cex,
 		// Ran out of CEX, fetch new
 		if (populateStoredCEX(SAig, r0, r1) == false)
 			return false;
+
+		populateK2Vec(SAig, r0, r1);
+		cout << "K1 K2 Data:" << endl;
+		assert(storedCEX_k1.size() == storedCEX.size());
+		assert(storedCEX_k2.size() == storedCEX.size());
+		for (int i = 0; i < storedCEX.size(); ++i) {
+			cout << i << ":\tk1: " << storedCEX_k1[i] << "\tk2: " << storedCEX_k2[i] << endl;
+		}
 	}
 }
 
@@ -1549,7 +1558,7 @@ bool unigen_fetchModels(Aig_Man_t* SAig, vector<vector<int> > &r0,
 		}
 		
 		ncex++;
-		cout << ncex << " ";
+		// cout << ncex << " ";
 		// cex, SAig, r0, r1;
 		evaluateAig(SAig, cex);
 		int k;
@@ -1559,7 +1568,7 @@ bool unigen_fetchModels(Aig_Man_t* SAig, vector<vector<int> > &r0,
 				((mu1 = satisfiesVec(SAig, cex, r1[k])) != NULL))
 				break;
 		}
-		cout << k << endl;
+		// cout << k << endl;
 		storedCEX_k1.push_back(k);
 		storedCEX.push_back(cex);
 		flag = true;
@@ -1576,18 +1585,27 @@ vector<lit> setAllNegX(Cnf_Dat_t* SCnf, Aig_Man_t* SAig, int val) {
 	return res;
 }
 
-void populateK1Vec(Aig_Man_t* SAig) {
+void populateK1Vec(Aig_Man_t* SAig, vector<vector<int> >&r0, vector<vector<int> >&r1) {
 
 
 
 }
 
+void populateK2Vec(Aig_Man_t* SAig, vector<vector<int> >&r0, vector<vector<int> >&r1) {
+	storedCEX_k2.clear();
+	int i = 0;
+	for(auto it:storedCEX)
+		storedCEX_k2.push_back(findK2Max(SAig, it, r0, r1,storedCEX_k1[i++]));
+}
 
 int findK2Max(Aig_Man_t* SAig, vector<int>&cex, 
-	vector<vector<int> >&r0, vector<vector<int> >&r1) {
+	vector<vector<int> >&r0, vector<vector<int> >&r1, int k1Max) {
+	// Assuming we know k1Max
+	cout << "findK2Max" << endl;
+	cout << "k1 = " << k1Max << endl;
 
 	Aig_Obj_t *mu0, *mu1, *mu, *pAigObj;
-	int k1Max, return_val;
+	int return_val;
 
 	// Calculate Ys from X
 	for (int i = numY-1; i >= 0; --i)
@@ -1604,17 +1622,18 @@ int findK2Max(Aig_Man_t* SAig, vector<int>&cex,
 	}
 	evaluateAig(SAig,cex);
 
-	// Assuming we know k1Max
-	// k1Max = ??
 
 	sat_solver *pSat = sat_solver_new();
-	Cnf_Dat_t *SCnf = Cnf_Derive(SAig,2);
+	Cnf_Dat_t *SCnf = Cnf_Derive(SAig,Aig_ManCoNum(SAig));
 	addCnfToSolver(pSat, SCnf);
+
+	lit f = toLitCond(getCnfCoVarNum(SCnf, SAig, 1), 0);
+	sat_solver_push(pSat, f);
 
 	// Push X values
 	for (int i = 0; i < numX; ++i) {
 		lit p = toLitCond(SCnf->pVarNums[varsXS[i]],(int)cex[i]==0);
-		sat_solver_push(pSat, p);
+		cout << "pushX "<<i<<": " << sat_solver_push(pSat, p) << endl;
 	}
 
 	// Check for k2==k1
@@ -1632,6 +1651,7 @@ int findK2Max(Aig_Man_t* SAig, vector<int>&cex,
 
 // INV: k_end => SAT; k_start-1=> UNSAT
 int findK2Max_rec(sat_solver* pSat, Cnf_Dat_t* SCnf, vector<int>&cex, int k_start, int k_end) {
+	printf("findK2Max_rec(%d,%d)\n",k_start,k_end);
 	assert(k_start<=k_end);
 	if(k_start == k_end)
 		return k_start-1;
@@ -1652,17 +1672,18 @@ int findK2Max_rec(sat_solver* pSat, Cnf_Dat_t* SCnf, vector<int>&cex, int k_star
 }
 
 bool checkIsFUnsat(sat_solver* pSat, Cnf_Dat_t* SCnf, vector<int>&cex, int k) {
+	printf("checkIsFUnsat(%d)\n",k);
 	assert(k < numY-1);
-	sat_solver_bookmark(pSat);
+	// sat_solver_bookmark(pSat);
 
 	// Push counterexamples from k+1 till numY-1 (excluded)
 	for (int i = numY; i > k; --i) {
 		lit p = toLitCond(SCnf->pVarNums[varsYS[i]],(int)cex[numX + i]==0);
-		sat_solver_push(pSat, p);
+		cout << "pushY "<<i<<": " << sat_solver_push(pSat, p) << endl;
 	}
 
 	if(!sat_solver_simplify(pSat)) {
-		OUT("Trivially unsat");
+		cout << "Trivially unsat" << endl;
 		return true;
 	}
 
@@ -1671,12 +1692,12 @@ bool checkIsFUnsat(sat_solver* pSat, Cnf_Dat_t* SCnf, vector<int>&cex, int k) {
 					(ABC_INT64_T)0, (ABC_INT64_T)0);
 
 	if (status == l_False) {
-		OUT("Unsat");
+		cout << "Unsat" << endl;
 		return true;
 	}
 	else {
 		assert(status == l_True);
-		OUT("Sat");
+		cout << "Sat" << endl;
 		return false;
 	}
 }
