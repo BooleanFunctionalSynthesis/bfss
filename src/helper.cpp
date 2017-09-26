@@ -2,6 +2,7 @@
 #include "formula.h"
 
 stack<vector<int> > storedCEX;
+vector<vector<int> > storedCEX_k1;
 bool new_flag = true;
 bool SwitchToABCSolver = false;
 int numUnigenCalls = 0;
@@ -1545,4 +1546,54 @@ vector<lit> setAllNegX(Cnf_Dat_t* SCnf, Aig_Man_t* SAig, int val) {
 		res[i] = toLitCond(SCnf->pVarNums[numOrigInputs + varsXS[i]], (int) val==0);
 	}
 	return res;
+}
+
+
+int findK2Max(Aig_Man_t* SAig, vector<int>&cex) {
+
+	Aig_Obj_t *mu0, *mu1, *mu, *pAigObj;
+	int k1Max;
+
+	// Calculate Ys from X
+	for (int i = numY-1; i >= 0; --i)
+	{
+		evaluateAig(SAig,cex);
+		bool r1i = false;
+		for(auto r1El: r1[i]) {
+			if(Aig_ManCo(SAig, r1El)->iData == 1) {
+				r1i = true;
+				break;
+			}
+		}
+		cex[numX + i] = (int) !r1i;
+	}
+	evaluateAig(SAig,cex);
+
+	// Assuming we know k1Max
+	// k1Max = ??
+
+	if(checkIsK2Unsat(SAig, cex, int k1Max)) {
+
+	}
+
+	return res;
+}
+
+int findK2Max_rec(Aig_Man_t* SAig, vector<int>&cex, int k_start, int k_end) {
+	if(k_start + 1 == k_end)
+		return k_start;
+
+	int k_mid = (k_start + k_end)/2;
+	if(checkIsK2Unsat(SAig,cex,k_mid)) { // Going Right
+		// pop()
+		return findK2Max_rec(SAig, cex, k_mid, k_end);
+	}
+	else {
+		return findK2Max_rec(SAig, cex, k_start, k_mid);
+	}
+}
+
+bool checkIsK2Unsat(Aig_Man_t* SAig, vector<int>&cex, int k_start) {
+
+
 }
