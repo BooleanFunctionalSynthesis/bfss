@@ -1,8 +1,8 @@
 #include "helper.h"
 #include "formula.h"
 
-stack<vector<int> > storedCEX;
-vector<vector<int> > storedCEX_k1;
+vector<vector<int> > storedCEX;
+vector<int> storedCEX_k1;
 bool new_flag = true;
 bool SwitchToABCSolver = false;
 int numUnigenCalls = 0;
@@ -665,7 +665,7 @@ bool getNextCEX(Aig_Man_t*&SAig,vector<int>& cex,
 
 	while(true) {
 		while(!storedCEX.empty()) {
-			vector<int> currCEX = storedCEX.top();
+			vector<int> currCEX = storedCEX[storedCEX.size() - 1];
 			// storedCEX.pop(); For milking
 			OUT("popping cex");
 
@@ -713,7 +713,8 @@ bool getNextCEX(Aig_Man_t*&SAig,vector<int>& cex,
 					new_flag = false;
 				}
 				// For milking
-				storedCEX.pop();
+				storedCEX.pop_back();
+				storedCEX_k1.pop_back();
 				new_flag = true;
 			}
 		}
@@ -789,7 +790,7 @@ bool populateStoredCEX(Aig_Man_t* SAig,
 		for(int i=0; i<numY; ++i)
 			varNum2ID[SCnf->pVarNums[numOrigInputs + varsYS[i]]] = numOrigInputs + numX + i;
 
-		if(unigen_fetchModels(varNum2ID)) {
+		if(unigen_fetchModels(SAig, r0, r1, varNum2ID)) {
 			OUT("Formula is SAT, stored CEXs");
 			return_val = true;
 		}
@@ -835,7 +836,18 @@ bool populateStoredCEX(Aig_Man_t* SAig,
 			int * v = Sat_SolverGetModel(pSat, &cex[0], cex.size());
 			cex = vector<int>(v,v+cex.size());
 
-			storedCEX.push(cex);
+			storedCEX.push_back(cex);
+			evaluateAig(SAig, cex);
+			int k;
+			Aig_Obj_t *mu0, *mu1;
+			for(k = numY-1; k >= 0; k--) {
+				if(((mu0 = satisfiesVec(SAig, cex, r0[k])) != NULL) &&
+					((mu1 = satisfiesVec(SAig, cex, r1[k])) != NULL))
+					break;
+			}
+			cout << k << endl;
+			storedCEX_k1.push_back(k);
+
 			return_val = true;
 		}
 	}
@@ -1506,7 +1518,8 @@ int unigen_call(string fname, int nSamples) {
 	return 1;
 }
 
-bool unigen_fetchModels(map<int, int>& varNum2ID) {
+bool unigen_fetchModels(Aig_Man_t* SAig, vector<vector<int> > &r0, 
+							vector<vector<int> > &r1, map<int, int>& varNum2ID) {
 	ifstream infile(UNIGEN_MODEL_FPATH);
 	if(!infile.is_open()) {
 		cout << "File : " UNIGEN_MODEL_FPATH " not found" << endl;
@@ -1517,6 +1530,7 @@ bool unigen_fetchModels(map<int, int>& varNum2ID) {
 	bool flag = false;
 	string line;
 	vector<unordered_map<int, int> > models;
+	int ncex = 0;
 	while(getline(infile, line)) {
 		if(line == " " || line == "")
 			continue;
@@ -1533,7 +1547,21 @@ bool unigen_fetchModels(map<int, int>& varNum2ID) {
 			int modelVal = stoi(it);
 			cex[varNum2ID[abs(modelVal)]] = (modelVal > 0) ? 1 : 0;
 		}
-		storedCEX.push(cex);
+		
+		ncex++;
+		cout << ncex << " ";
+		// cex, SAig, r0, r1;
+		evaluateAig(SAig, cex);
+		int k;
+		Aig_Obj_t *mu0, *mu1;
+		for(k = numY-1; k >= 0; k--) {
+			if(((mu0 = satisfiesVec(SAig, cex, r0[k])) != NULL) &&
+				((mu1 = satisfiesVec(SAig, cex, r1[k])) != NULL))
+				break;
+		}
+		cout << k << endl;
+		storedCEX_k1.push_back(k);
+		storedCEX.push_back(cex);
 		flag = true;
 	}
 	cout << "storedCEX.size() = " << storedCEX.size() << endl;
@@ -1546,6 +1574,12 @@ vector<lit> setAllNegX(Cnf_Dat_t* SCnf, Aig_Man_t* SAig, int val) {
 		res[i] = toLitCond(SCnf->pVarNums[numOrigInputs + varsXS[i]], (int) val==0);
 	}
 	return res;
+}
+
+void populateK1Vec(Aig_Man_t* SAig) {
+
+
+
 }
 
 
