@@ -759,8 +759,6 @@ bool populateStoredCEX(Aig_Man_t* SAig,
 		vector<int> IS;
 		for(int i=0; i<numX; ++i) // X
 			IS.push_back(SCnf->pVarNums[varsXS[i]]);
-		for(int i=0; i<numY; ++i) // neg_Y
-			IS.push_back(SCnf->pVarNums[numOrigInputs + varsYS[i]]);
 
 		// Print Dimacs
 		vector<lit> assumptions = setAllNegX(SCnf, SAig, false);
