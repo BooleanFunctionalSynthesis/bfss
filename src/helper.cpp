@@ -660,7 +660,7 @@ bool callSATfindCEX(Aig_Man_t* SAig,vector<int>& cex,
  * @param r0        [in]        Underapproximations of cant-be-0 sets.
  * @param r1        [in]        Underapproximations of cant-be-1 sets.
  */
-bool getNextCEX(Aig_Man_t*&SAig,vector<int>& cex,
+bool getNextCEX(Aig_Man_t*&SAig,vector<int>& cex, int& m,
 	vector<vector<int> > &r0, vector<vector<int> > &r1) {
 	OUT("getNextCEX...");
 
@@ -690,7 +690,19 @@ bool getNextCEX(Aig_Man_t*&SAig,vector<int>& cex,
 				}
 				currCEX[numX + i] = (int) !r1i;
 			}
+			// TODO: recompute k1, k2, check with Shubham
+
+			// int k1;
+			// Aig_Obj_t *mu0, *mu1;
 			evaluateAig(SAig,currCEX);
+			// for(k1 = numY-1; k1 >= 0; k1--) {
+			// 	if(((mu0 = satisfiesVec(SAig, currCEX, r0[k1])) != NULL) &&
+			// 		((mu1 = satisfiesVec(SAig, currCEX, r1[k1])) != NULL))
+			// 		break;
+			// }
+			// storedCEX_k1[storedCEX.size() - 1] = k1;
+			// storedCEX_k2[storedCEX.size() - 1] = findK2Max(SAig, currCEX, r0, r1, k1);
+			// m = storedCEX_k2[storedCEX.size() - 1];
 
 			#ifdef DEBUG_CHUNK
 				OUT("final cex:");
@@ -733,7 +745,8 @@ bool getNextCEX(Aig_Man_t*&SAig,vector<int>& cex,
 		if (populateStoredCEX(SAig, r0, r1) == false)
 			return false;
 
-		// populateK2Vec(SAig, r0, r1);
+		int k1Max = populateK1Vec(SAig, r0, r1);
+		int k2Max = populateK2Vec(SAig, r0, r1, k1Max);
 		cout << "K1 K2 Data:" << endl;
 		assert(storedCEX_k1.size() == storedCEX.size());
 		assert(storedCEX_k2.size() == storedCEX.size());
@@ -845,20 +858,7 @@ bool populateStoredCEX(Aig_Man_t* SAig,
 			}
 			int * v = Sat_SolverGetModel(pSat, &cex[0], cex.size());
 			cex = vector<int>(v,v+cex.size());
-
 			storedCEX.push_back(cex);
-			evaluateAig(SAig, cex);
-			int k;
-			Aig_Obj_t *mu0, *mu1;
-			for(k = numY-1; k >= 0; k--) {
-				if(((mu0 = satisfiesVec(SAig, cex, r0[k])) != NULL) &&
-					((mu1 = satisfiesVec(SAig, cex, r1[k])) != NULL))
-					break;
-			}
-			cout << k << endl;
-			storedCEX_k1.push_back(k);
-			storedCEX_k2.push_back(findK2Max(SAig, cex, r0, r1, k));
-
 			return_val = true;
 		}
 	}
@@ -1013,7 +1013,7 @@ Aig_Obj_t* Aig_AndAigs(Aig_Man_t* pMan, Aig_Obj_t* Aig1, Aig_Obj_t* Aig2) {
  * @param cex       [in]        counter-example
  */
 void updateAbsRef(Aig_Man_t* pMan, vector<vector<int> > &r0, vector<vector<int> > &r1,
-	const vector<int> &cex) {
+	const vector<int> &cex, const int &m) {
 
 	for (int i = 0; i < numX; ++i)
 		OUT(varsXS[i] << "\t" << cex[i]);
@@ -1541,7 +1541,6 @@ bool unigen_fetchModels(Aig_Man_t* SAig, vector<vector<int> > &r0,
 	bool flag = false;
 	string line;
 	vector<unordered_map<int, int> > models;
-	int ncex = 0;
 	while(getline(infile, line)) {
 		if(line == " " || line == "")
 			continue;
@@ -1559,20 +1558,6 @@ bool unigen_fetchModels(Aig_Man_t* SAig, vector<vector<int> > &r0,
 			cex[varNum2ID[abs(modelVal)]] = (modelVal > 0) ? 1 : 0;
 		}
 		
-		ncex++;
-		// cout << ncex << " ";
-		// cex, SAig, r0, r1;
-		evaluateAig(SAig, cex);
-		int k;
-		Aig_Obj_t *mu0, *mu1;
-		for(k = numY-1; k >= 0; k--) {
-			if(((mu0 = satisfiesVec(SAig, cex, r0[k])) != NULL) &&
-				((mu1 = satisfiesVec(SAig, cex, r1[k])) != NULL))
-				break;
-		}
-		// cout << k << endl;
-		storedCEX_k1.push_back(k);
-		storedCEX_k2.push_back(findK2Max(SAig, cex, r0, r1, k));
 		storedCEX.push_back(cex);
 		flag = true;
 	}
@@ -1588,29 +1573,43 @@ vector<lit> setAllNegX(Cnf_Dat_t* SCnf, Aig_Man_t* SAig, int val) {
 	return res;
 }
 
-// void populateK1Vec(Aig_Man_t* SAig, vector<vector<int> >&r0, vector<vector<int> >&r1) {
+int populateK1Vec(Aig_Man_t* SAig, vector<vector<int> >&r0, vector<vector<int> >&r1) {
+	int k;
+	int max = 0;
+	Aig_Obj_t *mu0, *mu1;
+	for(auto cex:storedCEX) {
+		evaluateAig(SAig, cex);
+		for(k = numY-1; k >= 0; k--) {
+			if(((mu0 = satisfiesVec(SAig, cex, r0[k])) != NULL) &&
+				((mu1 = satisfiesVec(SAig, cex, r1[k])) != NULL))
+				break;
+		}
+		storedCEX_k1.push_back(k);
+		max = (k > max) ? k : max;
+	}
+	return max;
+}
 
-
-
-// }
-
-// void populateK2Vec(Aig_Man_t* SAig, vector<vector<int> >&r0, vector<vector<int> >&r1) {
-// 	storedCEX_k2.clear();
-// 	int i = 0;
-// 	for(auto it:storedCEX)
-// 		storedCEX_k2.push_back(findK2Max(SAig, it, r0, r1,storedCEX_k1[i++]));
-// }	
+int populateK2Vec(Aig_Man_t* SAig, vector<vector<int> >&r0, vector<vector<int> >&r1,
+		int k1Max) {
+	int k2;
+	int i = 0;
+	int max = k1Max;
+	for(auto cex:storedCEX) {
+		k2 = findK2Max(SAig, cex, r0, r1, storedCEX_k1[i++]);
+		storedCEX_k2.push_back(k2);
+		max = (k2 > max) ? k2 : max;
+	}
+}	
 
 int findK2Max(Aig_Man_t* SAig, vector<int>&cex, 
 	vector<vector<int> >&r0, vector<vector<int> >&r1, int k1Max) {
-	// Assuming we know k1Max
-	cout << "findK2Max" << endl;
-	cout << "k1 = " << k1Max << endl;
-
+	// cout << "findK2Max" << endl;
+	// cout << "k1 = " << k1Max << endl;
 	Aig_Obj_t *mu0, *mu1, *mu, *pAigObj;
 	int return_val;
 
-	// Calculate Ys from X
+	// calculate Ys from X
 	for (int i = numY-1; i >= 0; --i)
 	{
 		evaluateAig(SAig,cex);
@@ -1632,10 +1631,9 @@ int findK2Max(Aig_Man_t* SAig, vector<int>&cex,
 	lit assump[numOrigInputs + 1];
 	assump[0] = toLitCond(getCnfCoVarNum(SCnf, SAig, 1), 0);
 
-	// Push X values
+	// push X values
 	for (int i = 0; i < numX; ++i) {
 		assump[i + 1] = toLitCond(SCnf->pVarNums[varsXS[i]], (int)cex[i]==0);
-		// cout << "pushX "<<i<<": " << sat_solver_push(pSat, p) << endl;
 	}
 
 	// Check for k2==k1
@@ -1653,7 +1651,7 @@ int findK2Max(Aig_Man_t* SAig, vector<int>&cex,
 // INV: k_end => SAT; k_start-1=> UNSAT
 int findK2Max_rec(sat_solver* pSat, Cnf_Dat_t* SCnf, vector<int>&cex, 
 		int k_start, int k_end, lit assump[]) {
-	printf("findK2Max_rec(%d,%d)\n", k_start, k_end);
+	// printf("findK2Max_rec(%d,%d)\n", k_start, k_end);
 	assert(k_start <= k_end);
 	if(k_start == k_end)
 		return k_start - 1;
@@ -1673,32 +1671,31 @@ int findK2Max_rec(sat_solver* pSat, Cnf_Dat_t* SCnf, vector<int>&cex,
 
 bool checkIsFUnsat(sat_solver* pSat, Cnf_Dat_t* SCnf, vector<int>&cex, 
 		int k, lit assump[]) {
-	printf("checkIsFUnsat(%d)\n",k);
+	// printf("checkIsFUnsat(%d)\n",k);
 	assert(k < numY-1);
 	// sat_solver_bookmark(pSat);
 
 	// Push counterexamples from k+1 till numY-1 (excluded)
 	for (int i = numY - 1; i > k; --i) {
 		assump[numOrigInputs - i] = toLitCond(SCnf->pVarNums[varsYS[i]],(int)cex[numX + i]==0);
-		// cout << "pushY "<<i<<": " << sat_solver_push(pSat, p) << endl;
 	}
 
-	// if(!sat_solver_simplify(pSat)) {
-	// 	cout << "Trivially unsat" << endl;
-	// 	return true;
-	// }
+	if(!sat_solver_simplify(pSat)) {
+		// cout << "Trivially unsat" << endl;
+		return true;
+	}
 
 	int status = sat_solver_solve(pSat, assump, assump + (numOrigInputs - k),
 					(ABC_INT64_T)0, (ABC_INT64_T)0,
 					(ABC_INT64_T)0, (ABC_INT64_T)0);
 
 	if (status == l_False) {
-		cout << "Unsat" << endl;
+		// cout << "Unsat" << endl;
 		return true;
 	}
 	else {
 		assert(status == l_True);
-		cout << "Sat" << endl;
+		// cout << "Sat" << endl;
 		return false;
 	}
 }

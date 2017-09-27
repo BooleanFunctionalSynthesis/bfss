@@ -77,7 +77,7 @@ Cnf_Dat_t* 		buildErrorFormula(sat_solver* pSat, Aig_Man_t* SAig,
 					vector<vector<int> > &r0, vector<vector<int> > &r1);
 bool 			callSATfindCEX(Aig_Man_t* SAig,vector<int>& cex,
 					vector<vector<int> > &r0, vector<vector<int> > &r1);
-bool 			getNextCEX(Aig_Man_t*&SAig,vector<int>& cex,
+bool 			getNextCEX(Aig_Man_t*&SAig,vector<int>& cex, int& m,
 					vector<vector<int> > &r0, vector<vector<int> > &r1);
 bool 			populateStoredCEX(Aig_Man_t* SAig,
 					vector<vector<int> > &r0, vector<vector<int> > &r1);
@@ -88,7 +88,7 @@ bool 			Aig_Support_rec(Aig_Man_t* pMan, Aig_Obj_t* root, int inpNodeId, map<Aig
 bool 			Aig_Support(Aig_Man_t* pMan, Aig_Obj_t* root, int inpNodeId);
 Aig_Obj_t* 		Aig_AndAigs(Aig_Man_t* pMan, Aig_Obj_t* Aig1, Aig_Obj_t* Aig2);
 void 			updateAbsRef(Aig_Man_t* pMan, vector<vector<int> > &r0, vector<vector<int> > &r1,
-					const vector<int> &cex);
+					const vector<int> &cex, const int &m);
 Aig_Man_t* 		compressAig(Aig_Man_t* SAig);
 Aig_Man_t* 		compressAigByNtk(Aig_Man_t* SAig);
 void 			checkSupportSanity(Aig_Man_t*pMan, vector<vector<int> > &r0, vector<vector<int> > &r1);
@@ -113,5 +113,5 @@ vector<lit>		setAllNegX(Cnf_Dat_t* SCnf, Aig_Man_t* SAig, int val);
 int 			findK2Max(Aig_Man_t* SAig, vector<int>&cex, vector<vector<int> >&r0, vector<vector<int> >&r1, int k1Max);
 int 			findK2Max_rec(sat_solver* pSat, Cnf_Dat_t* SCnf, vector<int>&cex, int k_start, int k_end, lit assump[]);
 bool 			checkIsFUnsat(sat_solver* pSat, Cnf_Dat_t* SCnf, vector<int>&cex, int k, lit assump[]);
-// void populateK1Vec(Aig_Man_t* SAig, vector<vector<int> >&r0, vector<vector<int> >&r1);
-// void populateK2Vec(Aig_Man_t* SAig, vector<vector<int> >&r0, vector<vector<int> >&r1);
+int populateK1Vec(Aig_Man_t* SAig, vector<vector<int> >&r0, vector<vector<int> >&r1);
+int populateK2Vec(Aig_Man_t* SAig, vector<vector<int> >&r0, vector<vector<int> >&r1, int k1Max);
