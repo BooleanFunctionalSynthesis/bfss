@@ -716,6 +716,7 @@ bool getNextCEX(Aig_Man_t*&SAig,vector<int>& cex,
 				// For milking
 				storedCEX.pop_back();
 				storedCEX_k1.pop_back();
+				storedCEX_k2.pop_back();
 				new_flag = true;
 			}
 		}
@@ -732,7 +733,7 @@ bool getNextCEX(Aig_Man_t*&SAig,vector<int>& cex,
 		if (populateStoredCEX(SAig, r0, r1) == false)
 			return false;
 
-		populateK2Vec(SAig, r0, r1);
+		// populateK2Vec(SAig, r0, r1);
 		cout << "K1 K2 Data:" << endl;
 		assert(storedCEX_k1.size() == storedCEX.size());
 		assert(storedCEX_k2.size() == storedCEX.size());
@@ -856,6 +857,7 @@ bool populateStoredCEX(Aig_Man_t* SAig,
 			}
 			cout << k << endl;
 			storedCEX_k1.push_back(k);
+			storedCEX_k2.push_back(findK2Max(SAig, cex, r0, r1, k));
 
 			return_val = true;
 		}
@@ -1570,6 +1572,7 @@ bool unigen_fetchModels(Aig_Man_t* SAig, vector<vector<int> > &r0,
 		}
 		// cout << k << endl;
 		storedCEX_k1.push_back(k);
+		storedCEX_k2.push_back(findK2Max(SAig, cex, r0, r1, k));
 		storedCEX.push_back(cex);
 		flag = true;
 	}
@@ -1585,18 +1588,18 @@ vector<lit> setAllNegX(Cnf_Dat_t* SCnf, Aig_Man_t* SAig, int val) {
 	return res;
 }
 
-void populateK1Vec(Aig_Man_t* SAig, vector<vector<int> >&r0, vector<vector<int> >&r1) {
+// void populateK1Vec(Aig_Man_t* SAig, vector<vector<int> >&r0, vector<vector<int> >&r1) {
 
 
 
-}
+// }
 
-void populateK2Vec(Aig_Man_t* SAig, vector<vector<int> >&r0, vector<vector<int> >&r1) {
-	storedCEX_k2.clear();
-	int i = 0;
-	for(auto it:storedCEX)
-		storedCEX_k2.push_back(findK2Max(SAig, it, r0, r1,storedCEX_k1[i++]));
-}
+// void populateK2Vec(Aig_Man_t* SAig, vector<vector<int> >&r0, vector<vector<int> >&r1) {
+// 	storedCEX_k2.clear();
+// 	int i = 0;
+// 	for(auto it:storedCEX)
+// 		storedCEX_k2.push_back(findK2Max(SAig, it, r0, r1,storedCEX_k1[i++]));
+// }	
 
 int findK2Max(Aig_Man_t* SAig, vector<int>&cex, 
 	vector<vector<int> >&r0, vector<vector<int> >&r1, int k1Max) {
