@@ -1622,27 +1622,25 @@ int findK2Max(Aig_Man_t* SAig, vector<int>&cex,
 	}
 	evaluateAig(SAig,cex);
 
-
 	sat_solver *pSat = sat_solver_new();
 	Cnf_Dat_t *SCnf = Cnf_Derive(SAig,Aig_ManCoNum(SAig));
 	addCnfToSolver(pSat, SCnf);
 
-	lit f = toLitCond(getCnfCoVarNum(SCnf, SAig, 1), 0);
-	sat_solver_push(pSat, f);
+	lit assump[numOrigInputs + 1];
+	assump[0] = toLitCond(getCnfCoVarNum(SCnf, SAig, 1), 0);
 
 	// Push X values
 	for (int i = 0; i < numX; ++i) {
-		lit p = toLitCond(SCnf->pVarNums[varsXS[i]],(int)cex[i]==0);
-		cout << "pushX "<<i<<": " << sat_solver_push(pSat, p) << endl;
+		assump[i + 1] = toLitCond(SCnf->pVarNums[varsXS[i]], (int)cex[i]==0);
+		// cout << "pushX "<<i<<": " << sat_solver_push(pSat, p) << endl;
 	}
 
 	// Check for k2==k1
-	if(checkIsFUnsat(pSat, SCnf, cex, k1Max)) {
-		return_val = k1Max;
-	}
-	else {
-		return_val = findK2Max_rec(pSat, SCnf, cex, k1Max+1, numY-1);
-	}
+	// if(checkIsFUnsat(pSat, SCnf, cex, k1Max + 1, assump)) {
+		return_val = findK2Max_rec(pSat, SCnf, cex, k1Max + 1, numY - 1, assump);
+	// } else {
+	// 	return_val = k1Max;
+	// }
 
 	sat_solver_delete(pSat);
 	Cnf_DataFree(SCnf);
@@ -1650,44 +1648,44 @@ int findK2Max(Aig_Man_t* SAig, vector<int>&cex,
 }
 
 // INV: k_end => SAT; k_start-1=> UNSAT
-int findK2Max_rec(sat_solver* pSat, Cnf_Dat_t* SCnf, vector<int>&cex, int k_start, int k_end) {
-	printf("findK2Max_rec(%d,%d)\n",k_start,k_end);
-	assert(k_start<=k_end);
+int findK2Max_rec(sat_solver* pSat, Cnf_Dat_t* SCnf, vector<int>&cex, 
+		int k_start, int k_end, lit assump[]) {
+	printf("findK2Max_rec(%d,%d)\n", k_start, k_end);
+	assert(k_start <= k_end);
 	if(k_start == k_end)
-		return k_start-1;
+		return k_start - 1;
 	if(k_start + 1 == k_end)
-		if(checkIsFUnsat(pSat,SCnf,cex, k_start))
-			return  k_start;
+		if(checkIsFUnsat(pSat, SCnf, cex, k_start, assump))
+			return k_start;
 		else
-			return k_start-1;
+			return k_start - 1;
 
 	int k_mid = (k_start + k_end)/2;
-	if(checkIsFUnsat(pSat,SCnf,cex, k_mid)) { // Going Right
-		sat_solver_rollback(pSat);
-		return findK2Max_rec(pSat,SCnf, cex, k_mid+1, k_end);
-	}
-	else {
-		return findK2Max_rec(pSat,SCnf, cex, k_start, k_mid);
+	if(checkIsFUnsat(pSat,SCnf,cex, k_mid, assump)) { // going right
+		return findK2Max_rec(pSat, SCnf, cex, k_mid + 1, k_end, assump);
+	} else {
+		return findK2Max_rec(pSat, SCnf, cex, k_start, k_mid, assump);
 	}
 }
 
-bool checkIsFUnsat(sat_solver* pSat, Cnf_Dat_t* SCnf, vector<int>&cex, int k) {
+bool checkIsFUnsat(sat_solver* pSat, Cnf_Dat_t* SCnf, vector<int>&cex, 
+		int k, lit assump[]) {
 	printf("checkIsFUnsat(%d)\n",k);
 	assert(k < numY-1);
 	// sat_solver_bookmark(pSat);
 
 	// Push counterexamples from k+1 till numY-1 (excluded)
-	for (int i = numY; i > k; --i) {
-		lit p = toLitCond(SCnf->pVarNums[varsYS[i]],(int)cex[numX + i]==0);
-		cout << "pushY "<<i<<": " << sat_solver_push(pSat, p) << endl;
+	for (int i = numY - 1; i > k; --i) {
+		assump[numOrigInputs - i] = toLitCond(SCnf->pVarNums[varsYS[i]],(int)cex[numX + i]==0);
+		// cout << "pushY "<<i<<": " << sat_solver_push(pSat, p) << endl;
 	}
 
-	if(!sat_solver_simplify(pSat)) {
-		cout << "Trivially unsat" << endl;
-		return true;
-	}
+	// if(!sat_solver_simplify(pSat)) {
+	// 	cout << "Trivially unsat" << endl;
+	// 	return true;
+	// }
 
-	int status = sat_solver_solve(pSat, 0, 0,
+	int status = sat_solver_solve(pSat, assump, assump + (numOrigInputs - k),
 					(ABC_INT64_T)0, (ABC_INT64_T)0,
 					(ABC_INT64_T)0, (ABC_INT64_T)0);
 
