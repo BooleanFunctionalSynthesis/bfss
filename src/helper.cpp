@@ -692,17 +692,18 @@ bool getNextCEX(Aig_Man_t*&SAig,vector<int>& cex, int& m,
 			}
 			// TODO: recompute k1, k2, check with Shubham
 
-			// int k1;
-			// Aig_Obj_t *mu0, *mu1;
+			int k1;
+			Aig_Obj_t *mu0, *mu1;
 			evaluateAig(SAig,currCEX);
-			// for(k1 = numY-1; k1 >= 0; k1--) {
-			// 	if(((mu0 = satisfiesVec(SAig, currCEX, r0[k1])) != NULL) &&
-			// 		((mu1 = satisfiesVec(SAig, currCEX, r1[k1])) != NULL))
-			// 		break;
-			// }
-			// storedCEX_k1[storedCEX.size() - 1] = k1;
-			// storedCEX_k2[storedCEX.size() - 1] = findK2Max(SAig, currCEX, r0, r1, k1);
-			// m = storedCEX_k2[storedCEX.size() - 1];
+			for(k1 = numY-1; k1 >= 0; k1--) {
+				if(((mu0 = satisfiesVec(SAig, currCEX, r0[k1])) != NULL) &&
+					((mu1 = satisfiesVec(SAig, currCEX, r1[k1])) != NULL))
+					break;
+			}
+			storedCEX_k1[storedCEX.size() - 1] = k1;
+			storedCEX_k2[storedCEX.size() - 1] = findK2Max(SAig, currCEX, r0, r1, k1);
+			m = storedCEX_k2[storedCEX.size() - 1];
+			// m = findK2Max(SAig, currCEX, r0, r1, storedCEX_k1[storedCEX.size() - 1]);
 
 			#ifdef DEBUG_CHUNK
 				OUT("final cex:");
@@ -1015,64 +1016,44 @@ Aig_Obj_t* Aig_AndAigs(Aig_Man_t* pMan, Aig_Obj_t* Aig1, Aig_Obj_t* Aig2) {
 void updateAbsRef(Aig_Man_t* pMan, vector<vector<int> > &r0, vector<vector<int> > &r1,
 	const vector<int> &cex, const int &m) {
 
-	for (int i = 0; i < numX; ++i)
-		OUT(varsXS[i] << "\t" << cex[i]);
-	for (int i = 0; i < numY; ++i)
-		OUT(varsYS[i] << "\t" << cex[numX + i]);
-	for (int i = 0; i < numX; ++i)
-		OUT(numOrigInputs + varsXS[i] << "\t" << cex[numOrigInputs + i]);
-	for (int i = 0; i < numY; ++i)
-		OUT(numOrigInputs + varsYS[i] << "\t" << cex[numOrigInputs + numX + i]);
+	// for (int i = 0; i < numX; ++i)
+	// 	OUT(varsXS[i] << "\t" << cex[i]);
+	// for (int i = 0; i < numY; ++i)
+	// 	OUT(varsYS[i] << "\t" << cex[numX + i]);
+	// for (int i = 0; i < numX; ++i)
+	// 	OUT(numOrigInputs + varsXS[i] << "\t" << cex[numOrigInputs + i]);
+	// for (int i = 0; i < numY; ++i)
+	// 	OUT(numOrigInputs + varsYS[i] << "\t" << cex[numOrigInputs + numX + i]);
 
 	OUT("updateAbsRef...");
 	int k, l, i;
 	Aig_Obj_t *mu0, *mu1, *mu, *pAigObj;
 
 	evaluateAig(pMan, cex);
-
-	OUT("Finding k...");
-	for(k = numY-1; k >= 0; k--) {
-		OUT("\nChecking k="<<k);
-		if(((mu0 = satisfiesVec(pMan, cex, r0[k])) != NULL) &&
-			((mu1 = satisfiesVec(pMan, cex, r1[k])) != NULL))
-			break;
-	}
+	k = m;
 	assert(k >= 0);
-	// mu0 = generalize(pMan,cex, r0[k]);
-	// mu1 = generalize(pMan,cex, r1[k]);
+	// TODO write add routine, pi to this mu
+	cout << "The value of m " << m << endl;
+	mu0 = newOR(pMan, r0[m]);
+	mu1 = newOR(pMan, r1[m]);
+	cout << "Done computing mu0 and mu1 " << mu0 << " " << mu1 << endl;
 	mu = Aig_AndAigs(pMan, mu0, mu1);
 	l = k + 1;
 
-	while(true) {
-		OUT("Running updateAbsRef Loop at l = "<<l);
-		assert(l<numY);
-		if(Aig_Support(pMan, mu, varsYS[l])) {
-			if(cex[numX + l] == 1) {
-				mu1 = Aig_SubstituteConst(pMan, mu, varsYS[l], 1);
-				Aig_ObjCreateCo(pMan, mu1);
-				OUT("Pushing " << Aig_ManCoNum(pMan)-1 << " r1["<<l<<"]");
-				r1[l].push_back(Aig_ManCoNum(pMan)-1);
-				if(satisfiesVec(pMan, cex, r0[l]) != NULL) {
-					mu0 = generalize(pMan,cex,r0[l]);
-					mu = Aig_AndAigs(pMan, mu0, mu1);
-				}
-				else {
-					OUT("CEX Solved, breaking...");
-					break;
-				}
-			}
-			else {
-				mu0 = Aig_SubstituteConst(pMan, mu, varsYS[l], 0);
-				Aig_ObjCreateCo(pMan, mu0);
-				OUT("Pushing new node to r0["<<l<<"]...");
-				r0[l].push_back(Aig_ManCoNum(pMan)-1);
-				mu1 = generalize(pMan,cex,r1[l]);
-				mu = Aig_AndAigs(pMan, mu0, mu1);
-			}
-		}
-		l = l+1;
+	assert(l < numY);
+	if(cex[numX + l] == 1) {
+		mu1 = Aig_SubstituteConst(pMan, mu, varsYS[l], 1);
+		Aig_ObjCreateCo(pMan, mu1);
+		cout << "Pushing " << Aig_ManCoNum(pMan)-1 << " r1["<<l<<"]" << endl;
+		OUT("Pushing " << Aig_ManCoNum(pMan)-1 << " r1["<<l<<"]");
+		r1[l].push_back(Aig_ManCoNum(pMan)-1);
+	} else {
+		mu0 = Aig_SubstituteConst(pMan, mu, varsYS[l], 0);
+		Aig_ObjCreateCo(pMan, mu0);
+		cout << "Pushing new node to r0["<<l<<"]..." << endl;
+		OUT("Pushing new node to r0["<<l<<"]...");
+		r0[l].push_back(Aig_ManCoNum(pMan)-1);
 	}
-	OUT("updateAbsRef done...");
 	return;
 }
 
@@ -1173,6 +1154,8 @@ void checkSupportSanity(Aig_Man_t*pMan, vector<vector<int> > &r0, vector<vector<
 
 Aig_Obj_t* OR_rec(Aig_Man_t* SAig, vector<int>& nodes, int start, int end) {
 
+	cout << "OR_rec on start: " << start << " " << "end " << end << endl;
+
 	assert(end > start);
 
 	if(end == start+1)
@@ -1187,6 +1170,7 @@ Aig_Obj_t* OR_rec(Aig_Man_t* SAig, vector<int>& nodes, int start, int end) {
 }
 
 Aig_Obj_t* newOR(Aig_Man_t* SAig, vector<int>& nodes) {
+	cout << "newOR on a vector of size " << nodes.size() << endl;
 	return OR_rec(SAig, nodes, 0, nodes.size());
 }
 
