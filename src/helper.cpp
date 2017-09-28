@@ -691,7 +691,12 @@ bool getNextCEX(Aig_Man_t*&SAig,vector<int>& cex, int& m,
 				currCEX[numX + i] = (int) !r1i;
 			}
 			// TODO: recompute k1, k2, check with Shubham
-
+			
+			// cout << "cex in getNextCEX: ";
+			// for(auto it:currCEX)
+			// 	cout << it << " ";
+			// cout << endl;
+			// cout << "Corresponding k1: ";
 			int k1;
 			Aig_Obj_t *mu0, *mu1;
 			evaluateAig(SAig,currCEX);
@@ -702,7 +707,6 @@ bool getNextCEX(Aig_Man_t*&SAig,vector<int>& cex, int& m,
 			}
 			storedCEX_k1[storedCEX.size() - 1] = k1;
 			storedCEX_k2[storedCEX.size() - 1] = findK2Max(SAig, currCEX, r0, r1, k1);
-			// m = storedCEX_k2[storedCEX.size() - 1];
 			m = k1;
 
 			#ifdef DEBUG_CHUNK
@@ -1039,8 +1043,8 @@ void updateAbsRef(Aig_Man_t* pMan, vector<vector<int> > &r0, vector<vector<int> 
 			((mu1 = satisfiesVec(pMan, cex, r1[k])) != NULL))
 			break;
 	}
-
-	k = m;
+	
+	// cout << "UpdateAbsRef k is " << k << endl;
 	assert(k >= 0);
 	// TODO write add routine, pi to this mu
 	// cout << "The value of m " << m << endl;
@@ -1707,7 +1711,6 @@ bool checkIsFUnsat(sat_solver* pSat, Cnf_Dat_t* SCnf, vector<int>&cex,
 		return false;
 	if(k == 0)
 		return true;
-
 	// sat_solver_bookmark(pSat);
 
 	// Push counterexamples from k+1 till numY-1 (excluded)
