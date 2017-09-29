@@ -89,6 +89,10 @@ Aig_Obj_t* 		generalize(Aig_Man_t*pMan, vector<int> cex, const vector<int>& rl);
 bool 			Aig_Support_rec(Aig_Man_t* pMan, Aig_Obj_t* root, int inpNodeId, map<Aig_Obj_t*,bool>& memo);
 bool 			Aig_Support(Aig_Man_t* pMan, Aig_Obj_t* root, int inpNodeId);
 Aig_Obj_t* 		Aig_AndAigs(Aig_Man_t* pMan, Aig_Obj_t* Aig1, Aig_Obj_t* Aig2);
+Aig_Obj_t* 		Aig_OrAigs(Aig_Man_t* pMan, Aig_Obj_t* Aig1, Aig_Obj_t* Aig2) ;
+Aig_Obj_t* 		And_rec(Aig_Man_t* SAig, vector<Aig_Man_t* >& nodes, int start, int end);
+Aig_Obj_t* 		newAND(Aig_Man_t* SAig, vector<Aig_Man_t* >& nodes) ;
+Aig_Obj_t* 		projectPi(Aig_Man_t* pMan, const vector<int> &cex, const int m);
 void 			updateAbsRef(Aig_Man_t* pMan, vector<vector<int> > &r0, vector<vector<int> > &r1,
 					const vector<int> &cex, const int &m);
 Aig_Man_t* 		compressAig(Aig_Man_t* SAig);

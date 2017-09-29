@@ -706,7 +706,7 @@ bool getNextCEX(Aig_Man_t*&SAig,vector<int>& cex, int& m,
 					break;
 			}
 			storedCEX_k1[storedCEX.size() - 1] = k1;
-			storedCEX_k2[storedCEX.size() - 1] = findK2Max(SAig, currCEX, r0, r1, k1);
+			// storedCEX_k2[storedCEX.size() - 1] = findK2Max(SAig, currCEX, r0, r1, k1);
 			m = k1;
 
 			#ifdef DEBUG_CHUNK
@@ -1011,6 +1011,48 @@ Aig_Obj_t* Aig_AndAigs(Aig_Man_t* pMan, Aig_Obj_t* Aig1, Aig_Obj_t* Aig2) {
 }
 
 /** Function
+ * Returns Or of Aig1 and Aig2
+ * @param pMan      [in]        Aig Manager
+ * @param Aig1      [in]
+ * @param Aig2      [in]
+ */
+Aig_Obj_t* Aig_OrAigs(Aig_Man_t* pMan, Aig_Obj_t* Aig1, Aig_Obj_t* Aig2) {
+	Aig_Obj_t* lhs = Aig_ObjIsCo(Aig_Regular(Aig1))? Aig_Regular(Aig1)->pFanin0: Aig1;
+	Aig_Obj_t* rhs = Aig_ObjIsCo(Aig_Regular(Aig2))? Aig_Regular(Aig2)->pFanin0: Aig2;
+	return Aig_Or(pMan, lhs, rhs);
+}
+
+Aig_Obj_t* And_rec(Aig_Man_t* SAig, vector<Aig_Man_t* >& nodes, int start, int end) {
+	// cout << "And_rec on start: " << start << " " << "end " << end << endl;
+	assert(end > start);
+	if(end == start+1)
+		return nodes[start];
+
+	int mid = (start+end)/2;
+	Aig_Obj_t* lh = AND_rec(SAig, nodes, start, mid);
+	Aig_Obj_t* rh = AND_rec(SAig, nodes, mid, end);
+	Aig_Obj_t* nv = Aig_And(SAig, lh, rh);
+
+	return nv;
+}
+
+Aig_Obj_t* newAND(Aig_Man_t* SAig, vector<Aig_Man_t* >& nodes) {
+	return AND_rec(SAig, nodes, 0, nodes.size());
+}
+
+
+Aig_Obj_t* projectPi(Aig_Man_t* pMan, const vector<int> &cex, const int m) {
+	vector<Aig_Obj_t*> pi_m(numOrigInputs - m - 1);
+	for(int i = 0; i < numX; i++) {
+		pi_m[i] = (cex[i] == 1)?Aig_ManObj(pMan, varsXS[i]):Aig_Not(Aig_ManObj(pMan, varsXS[i]));
+	}
+	for(int i = m + 1; i < numY; i++) {
+		pi_m[numX + i - m - 1] = (cex[numX + i] == 1)?Aig_ManObj(pMan, varsYS[i]):Aig_Not(Aig_ManObj(pMan, varsYS[i]));
+	}
+	return newAND(pMan, pi_m);
+}
+
+/** Function
  * This updates r0 and r1 while eliminating cex
  * @param pMan      [in]        Aig Manager
  * @param r0        [in out]    Underaproximations of Cant-be-0 sets
@@ -1031,40 +1073,42 @@ void updateAbsRef(Aig_Man_t* pMan, vector<vector<int> > &r0, vector<vector<int> 
 
 	OUT("updateAbsRef...");
 	int k, l, i;
-	Aig_Obj_t *mu0, *mu1, *mu, *pAigObj;
+	Aig_Obj_t *mu0, *mu1, *mu, pi_m;
 
-	evaluateAig(pMan, cex);
+
+	// evaluateAig(pMan, cex);
 	// evaluateAig(pMan, cex);
 
-	OUT("Finding k...");
-	for(k = numY-1; k >= 0; k--) {
-		OUT("\nChecking k="<<k);
-		if(((mu0 = satisfiesVec(pMan, cex, r0[k])) != NULL) &&
-			((mu1 = satisfiesVec(pMan, cex, r1[k])) != NULL))
-			break;
-	}
+	// OUT("Finding k...");
+	// for(k = numY-1; k >= 0; k--) {
+	// 	OUT("\nChecking k="<<k);
+	// 	if(((mu0 = satisfiesVec(pMan, cex, r0[k])) != NULL) &&
+	// 		((mu1 = satisfiesVec(pMan, cex, r1[k])) != NULL))
+	// 		break;
+	// }
 	
 	// cout << "UpdateAbsRef k is " << k << endl;
+	// TODO pass m in getNextCEX properly
+	k = m;
 	assert(k >= 0);
-	// TODO write add routine, pi to this mu
+	// TODO write add routine, pi to tsehis mu
 	// cout << "The value of m " << m << endl;
-	// mu0 = newOR(pMan, r0[m]);
-	// mu1 = newOR(pMan, r1[m]);
+	pi_m = projectPi(pMan, cex, m);
+	mu0 = newOR(pMan, r0[m]);
+	mu1 = newOR(pMan, r1[m]);
 	// cout << "Done computing mu0 and mu1 " << mu0 << " " << mu1 << endl;
-	mu = Aig_AndAigs(pMan, mu0, mu1);
+	mu = Aig_OrAigs(pMan, Aig_AndAigs(pMan, mu0, mu1), pi_m);
 	l = k + 1;
 
 	assert(l < numY);
 	if(cex[numX + l] == 1) {
 		mu1 = Aig_SubstituteConst(pMan, mu, varsYS[l], 1);
 		Aig_ObjCreateCo(pMan, mu1);
-		cout << "Pushing " << Aig_ManCoNum(pMan)-1 << " r1["<<l<<"]" << endl;
 		OUT("Pushing " << Aig_ManCoNum(pMan)-1 << " r1["<<l<<"]");
 		r1[l].push_back(Aig_ManCoNum(pMan)-1);
 	} else {
 		mu0 = Aig_SubstituteConst(pMan, mu, varsYS[l], 0);
 		Aig_ObjCreateCo(pMan, mu0);
-		cout << "Pushing new node to r0["<<l<<"]..." << endl;
 		OUT("Pushing new node to r0["<<l<<"]...");
 		r0[l].push_back(Aig_ManCoNum(pMan)-1);
 	}
