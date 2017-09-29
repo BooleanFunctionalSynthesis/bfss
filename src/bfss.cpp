@@ -19,6 +19,8 @@ vector<int> varsXF, varsXS;
 vector<int> varsYF, varsYS; // to be eliminated
 int numOrigInputs, numX, numY;
 Abc_Frame_t* pAbc;
+// Cnf_Dat_t* m_FCnf;
+// sat_solver* m_pSat; 
 
 ////////////////////////////////////////////////////////////////////////
 ///                            MAIN                                  ///
@@ -257,8 +259,8 @@ int main( int argc, char * argv[] )
 	cout<< "Total time:   " <<double( main_end-main_start)/CLOCKS_PER_SEC << endl;
 	cout<< "Compose time: " <<double( compose_end-compose_start)/CLOCKS_PER_SEC << endl;
 
-	assert(verifyResult(SAig, r0, r1,0));
-
+	assert(verifyResult(SAig, r0, r1, 0));
+	
 	// Stop ABC
 	Abc_Stop();
 	return 0;

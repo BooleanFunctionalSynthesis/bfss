@@ -702,8 +702,8 @@ bool getNextCEX(Aig_Man_t*&SAig,vector<int>& cex, int& m,
 			}
 			storedCEX_k1[storedCEX.size() - 1] = k1;
 			storedCEX_k2[storedCEX.size() - 1] = findK2Max(SAig, currCEX, r0, r1, k1);
-			m = storedCEX_k2[storedCEX.size() - 1];
-			// m = findK2Max(SAig, currCEX, r0, r1, storedCEX_k1[storedCEX.size() - 1]);
+			// m = storedCEX_k2[storedCEX.size() - 1];
+			m = k1;
 
 			#ifdef DEBUG_CHUNK
 				OUT("final cex:");
@@ -1030,13 +1030,23 @@ void updateAbsRef(Aig_Man_t* pMan, vector<vector<int> > &r0, vector<vector<int> 
 	Aig_Obj_t *mu0, *mu1, *mu, *pAigObj;
 
 	evaluateAig(pMan, cex);
+	// evaluateAig(pMan, cex);
+
+	OUT("Finding k...");
+	for(k = numY-1; k >= 0; k--) {
+		OUT("\nChecking k="<<k);
+		if(((mu0 = satisfiesVec(pMan, cex, r0[k])) != NULL) &&
+			((mu1 = satisfiesVec(pMan, cex, r1[k])) != NULL))
+			break;
+	}
+
 	k = m;
 	assert(k >= 0);
 	// TODO write add routine, pi to this mu
-	cout << "The value of m " << m << endl;
-	mu0 = newOR(pMan, r0[m]);
-	mu1 = newOR(pMan, r1[m]);
-	cout << "Done computing mu0 and mu1 " << mu0 << " " << mu1 << endl;
+	// cout << "The value of m " << m << endl;
+	// mu0 = newOR(pMan, r0[m]);
+	// mu1 = newOR(pMan, r1[m]);
+	// cout << "Done computing mu0 and mu1 " << mu0 << " " << mu1 << endl;
 	mu = Aig_AndAigs(pMan, mu0, mu1);
 	l = k + 1;
 
@@ -1505,9 +1515,9 @@ int unigen_call(string fname, int nSamples) {
 	}
 	string line;
 	while(getline(infile, line)) {
-		if(line.find("number of solutions is too small")!=string::npos)
+		if(line.find("enumerate all the solutions")!=string::npos)
 			return -1;
-		else if(line.find("input formula is unsatisfiable")!=string::npos)
+		else if(line.find("nsatisfiable")!=string::npos)
 			return 0;
 	}
 	return 1;
@@ -1562,6 +1572,19 @@ int populateK1Vec(Aig_Man_t* SAig, vector<vector<int> >&r0, vector<vector<int> >
 	int max = 0;
 	Aig_Obj_t *mu0, *mu1;
 	for(auto cex:storedCEX) {
+		assert(cex.size() == 2*numOrigInputs);
+		for (int i = numY-1; i >= 0; --i)
+		{
+			evaluateAig(SAig,cex);
+			bool r1i = false;
+			for(auto r1El: r1[i]) {
+				if(Aig_ManCo(SAig, r1El)->iData == 1) {
+					r1i = true;
+					break;
+				}
+			}
+			cex[numX + i] = (int) !r1i;
+		}
 		evaluateAig(SAig, cex);
 		for(k = numY-1; k >= 0; k--) {
 			if(((mu0 = satisfiesVec(SAig, cex, r0[k])) != NULL) &&
@@ -1576,17 +1599,35 @@ int populateK1Vec(Aig_Man_t* SAig, vector<vector<int> >&r0, vector<vector<int> >
 
 int populateK2Vec(Aig_Man_t* SAig, vector<vector<int> >&r0, vector<vector<int> >&r1,
 		int k1Max) {
+	int k1;
 	int k2;
 	int i = 0;
 	int max = k1Max;
+
+	sat_solver* m_pSat = sat_solver_new();
+	Cnf_Dat_t* m_FCnf = Cnf_Derive(SAig, Aig_ManCoNum(SAig));
+	addCnfToSolver(m_pSat, m_FCnf);
+
+	cout << "POPULATING K2 VECTOR" << endl;
 	for(auto cex:storedCEX) {
-		k2 = findK2Max(SAig, cex, r0, r1, storedCEX_k1[i++]);
+		int clock1 = clock();
+		k1 = storedCEX_k1[i++];
+		cout << "Finding k2..." << endl;
+		cout << "Search range from " << k1 << " to " << numY - 1 << endl; 
+		k2 = findK2Max(SAig, m_pSat, m_FCnf, cex, r0, r1, k1);
+		clock1 = clock() - clock1;
+		printf ("Found k2 = %d, took (%f seconds)\n",k2,((float)clock1)/CLOCKS_PER_SEC);
+		cout << endl;
 		storedCEX_k2.push_back(k2);
 		max = (k2 > max) ? k2 : max;
 	}
+	cout << "DONE POPULATING K2 VECTOR" << endl << endl;
+
+	sat_solver_delete(m_pSat);
+	Cnf_DataFree(m_FCnf);
 }	
 
-int findK2Max(Aig_Man_t* SAig, vector<int>&cex, 
+int findK2Max(Aig_Man_t* SAig, sat_solver* m_pSat, Cnf_Dat_t* m_FCnf, vector<int>&cex,
 	vector<vector<int> >&r0, vector<vector<int> >&r1, int k1Max) {
 	// cout << "findK2Max" << endl;
 	// cout << "k1 = " << k1Max << endl;
@@ -1594,6 +1635,7 @@ int findK2Max(Aig_Man_t* SAig, vector<int>&cex,
 	int return_val;
 
 	// calculate Ys from X
+	int clock1 = clock();
 	for (int i = numY-1; i >= 0; --i)
 	{
 		evaluateAig(SAig,cex);
@@ -1607,28 +1649,31 @@ int findK2Max(Aig_Man_t* SAig, vector<int>&cex,
 		cex[numX + i] = (int) !r1i;
 	}
 	evaluateAig(SAig,cex);
+	clock1 = clock() - clock1;
+	printf ("Time taken for evalAig in this call (%f s)\n",((float)clock1)/CLOCKS_PER_SEC);
 
-	sat_solver *pSat = sat_solver_new();
-	Cnf_Dat_t *SCnf = Cnf_Derive(SAig,Aig_ManCoNum(SAig));
-	addCnfToSolver(pSat, SCnf);
+	// sat_solver *pSat = sat_solver_new();
+	// clock1 = clock();
+	// Cnf_Dat_t *SCnf = Cnf_Derive(SAig,Aig_ManCoNum(SAig));
+	// clock1 = clock() - clock1;
+	// printf ("Time taken for Cnf_Derive in this call (%f s)\n ",((float)clock1)/CLOCKS_PER_SEC);
+	// addCnfToSolver(pSat, SCnf);
 
 	lit assump[numOrigInputs + 1];
-	assump[0] = toLitCond(getCnfCoVarNum(SCnf, SAig, 1), 0);
+	assump[0] = toLitCond(getCnfCoVarNum(m_FCnf, SAig, 1), 0);
 
 	// push X values
 	for (int i = 0; i < numX; ++i) {
-		assump[i + 1] = toLitCond(SCnf->pVarNums[varsXS[i]], (int)cex[i]==0);
+		assump[i + 1] = toLitCond(m_FCnf->pVarNums[varsXS[i]], (int)cex[i]==0);
 	}
 
 	// Check for k2==k1
-	// if(checkIsFUnsat(pSat, SCnf, cex, k1Max + 1, assump)) {
-		return_val = findK2Max_rec(pSat, SCnf, cex, k1Max + 1, numY - 1, assump);
-	// } else {
-	// 	return_val = k1Max;
-	// }
+	if(checkIsFUnsat(m_pSat, m_FCnf, cex, k1Max + 1, assump)) {
+		return_val = findK2Max_rec(m_pSat, m_FCnf, cex, k1Max + 2, numY - 1, assump);
+	} else {
+		return_val = k1Max;
+	}
 
-	sat_solver_delete(pSat);
-	Cnf_DataFree(SCnf);
 	return return_val;
 }
 
@@ -1655,8 +1700,14 @@ int findK2Max_rec(sat_solver* pSat, Cnf_Dat_t* SCnf, vector<int>&cex,
 
 bool checkIsFUnsat(sat_solver* pSat, Cnf_Dat_t* SCnf, vector<int>&cex, 
 		int k, lit assump[]) {
+	cout << "SAT call, check for k2 = " << k << endl;
 	// printf("checkIsFUnsat(%d)\n",k);
-	assert(k < numY-1);
+	assert(k < numY);
+	if(k == numY - 1)
+		return false;
+	if(k == 0)
+		return true;
+
 	// sat_solver_bookmark(pSat);
 
 	// Push counterexamples from k+1 till numY-1 (excluded)
@@ -1669,17 +1720,20 @@ bool checkIsFUnsat(sat_solver* pSat, Cnf_Dat_t* SCnf, vector<int>&cex,
 		return true;
 	}
 
+	int clock1 = clock();
 	int status = sat_solver_solve(pSat, assump, assump + (numOrigInputs - k),
 					(ABC_INT64_T)0, (ABC_INT64_T)0,
 					(ABC_INT64_T)0, (ABC_INT64_T)0);
+	clock1 = clock() - clock1;
+	printf ("Time SAT call (%f s) ",((float)clock1)/CLOCKS_PER_SEC);
 
 	if (status == l_False) {
-		// cout << "Unsat" << endl;
+		cout << "returned unsat" << endl;
 		return true;
 	}
 	else {
 		assert(status == l_True);
-		// cout << "Sat" << endl;
+		cout << "returned sat" << endl;
 		return false;
 	}
 }

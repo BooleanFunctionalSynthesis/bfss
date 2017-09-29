@@ -46,6 +46,8 @@ extern vector<int> varsXF, varsXS;
 extern vector<int> varsYF, varsYS; // to be eliminated
 extern int numOrigInputs, numX, numY;
 extern Abc_Frame_t* pAbc;
+// extern Cnf_Dat_t* m_FCnf;
+// extern sat_solver* m_pSat; 
 
 class edge;
 class node;
@@ -110,8 +112,9 @@ int 			unigen_call(string fname, int nSamples);
 bool 			unigen_fetchModels(Aig_Man_t* SAig, vector<vector<int> > &r0, 
 							vector<vector<int> > &r1, map<int, int>& varNum2ID);
 vector<lit>		setAllNegX(Cnf_Dat_t* SCnf, Aig_Man_t* SAig, int val);
-int 			findK2Max(Aig_Man_t* SAig, vector<int>&cex, vector<vector<int> >&r0, vector<vector<int> >&r1, int k1Max);
+int 			findK2Max(Aig_Man_t* SAig, sat_solver* m_pSat, Cnf_Dat_t* m_FCnf, vector<int>&cex,
+							vector<vector<int> >&r0, vector<vector<int> >&r1, int k1Max);
 int 			findK2Max_rec(sat_solver* pSat, Cnf_Dat_t* SCnf, vector<int>&cex, int k_start, int k_end, lit assump[]);
 bool 			checkIsFUnsat(sat_solver* pSat, Cnf_Dat_t* SCnf, vector<int>&cex, int k, lit assump[]);
-int populateK1Vec(Aig_Man_t* SAig, vector<vector<int> >&r0, vector<vector<int> >&r1);
-int populateK2Vec(Aig_Man_t* SAig, vector<vector<int> >&r0, vector<vector<int> >&r1, int k1Max);
+int 			populateK1Vec(Aig_Man_t* SAig, vector<vector<int> >&r0, vector<vector<int> >&r1);
+int 			populateK2Vec(Aig_Man_t* SAig, vector<vector<int> >&r0, vector<vector<int> >&r1, int k1Max);
