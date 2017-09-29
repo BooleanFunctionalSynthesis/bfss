@@ -534,13 +534,13 @@ Cnf_Dat_t* buildErrorFormula(sat_solver* pSat, Aig_Man_t* SAig,
 	// LA[1] = toLitCond(SCnf->pVarNums[Aig_ManCo(SAig,2)->Id],0);
 
 	// Assert y_i == -r1[i]
-	Sat_SolverWriteDimacs(pSat,"sat_solver.dimacs",NULL,NULL,0);
+	// Sat_SolverWriteDimacs(pSat,"sat_solver.dimacs",NULL,NULL,0);
 	for (int i = 0; i < numY; ++i) {
 		int l = -addRlToSolver(pSat, SCnf, SAig, r1[i]);
 		OUT("equating  ID:     "<<varsYS[i]<<"="<<-Aig_ManCo(SAig,r1[i][0])->Id);
 		OUT("          varNum: "<<SCnf->pVarNums[varsYS[i]]<<"="<<l);
 		Equate(pSat, SCnf->pVarNums[varsYS[i]], l);
-		Sat_SolverWriteDimacs(pSat,(char*)("sat_solver.dimacs-" + to_string(i)).c_str(),NULL,NULL,0);
+		// Sat_SolverWriteDimacs(pSat,(char*)("sat_solver.dimacs-" + to_string(i)).c_str(),NULL,NULL,0);
 	}
 	return SCnf;
 }
@@ -1519,7 +1519,7 @@ int unigen_call(string fname, int nSamples) {
 	}
 	string line;
 	while(getline(infile, line)) {
-		if(line.find("enumerate all the solutions")!=string::npos)
+		if(line.find("enumerate")!=string::npos)
 			return -1;
 		else if(line.find("nsatisfiable")!=string::npos)
 			return 0;

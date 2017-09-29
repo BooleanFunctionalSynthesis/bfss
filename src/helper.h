@@ -30,7 +30,7 @@ Abc_Ntk_t * Abc_NtkFromAigPhase(Aig_Man_t * pMan);
 #define UNIGEN_MODEL_FPATH	UNIGEN_OUT_DIR "/" UNIGEN_MODEL_FNAME
 #define UNIGEN_DIMAC_FPATH 	UNIGEN_DIMAC_FNAME
 #define UNIGEN_PY 			"UniGen2.py"
-#define UNIGEN_SAMPLES		22
+#define UNIGEN_SAMPLES		33
 
 // #define DEBUG
 // #define DEBUG_CHUNK
