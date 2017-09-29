@@ -213,20 +213,20 @@ int main( int argc, char * argv[] )
 		checkSupportSanity(SAig, r0, r1);
 	#endif
 
-	cex = vector<int>(2*numOrigInputs, 0);
+	// cex = vector<int>(2*numOrigInputs, 0);
 	int m;
 	// CEGAR Loop
 	cout << "Starting CEGAR Loop..."<<endl;
 	int numloops = 0;
 	// while(callSATfindCEX(SAig, cex, r0, r1)) {
-	while(getNextCEX(SAig, cex, m, r0, r1)) {
+	while(getNextCEX(SAig, m, r0, r1)) {
 		OUT("Iter " << numloops << ":\tFound CEX!");
-		cout<<'.'<<flush;
-		evaluateAig(SAig, cex);
+		// cout<<'.'<<flush;
+		// evaluateAig(SAig, cex);
 		#ifdef DEBUG_CHUNK
 			checkCexSanity(SAig, cex, r0, r1);
 		#endif
-		updateAbsRef(SAig, r0, r1, cex, m);
+		updateAbsRef(SAig, r0, r1, m);
 		numloops++;
 
 		if(numloops % 50 == 0) {
