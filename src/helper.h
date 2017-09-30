@@ -111,10 +111,10 @@ void 			Aig_ComposeVec_rec( Aig_Man_t * p, Aig_Obj_t * pObj, vector<Aig_Obj_t *>
 Aig_Obj_t*	 	Aig_ComposeVec( Aig_Man_t * p, Aig_Obj_t * pRoot, vector<Aig_Obj_t *>& pFuncVec,
 					vector<int>& iVarVec );
 void 			Sat_SolverWriteDimacsAndIS( sat_solver * p, char * pFileName,
-					lit* assumpBegin, lit* assumpEnd, vector<int>&IS );
+					lit* assumpBegin, lit* assumpEnd, vector<int>&IS, vector<int>&retSet);
 int 			unigen_call(string fname, int nSamples);
 bool 			unigen_fetchModels(Aig_Man_t* SAig, vector<vector<int> > &r0, 
-							vector<vector<int> > &r1, map<int, int>& varNum2ID);
+							vector<vector<int> > &r1, map<int, int>& varNum2ID, map<int, int>& varNum2R0R1);
 vector<lit>		setAllNegX(Cnf_Dat_t* SCnf, Aig_Man_t* SAig, int val);
 int 			findK2Max(Aig_Man_t* SAig, sat_solver* m_pSat, Cnf_Dat_t* m_FCnf, vector<int>&cex,
 							vector<vector<int> >&r0, vector<vector<int> >&r1, int k1Max, int prevM);

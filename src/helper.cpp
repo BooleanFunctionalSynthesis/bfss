@@ -460,6 +460,39 @@ lit OR(sat_solver* pSat, lit lh, lit rh) {
 }
 
 /** Function
+ * Returns a new sat solver variable denoting AND of lh and rh
+ * @param pSat      [in]        Sat Solver
+ * @param lh        [in]        lhs
+ * @param rh        [in]        rhs
+ */
+lit AND(sat_solver* pSat, lit lh, lit rh) {
+	int nv = sat_solver_newvar(pSat);
+
+	lit Lits[4];
+	assert(lh!=0 && rh!=0);
+	// lh and rh -> nv
+	Lits[0] = toLitCond( abs( nv),  nv<0 );
+	Lits[1] = toLitCond( abs(-lh), -lh<0 );
+	Lits[2] = toLitCond( abs(-rh), -rh<0 );
+	if(!sat_solver_addclause( pSat, Lits, Lits + 3 ))
+		assert(false);
+
+	// nv -> lh
+	Lits[0] = toLitCond( abs( lh),  lh<0 );
+	Lits[1] = toLitCond( abs(-nv), -nv<0 );
+	if(!sat_solver_addclause( pSat, Lits, Lits + 2 ))
+		assert(false);
+
+	// nv -> rh
+	Lits[0] = toLitCond( abs( rh),  rh<0 );
+	Lits[1] = toLitCond( abs(-nv), -nv<0 );
+	if(!sat_solver_addclause( pSat, Lits, Lits + 2 ))
+		assert(false);
+
+	return nv;
+}
+
+/** Function
  * Adds CNF Formula to Solver
  * @param pSat      [in]        Sat Solver
  * @param cnf       [in]        Cnf Formula
@@ -478,7 +511,7 @@ void addCnfToSolver(sat_solver* pSat, Cnf_Dat_t* cnf) {
  * @param SAig      [in]        Aig to build the formula from
  */
 Cnf_Dat_t* buildErrorFormula(sat_solver* pSat, Aig_Man_t* SAig,
-	vector<vector<int> > &r0, vector<vector<int> > &r1) {
+	vector<vector<int> > &r0, vector<vector<int> > &r1, vector<int> &r0Andr1Vars) {
 	Abc_Obj_t* pAbcObj;
 	int i;
 
@@ -509,18 +542,20 @@ Cnf_Dat_t* buildErrorFormula(sat_solver* pSat, Aig_Man_t* SAig,
 	// assert F(X, Y) = false, F(X, Y') = true
 	addVarToSolver(pSat, SCnf->pVarNums[Aig_ManCo(SAig,1)->Id], 0);
 	addVarToSolver(pSat, SCnf->pVarNums[Aig_ManCo(SAig,2)->Id], 1);
-	// lit LA[3];
-	// LA[0] = toLitCond(SCnf->pVarNums[Aig_ManCo(SAig,1)->Id],1);
-	// LA[1] = toLitCond(SCnf->pVarNums[Aig_ManCo(SAig,2)->Id],0);
+
+	r0Andr1Vars.resize(numY);
 
 	// Assert y_i == -r1[i]
-	// Sat_SolverWriteDimacs(pSat,"sat_solver.dimacs",NULL,NULL,0);
 	for (int i = 0; i < numY; ++i) {
-		int l = -addRlToSolver(pSat, SCnf, SAig, r1[i]);
+		int r1i = addRlToSolver(pSat, SCnf, SAig, r1[i]);
 		OUT("equating  ID:     "<<varsYS[i]<<"="<<-Aig_ManCo(SAig,r1[i][0])->Id);
-		OUT("          varNum: "<<SCnf->pVarNums[varsYS[i]]<<"="<<l);
-		Equate(pSat, SCnf->pVarNums[varsYS[i]], l);
-		// Sat_SolverWriteDimacs(pSat,(char*)("sat_solver.dimacs-" + to_string(i)).c_str(),NULL,NULL,0);
+		OUT("          varNum: "<<SCnf->pVarNums[varsYS[i]]<<"="<<-r1i);
+		Equate(pSat, SCnf->pVarNums[varsYS[i]], -r1i);
+
+		// Adding variables for r0[i] & r1[i]
+		int r0i  = addRlToSolver(pSat, SCnf, SAig, r0[i]);
+		int r0r1 = AND(pSat, r0i, r1i);
+		r0Andr1Vars[i] = r0r1;
 	}
 	return SCnf;
 }
@@ -562,8 +597,10 @@ bool callSATfindCEX(Aig_Man_t* SAig,vector<int>& cex,
 	}
 	// cout << "milked, not spurious"<<endl;
 
+	vector<int> r0Andr1Vars(numY);
+
 	sat_solver *pSat = sat_solver_new();
-	Cnf_Dat_t *SCnf  = buildErrorFormula(pSat, SAig, r0, r1);
+	Cnf_Dat_t *SCnf  = buildErrorFormula(pSat, SAig, r0, r1, r0Andr1Vars);
 
 	OUT("Simplifying..." );
 	if(!sat_solver_simplify(pSat)) {
@@ -601,6 +638,10 @@ bool callSATfindCEX(Aig_Man_t* SAig,vector<int>& cex,
 
 			int * v = Sat_SolverGetModel(pSat, &cex[0], cex.size());
 			cex = vector<int>(v,v+cex.size());
+
+			// Getting r0Andr1Vars is not useful here
+			int * w = Sat_SolverGetModel(pSat, &r0Andr1Vars[0], r0Andr1Vars.size());
+			r0Andr1Vars = vector<int>(w,w+r0Andr1Vars.size());
 
 			#ifdef DEBUG_CHUNK
 				OUT("Serial#  AigPID  Cnf-VarNum  CEX");
@@ -681,9 +722,10 @@ bool populateStoredCEX(Aig_Man_t* SAig,
 	OUT("populating Stored CEX...");
 	bool return_val;
 	int status;
+	vector<int> r0Andr1Vars(numY);
 
 	sat_solver *pSat = sat_solver_new();
-	Cnf_Dat_t *SCnf  = buildErrorFormula(pSat, SAig, r0, r1);
+	Cnf_Dat_t *SCnf  = buildErrorFormula(pSat, SAig, r0, r1, r0Andr1Vars);
 
 	OUT("Simplifying..." );
 	if(!sat_solver_simplify(pSat)) { // Found Skolem Functions
@@ -699,10 +741,20 @@ bool populateStoredCEX(Aig_Man_t* SAig,
 		for(int i=0; i<numX; ++i) // X
 			IS.push_back(SCnf->pVarNums[varsXS[i]]);
 
+		// Compute ReturnSet
+		vector<int> RS;
+		for(int i=0; i<numX; ++i) // X
+			RS.push_back(SCnf->pVarNums[varsXS[i]]);
+		for(int i=0; i<numY; ++i) // Y
+			RS.push_back(SCnf->pVarNums[varsYS[i]]);
+		for(int i=0; i<numY; ++i) // r0Andr1Vars
+			RS.push_back(r0Andr1Vars[i]);
+		assert(r0Andr1Vars.size()==numY);
+
 		// Print Dimacs
 		vector<lit> assumptions = setAllNegX(SCnf, SAig, false);
 		Sat_SolverWriteDimacsAndIS(pSat, UNIGEN_DIMAC_FPATH,
-			&assumptions[0], &assumptions[0] + numX, IS);
+			&assumptions[0], &assumptions[0] + numX, IS, RS);
 
 		// Call Unigen
 		status = unigen_call(UNIGEN_DIMAC_FPATH, UNIGEN_SAMPLES);
@@ -727,7 +779,13 @@ bool populateStoredCEX(Aig_Man_t* SAig,
 		for(int i=0; i<numY; ++i)
 			varNum2ID[SCnf->pVarNums[numOrigInputs + varsYS[i]]] = numOrigInputs + numX + i;
 
-		if(unigen_fetchModels(SAig, r0, r1, varNum2ID)) {
+		// For fetching r0[m] and r1[m] from solver
+		map<int, int> varNum2R0R1;
+		for(int i=0; i<r0Andr1Vars.size(); i++) {
+			varNum2R0R1[r0Andr1Vars[i]] = i;
+		}
+
+		if(unigen_fetchModels(SAig, r0, r1, varNum2ID, varNum2R0R1)) {
 			OUT("Formula is SAT, stored CEXs");
 			return_val = true;
 		}
@@ -772,8 +830,16 @@ bool populateStoredCEX(Aig_Man_t* SAig,
 			}
 			int * v = Sat_SolverGetModel(pSat, &cex[0], cex.size());
 			cex = vector<int>(v,v+cex.size());
+
+			// Obtaining value of k1
+			int * w = Sat_SolverGetModel(pSat, &r0Andr1Vars[0], r0Andr1Vars.size());
+			r0Andr1Vars = vector<int>(w,w+r0Andr1Vars.size());
+			int k1 = numY-1;
+			while(r0Andr1Vars[k1] == 0) {k1--;}
+			assert(k1>=0);
+
 			storedCEX.push_back(cex);
-			storedCEX_k1.push_back(-1);
+			storedCEX_k1.push_back(k1);
 			storedCEX_k2.push_back(-1);
 			return_val = true;
 		}
@@ -1387,7 +1453,7 @@ static void Sat_SolverClauseWriteDimacs( FILE * pFile, clause * pC) {
 }
 
 void Sat_SolverWriteDimacsAndIS(sat_solver * p, char * pFileName,
-	lit* assumpBegin, lit* assumpEnd, vector<int>&IS) {
+	lit* assumpBegin, lit* assumpEnd, vector<int>&IS, vector<int>&retSet) {
     Sat_Mem_t * pMem = &p->Mem;
     FILE * pFile;
     clause * c;
@@ -1421,6 +1487,19 @@ void Sat_SolverWriteDimacsAndIS(sat_solver * p, char * pFileName,
     	i++;
     }
     fprintf( pFile, "0\n");
+
+	// TODO: Print Return Set
+	i=0;
+	fprintf( pFile, "c ret ");
+	for(auto it:retSet) {
+		if(i == 10) {
+			fprintf( pFile, "0\nc ret ");
+			i = 0;
+		}
+		fprintf( pFile, "%d ", it);
+		i++;
+	}
+	fprintf( pFile, "0\n");
 
     // write the original clauses
     Sat_MemForEachClause(pMem, c, i, k)
@@ -1480,7 +1559,7 @@ int unigen_call(string fname, int nSamples) {
 }
 
 bool unigen_fetchModels(Aig_Man_t* SAig, vector<vector<int> > &r0,
-	vector<vector<int> > &r1, map<int, int>& varNum2ID) {
+	vector<vector<int> > &r1, map<int, int>& varNum2ID, map<int, int>& varNum2R0R1) {
 
 	ifstream infile(UNIGEN_MODEL_FPATH);
 	if(!infile.is_open()) {
@@ -1504,13 +1583,27 @@ bool unigen_fetchModels(Aig_Man_t* SAig, vector<vector<int> > &r0,
 		model.pop_back();
 
 		vector<int> cex(2*numOrigInputs);
+		vector<int> r0Andr1Vars(numY);
 		for(auto it: model) {
 			int modelVal = stoi(it);
-			cex[varNum2ID[abs(modelVal)]] = (modelVal > 0) ? 1 : 0;
+			auto itID = varNum2ID.find(abs(modelVal));
+			if(itID != varNum2ID.end()) {
+				cex[itID->second] = (modelVal > 0) ? 1 : 0;
+			}
+			else {
+				auto itR0R1 = varNum2R0R1.find(abs(modelVal));
+				assert(itR0R1 != varNum2R0R1.end());
+				r0Andr1Vars[itR0R1->second] = (modelVal > 0) ? 1 : 0;
+			}
 		}
 
+		// Find k1
+		int k1 = numY-1;
+		while(r0Andr1Vars[k1] == 0) {k1--;}
+		assert(k1>=0);
+
 		storedCEX.push_back(cex);
-		storedCEX_k1.push_back(-1);
+		storedCEX_k1.push_back(k1);
 		storedCEX_k2.push_back(-1);
 		flag = true;
 	}
@@ -1541,7 +1634,7 @@ int filterAndPopulateK1Vec(Aig_Man_t* SAig, vector<vector<int> >&r0, vector<vect
 
 	for(auto& cex:storedCEX) {
 		assert(cex.size() == 2*numOrigInputs);
-		if(storedCEX_k2[index] == prevM || prevM == -1) {
+		if(storedCEX_k2[index] == prevM || (prevM == -1 and storedCEX_k1[index] != -1)) {
 			for (int i = maxChange; i >= 0; --i) {
 				evaluateAig(SAig,cex);
 				bool r1i = false;

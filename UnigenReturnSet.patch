@@ -1,0 +1,105 @@
+diff --git a/ugen2/cmsat/DimacsParser.cpp b/ugen2/cmsat/DimacsParser.cpp
+index 055dd6c..3ee6e4c 100755
+--- a/ugen2/cmsat/DimacsParser.cpp
++++ b/ugen2/cmsat/DimacsParser.cpp
+@@ -195,6 +195,25 @@ void DimacsParser::parseIndependentSet(StreamBuffer& in) {
+ }
+ 
+ /**
++ * 
++ * @param in
++ * @return 
++ * @breif Reads in and puts the variables in the return set
++ */
++void DimacsParser::parseReturnSet(StreamBuffer& in) {
++    int32_t parsed_lit;
++    Var var;
++    uint32_t len;
++    for (;;) {
++        parsed_lit = parseInt(in, len);
++        if (parsed_lit == 0) break;
++        var = abs(parsed_lit) - 1;
++        retVector.push(var);
++    }
++
++}
++
++/**
+ @brief Matches parameter "str" to content in "in"
+  */
+ bool DimacsParser::match(StreamBuffer& in, const char* str) {
+@@ -326,6 +345,8 @@ void DimacsParser::parseComments(StreamBuffer& in, const std::string str) throw(
+ #endif //DEBUG_COMMENT_PARSING
+     } else if (str == "ind") { //parsing the independent variables
+         parseIndependentSet(in);
++    } else if (str == "ret") { //parsing the return variables
++        parseReturnSet(in);
+     } else {
+ #ifdef DEBUG_COMMENT_PARSING
+         std::cout << "didn't understand in CNF file: 'c " << str << std::endl;
+@@ -527,6 +548,7 @@ void DimacsParser::parse_DIMACS(T input_stream) {
+     StreamBuffer in(input_stream);
+     parse_DIMACS_main(in);
+     solver->addIndependentSet(varVector);
++    solver->addReturnSet(retVector);
+ 
+     if (solver->conf.verbosity >= 1) {
+         std::cout << "c -- clauses added: "
+diff --git a/ugen2/cmsat/Solver.cpp b/ugen2/cmsat/Solver.cpp
+index 0fc9309..d965917 100755
+--- a/ugen2/cmsat/Solver.cpp
++++ b/ugen2/cmsat/Solver.cpp
+@@ -664,6 +664,32 @@ delete independentSetTrack;
+ }
+ template bool Solver::addIndependentSet(vec<Var> & ps);
+ 
++/***
++ Adds the return set, should be called only once
++
++ */
++template<class T>
++bool Solver::addReturnSet(T & ps) {
++    origVars = nVars();
++    if (ps.size() == 0) {
++        for (Var i = 0; i != nVars(); i++) {
++            returnSet.push(i);
++        }
++        return true;
++    }
++
++    vector<lbool> *returnSetTrack = new vector<lbool> (assigns.size(), l_Undef);
++    for (uint32_t i = 0; i != ps.size(); i++) {
++        if ((*returnSetTrack)[ps[i]] == l_Undef) {
++            returnSet.push(ps[i]);
++            (*returnSetTrack)[ps[i]] = l_True;
++        }
++    }
++delete returnSetTrack;
++    return ok;
++}
++template bool Solver::addReturnSet(vec<Var> & ps);
++
+ /**
+ @brief Attaches an xor clause to the watchlists
+ 
+diff --git a/ugen2/cmsat/Solver.h b/ugen2/cmsat/Solver.h
+index cbf55b7..66b7795 100755
+--- a/ugen2/cmsat/Solver.h
++++ b/ugen2/cmsat/Solver.h
+@@ -142,6 +142,8 @@ namespace CMSat {
+         bool addXorClause(T& ps, bool xorEqualFalse) throw (std::out_of_range); // Add a xor-clause to the solver. NOTE! 'ps' may be shrunk by this method!
+         template<class T>
+         bool addIndependentSet(T & ps);
++        template<class T>
++        bool addReturnSet(T & ps);
+ 
+         // Solving:
+         //
+@@ -236,6 +238,7 @@ namespace CMSat {
+          * Independent Set
+          */
+         vec<Var> independentSet; ///< Set of independent variables
++        vec<Var> returnSet; ///< Set of independent variables
+ 
+ 
+     protected:
