@@ -1,7 +1,9 @@
 # project name (generate executable with this name)
 TARGET   = bfss
 
+ifndef ABC_PATH
 export ABC_PATH = ${HOME}/abc
+endif
 export ABC_INCLUDES = -I$(ABC_PATH) -I$(ABC_PATH)/src
 
 SRCDIR   = src

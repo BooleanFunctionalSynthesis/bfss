@@ -214,19 +214,19 @@ int main( int argc, char * argv[] )
 	#endif
 
 	// cex = vector<int>(2*numOrigInputs, 0);
-	int m;
+	int M = -1;
 	// CEGAR Loop
 	cout << "Starting CEGAR Loop..."<<endl;
 	int numloops = 0;
 	// while(callSATfindCEX(SAig, cex, r0, r1)) {
-	while(getNextCEX(SAig, m, r0, r1)) {
+	while(getNextCEX(SAig, M, r0, r1)) {
 		OUT("Iter " << numloops << ":\tFound CEX!");
 		// cout<<'.'<<flush;
 		// evaluateAig(SAig, cex);
 		#ifdef DEBUG_CHUNK
 			checkCexSanity(SAig, cex, r0, r1);
 		#endif
-		updateAbsRef(SAig, r0, r1, m);
+		updateAbsRef(SAig, r0, r1, M);
 		numloops++;
 
 		if(numloops % 50 == 0) {
