@@ -1538,17 +1538,18 @@ int filterAndPopulateK1Vec(Aig_Man_t* SAig, vector<vector<int> >&r0, vector<vect
 
 	for(auto& cex:storedCEX) {
 		assert(cex.size() == 2*numOrigInputs);
-		for (int i = maxChange; i >= 0; --i)
-		{
-			evaluateAig(SAig,cex);
-			bool r1i = false;
-			for(auto r1El: r1[i]) {
-				if(Aig_ManCo(SAig, r1El)->iData == 1) {
-					r1i = true;
-					break;
+		if(storedCEX_k2[index] == prevM || prevM == -1) {
+			for (int i = maxChange; i >= 0; --i) {
+				evaluateAig(SAig,cex);
+				bool r1i = false;
+				for(auto r1El: r1[i]) {
+					if(Aig_ManCo(SAig, r1El)->iData == 1) {
+						r1i = true;
+						break;
+					}
 				}
+				cex[numX + i] = (int) !r1i;
 			}
-			cex[numX + i] = (int) !r1i;
 		}
 		evaluateAig(SAig, cex);
 		spurious[index] = (bool)(Aig_ManCo(SAig, 1)->iData != 1);
