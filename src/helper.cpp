@@ -7,6 +7,8 @@ vector<int> storedCEX_k2;
 bool new_flag = true;
 bool SwitchToABCSolver = false;
 int numUnigenCalls = 0;
+vector<bool> addR1R0toR0;
+vector<bool> addR1R0toR1;
 
 ////////////////////////////////////////////////////////////////////////
 ///                      HELPER FUNCTIONS                            ///
@@ -995,19 +997,37 @@ void updateAbsRef(Aig_Man_t* pMan, vector<vector<int> > &r0, vector<vector<int> 
 		}
 	}
 
-	mu0 = newOR(pMan, r0[m]);
-	mu1 = newOR(pMan, r1[m]);
-	mu = Aig_AndAigs(pMan, mu0, mu1);
+	if((flag0 and addR1R0toR0[m]) or (flag1 and addR1R0toR1[m])) {
+		mu0 = newOR(pMan, r0[m]);
+		mu1 = newOR(pMan, r1[m]);
+		mu = Aig_AndAigs(pMan, mu0, mu1);
+	}
 
 	if(flag0) {
-		mu0 = Aig_OrAigs(pMan, mu, pi0_m);
+		if(addR1R0toR0[m]) {
+			mu0 = Aig_OrAigs(pMan, mu, pi0_m);
+			addR1R0toR0[m]   = false;
+			addR1R0toR0[m+1] = true;
+			addR1R0toR1[m+1] = true;
+		}
+		else {
+			mu0 = pi0_m;
+		}
 		mu0 = Aig_SubstituteConst(pMan, mu0, varsYS[l], 0);
 		Aig_ObjCreateCo(pMan, mu0);
 		r0[l].push_back(Aig_ManCoNum(pMan) - 1);
 	}
 
 	if(flag1) {
-		mu1 = Aig_OrAigs(pMan, mu, pi1_m);
+		if(addR1R0toR1[m]) {
+			mu1 = Aig_OrAigs(pMan, mu, pi1_m);
+			addR1R0toR1[m]   = false;
+			addR1R0toR0[m+1] = true;
+			addR1R0toR1[m+1] = true;
+		}
+		else {
+			mu1 = pi1_m;
+		}
 		mu1 = Aig_SubstituteConst(pMan, mu1, varsYS[l], 1);
 		Aig_ObjCreateCo(pMan, mu1);
 		r1[l].push_back(Aig_ManCoNum(pMan) - 1);
@@ -1699,4 +1719,9 @@ bool checkIsFUnsat(sat_solver* pSat, Cnf_Dat_t* SCnf, vector<int>&cex,
 		// cout << "returned sat" << endl;
 		return false;
 	}
+}
+
+void initializeAddR1R0toR() {
+	addR1R0toR0 = vector<bool>(numY,true);
+	addR1R0toR1 = vector<bool>(numY,true);
 }

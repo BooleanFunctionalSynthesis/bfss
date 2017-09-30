@@ -20,7 +20,7 @@ vector<int> varsYF, varsYS; // to be eliminated
 int numOrigInputs, numX, numY;
 Abc_Frame_t* pAbc;
 // Cnf_Dat_t* m_FCnf;
-// sat_solver* m_pSat; 
+// sat_solver* m_pSat;
 
 ////////////////////////////////////////////////////////////////////////
 ///                            MAIN                                  ///
@@ -215,6 +215,8 @@ int main( int argc, char * argv[] )
 
 	// cex = vector<int>(2*numOrigInputs, 0);
 	int M = -1;
+	initializeAddR1R0toR();
+
 	// CEGAR Loop
 	cout << "Starting CEGAR Loop..."<<endl;
 	int numloops = 0;
