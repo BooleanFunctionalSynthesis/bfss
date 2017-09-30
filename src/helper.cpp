@@ -1555,7 +1555,8 @@ int filterAndPopulateK1Vec(Aig_Man_t* SAig, vector<vector<int> >&r0, vector<vect
 		spurious[index] = (bool)(Aig_ManCo(SAig, 1)->iData != 1);
 
 		if(spurious[index]) {
-			for(k = numY-1; k >= 0; k--) {
+			int k_max = (storedCEX_k2[index]==-1)?numY-1:storedCEX_k2[index];
+			for(k = k_max; k >= 0; k--) {
 				if(((mu0 = satisfiesVec(SAig, cex, r0[k])) != NULL) &&
 					((mu1 = satisfiesVec(SAig, cex, r1[k])) != NULL))
 					break;
