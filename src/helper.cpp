@@ -661,6 +661,9 @@ bool getNextCEX(Aig_Man_t*&SAig, int& M, vector<vector<int> > &r0, vector<vector
 			return true;
 		}
 
+		// For functions that use prevM
+		M = -1;
+
 		// Ran out of CEX, fetch new
 		if (populateStoredCEX(SAig, r0, r1) == false)
 			return false;
@@ -1595,7 +1598,7 @@ int populateK2Vec(Aig_Man_t* SAig, vector<vector<int> >&r0, vector<vector<int> >
 			k1 = storedCEX_k1[i];
 			// cout << "Finding k2..." << endl;
 			// cout << "Search range from " << k1 << " to " << numY - 1 << endl;
-			k2 = findK2Max(SAig, m_pSat, m_FCnf, cex, r0, r1, k1);
+			k2 = findK2Max(SAig, m_pSat, m_FCnf, cex, r0, r1, k1, prevM);
 			clock1 = clock() - clock1;
 			// printf ("Found k2 = %d, took (%f seconds)\n",k2,((float)clock1)/CLOCKS_PER_SEC);
 			storedCEX_k2[i] = k2;
@@ -1610,46 +1613,10 @@ int populateK2Vec(Aig_Man_t* SAig, vector<vector<int> >&r0, vector<vector<int> >
 }
 
 int findK2Max(Aig_Man_t* SAig, sat_solver* m_pSat, Cnf_Dat_t* m_FCnf, vector<int>&cex,
-	vector<vector<int> >&r0, vector<vector<int> >&r1, int k1) {
-	// cout << "findK2Max" << endl;
-	// cout << "k1 = " << k1 << endl;
+	vector<vector<int> >&r0, vector<vector<int> >&r1, int k1, int prevM) {
+
 	Aig_Obj_t *mu0, *mu1, *mu, *pAigObj;
 	int return_val;
-
-	// cout << "cex X: ";
-	// for(int i = 0; i<numX; i++) {
-	// 	cout << cex[i] << " ";
-	// }
-	// cout << "\ncex Y: ";
-	// for(int i = 0; i<numY; i++) {
-	// 	cout << cex[numX + i] << " ";
-	// }
-	// cout << endl;
-
-	// // calculate Ys from X
-	// int clock1 = clock();
-	// for (int i = numY-1; i >= 0; --i)
-	// {
-	// 	evaluateAig(SAig,cex);
-	// 	bool r1i = false;
-	// 	for(auto r1El: r1[i]) {
-	// 		if(Aig_ManCo(SAig, r1El)->iData == 1) {
-	// 			r1i = true;
-	// 			break;
-	// 		}
-	// 	}
-	// 	cex[numX + i] = (int) !r1i;
-	// }
-	// evaluateAig(SAig,cex);
-	// clock1 = clock() - clock1;
-	// printf ("Time taken for evalAig in this call (%f s)\n",((float)clock1)/CLOCKS_PER_SEC);
-
-	// sat_solver *pSat = sat_solver_new();
-	// clock1 = clock();
-	// Cnf_Dat_t *SCnf = Cnf_Derive(SAig,Aig_ManCoNum(SAig));
-	// clock1 = clock() - clock1;
-	// printf ("Time taken for Cnf_Derive in this call (%f s)\n ",((float)clock1)/CLOCKS_PER_SEC);
-	// addCnfToSolver(pSat, SCnf);
 
 	lit assump[numOrigInputs + 1];
 	assump[0] = toLitCond(getCnfCoVarNum(m_FCnf, SAig, 1), 0);
@@ -1659,7 +1626,8 @@ int findK2Max(Aig_Man_t* SAig, sat_solver* m_pSat, Cnf_Dat_t* m_FCnf, vector<int
 		assump[i + 1] = toLitCond(m_FCnf->pVarNums[varsXS[i]], (int)cex[i]==0);
 	}
 
-	return_val = findK2Max_rec(m_pSat, m_FCnf, cex, k1 + 1, numY - 1, assump);
+	int k_end = (prevM==-1)?numY-1:prevM;
+	return_val = findK2Max_rec(m_pSat, m_FCnf, cex, k1 + 1, k_end, assump);
 
 	return return_val;
 }
