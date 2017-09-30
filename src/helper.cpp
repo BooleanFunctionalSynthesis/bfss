@@ -645,7 +645,7 @@ bool getNextCEX(Aig_Man_t*&SAig, int& M, vector<vector<int> > &r0, vector<vector
 
 	while(true) {
 		while(!storedCEX.empty()) {
-			int k1Max = filterAndPopulateK1Vec(SAig, r0, r1);
+			int k1Max = filterAndPopulateK1Vec(SAig, r0, r1, M);
 			cout << "Found k1Max " << k1Max << endl;
 			if(storedCEX.empty())
 				break;
@@ -1524,7 +1524,7 @@ vector<lit> setAllNegX(Cnf_Dat_t* SCnf, Aig_Man_t* SAig, int val) {
 	return res;
 }
 
-int filterAndPopulateK1Vec(Aig_Man_t* SAig, vector<vector<int> >&r0, vector<vector<int> >&r1) {
+int filterAndPopulateK1Vec(Aig_Man_t* SAig, vector<vector<int> >&r0, vector<vector<int> >&r1, int prevM) {
 	int k;
 	int max = 0;
 	Aig_Obj_t *mu0, *mu1;
@@ -1534,9 +1534,11 @@ int filterAndPopulateK1Vec(Aig_Man_t* SAig, vector<vector<int> >&r0, vector<vect
 	cout << "POPULATING K1 VECTOR" << endl;
 	assert(storedCEX_k1.size() == storedCEX.size());
 
+	int maxChange = (prevM==-1)? (numY-1) : (prevM+1);
+
 	for(auto& cex:storedCEX) {
 		assert(cex.size() == 2*numOrigInputs);
-		for (int i = numY-1; i >= 0; --i)
+		for (int i = maxChange; i >= 0; --i)
 		{
 			evaluateAig(SAig,cex);
 			bool r1i = false;
