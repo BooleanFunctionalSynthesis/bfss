@@ -839,8 +839,11 @@ void evaluateAig(Aig_Man_t* formula, const vector<int> &cex) {
  * @param cex       [in]        Counterexample
  * @param coObjs    [in]        Co numbers in Aig Manager to check
  */
-Aig_Obj_t* satisfiesVec(Aig_Man_t* formula, const vector<int>& cex, const vector<int>& coObjs) {
-	evaluateAig(formula, cex);
+Aig_Obj_t* satisfiesVec(Aig_Man_t* formula, const vector<int>& cex, const vector<int>& coObjs, bool reEvaluate) {
+
+	if(reEvaluate)
+		evaluateAig(formula, cex);
+
 	OUT("satisfiesVec...");
 	for(int i = 0; i < coObjs.size(); i++) {
 		OUT("Accessing Co "<<coObjs[i]<<" Id "<< Aig_ManCo(formula,coObjs[i])->Id);
@@ -860,7 +863,7 @@ Aig_Obj_t* satisfiesVec(Aig_Man_t* formula, const vector<int>& cex, const vector
  * @param rl        [in]        Underaproximations of Cant-be sets
  */
 Aig_Obj_t* generalize(Aig_Man_t*pMan, vector<int> cex, const vector<int>& rl) {
-	return satisfiesVec(pMan, cex, rl);
+	return satisfiesVec(pMan, cex, rl, true);
 }
 
 /** Function
@@ -1328,7 +1331,7 @@ void checkCexSanity(Aig_Man_t* pMan, vector<int>& cex, vector<vector<int> >& r0,
 	for (int i = 0; i < numY; ++i)
 	{
 		OUT("\t checking for i=" << i);
-		assert((cex[numX + i]==1) ^ (satisfiesVec(pMan, cex, r1[i])!=NULL));
+		assert((cex[numX + i]==1) ^ (satisfiesVec(pMan, cex, r1[i], true)!=NULL));
 	}
 }
 
@@ -1557,8 +1560,8 @@ int filterAndPopulateK1Vec(Aig_Man_t* SAig, vector<vector<int> >&r0, vector<vect
 		if(spurious[index]) {
 			int k_max = (storedCEX_k2[index]==-1)?numY-1:storedCEX_k2[index];
 			for(k = k_max; k >= 0; k--) {
-				if(((mu0 = satisfiesVec(SAig, cex, r0[k])) != NULL) &&
-					((mu1 = satisfiesVec(SAig, cex, r1[k])) != NULL))
+				if(((mu0 = satisfiesVec(SAig, cex, r0[k], false)) != NULL) &&
+					((mu1 = satisfiesVec(SAig, cex, r1[k], false)) != NULL))
 					break;
 			}
 			storedCEX_k1[index] = k;

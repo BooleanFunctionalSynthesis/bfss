@@ -84,7 +84,7 @@ bool 			getNextCEX(Aig_Man_t*&SAig, int& m, vector<vector<int> > &r0,
 bool 			populateStoredCEX(Aig_Man_t* SAig,
 					vector<vector<int> > &r0, vector<vector<int> > &r1);
 void 			evaluateAig(Aig_Man_t* formula, const vector<int> &cex);
-Aig_Obj_t* 		satisfiesVec(Aig_Man_t* formula, const vector<int>& cex, const vector<int>& coObjs);
+Aig_Obj_t* 		satisfiesVec(Aig_Man_t* formula, const vector<int>& cex, const vector<int>& coObjs, bool reEvaluate);
 Aig_Obj_t* 		generalize(Aig_Man_t*pMan, vector<int> cex, const vector<int>& rl);
 bool 			Aig_Support_rec(Aig_Man_t* pMan, Aig_Obj_t* root, int inpNodeId, map<Aig_Obj_t*,bool>& memo);
 bool 			Aig_Support(Aig_Man_t* pMan, Aig_Obj_t* root, int inpNodeId);
