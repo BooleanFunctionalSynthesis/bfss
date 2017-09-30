@@ -1659,12 +1659,7 @@ int findK2Max(Aig_Man_t* SAig, sat_solver* m_pSat, Cnf_Dat_t* m_FCnf, vector<int
 		assump[i + 1] = toLitCond(m_FCnf->pVarNums[varsXS[i]], (int)cex[i]==0);
 	}
 
-	// Check for k2==k1
-	if(checkIsFUnsat(m_pSat, m_FCnf, cex, k1 + 1, assump)) {
-		return_val = findK2Max_rec(m_pSat, m_FCnf, cex, k1 + 2, numY - 1, assump);
-	} else {
-		return_val = k1;
-	}
+	return_val = findK2Max_rec(m_pSat, m_FCnf, cex, k1 + 1, numY - 1, assump);
 
 	return return_val;
 }
