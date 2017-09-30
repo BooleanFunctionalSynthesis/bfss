@@ -649,7 +649,7 @@ bool getNextCEX(Aig_Man_t*&SAig, int& M, vector<vector<int> > &r0, vector<vector
 			cout << "Found k1Max " << k1Max << endl;
 			if(storedCEX.empty())
 				break;
-			int k2Max = populateK2Vec(SAig, r0, r1, k1Max);
+			int k2Max = populateK2Vec(SAig, r0, r1, M);
 			cout << "K1 K2 Data:" << endl;
 			assert(storedCEX_k1.size() == storedCEX.size());
 			assert(storedCEX_k2.size() == storedCEX.size());
@@ -770,6 +770,8 @@ bool populateStoredCEX(Aig_Man_t* SAig,
 			int * v = Sat_SolverGetModel(pSat, &cex[0], cex.size());
 			cex = vector<int>(v,v+cex.size());
 			storedCEX.push_back(cex);
+			storedCEX_k1.push_back(-1);
+			storedCEX_k2.push_back(-1);
 			return_val = true;
 		}
 	}
@@ -984,7 +986,7 @@ void updateAbsRef(Aig_Man_t* pMan, vector<vector<int> > &r0, vector<vector<int> 
 				else
 					pi1_m = Aig_OrAigs(pMan, pi1_m, projectPi(pMan, storedCEX[i], m));
 				flag1 = true;
-				cout << "Adding " << i << " to pi1_m" << endl;
+				// cout << "Adding " << i << " to pi1_m" << endl;
 			}
 			else {
 				if(!flag0)
@@ -992,7 +994,7 @@ void updateAbsRef(Aig_Man_t* pMan, vector<vector<int> > &r0, vector<vector<int> 
 				else
 					pi0_m = Aig_OrAigs(pMan, pi0_m, projectPi(pMan, storedCEX[i], m));
 				flag0 = true;
-				cout << "Adding " << i << " to pi0_m" << endl;
+				// cout << "Adding " << i << " to pi0_m" << endl;
 			}
 		}
 	}
@@ -1526,6 +1528,9 @@ int filterAndPopulateK1Vec(Aig_Man_t* SAig, vector<vector<int> >&r0, vector<vect
 	vector<bool> spurious(storedCEX.size());
 	int index = 0;
 
+	cout << "POPULATING K1 VECTOR" << endl;
+	assert(storedCEX_k1.size() == storedCEX.size());
+
 	for(auto& cex:storedCEX) {
 		assert(cex.size() == 2*numOrigInputs);
 		for (int i = numY-1; i >= 0; --i)
@@ -1560,41 +1565,44 @@ int filterAndPopulateK1Vec(Aig_Man_t* SAig, vector<vector<int> >&r0, vector<vect
 		if(spurious[i]) {
 			storedCEX[j] = storedCEX[i];
 			storedCEX_k1[j] = storedCEX_k1[i];
+			storedCEX_k2[j] = storedCEX_k2[i];
 			j++;
 		}
 	}
 	storedCEX.resize(j);
-	storedCEX_k1.resize(j);
-	storedCEX_k2.resize(j);
+	storedCEX_k1.resize(j,-1);
+	storedCEX_k2.resize(j,-1);
 	return max;
 }
 
-int populateK2Vec(Aig_Man_t* SAig, vector<vector<int> >&r0, vector<vector<int> >&r1,
-		int k1Max) {
+int populateK2Vec(Aig_Man_t* SAig, vector<vector<int> >&r0, vector<vector<int> >&r1, int prevM) {
 	int k1;
 	int k2;
+	int k2_prev;
 	int i = 0;
-	int max = k1Max;
+	int max = -1;
 
 	sat_solver* m_pSat = sat_solver_new();
 	Cnf_Dat_t* m_FCnf = Cnf_Derive(SAig, Aig_ManCoNum(SAig));
 	addCnfToSolver(m_pSat, m_FCnf);
 
 	cout << "POPULATING K2 VECTOR" << endl;
-	storedCEX_k2.clear();
+	assert(storedCEX_k2.size() == storedCEX.size());
 	for(auto cex:storedCEX) {
-		int clock1 = clock();
-		k1 = storedCEX_k1[i++];
-		// cout << "Finding k2..." << endl;
-		// cout << "Search range from " << k1 << " to " << numY - 1 << endl;
-		k2 = findK2Max(SAig, m_pSat, m_FCnf, cex, r0, r1, k1);
-		clock1 = clock() - clock1;
-		// printf ("Found k2 = %d, took (%f seconds)\n",k2,((float)clock1)/CLOCKS_PER_SEC);
-		// cout << endl;
-		storedCEX_k2.push_back(k2);
+		k2 = storedCEX_k2[i];
+		if(k2 == -1 or k2 == prevM) { // Change only if k2 == prevM
+			int clock1 = clock();
+			k1 = storedCEX_k1[i];
+			// cout << "Finding k2..." << endl;
+			// cout << "Search range from " << k1 << " to " << numY - 1 << endl;
+			k2 = findK2Max(SAig, m_pSat, m_FCnf, cex, r0, r1, k1);
+			clock1 = clock() - clock1;
+			// printf ("Found k2 = %d, took (%f seconds)\n",k2,((float)clock1)/CLOCKS_PER_SEC);
+			storedCEX_k2[i] = k2;
+		}
 		max = (k2 > max) ? k2 : max;
+		i++;
 	}
-	// cout << "DONE POPULATING K2 VECTOR" << endl << endl;
 
 	sat_solver_delete(m_pSat);
 	Cnf_DataFree(m_FCnf);
@@ -1602,9 +1610,9 @@ int populateK2Vec(Aig_Man_t* SAig, vector<vector<int> >&r0, vector<vector<int> >
 }
 
 int findK2Max(Aig_Man_t* SAig, sat_solver* m_pSat, Cnf_Dat_t* m_FCnf, vector<int>&cex,
-	vector<vector<int> >&r0, vector<vector<int> >&r1, int k1Max) {
+	vector<vector<int> >&r0, vector<vector<int> >&r1, int k1) {
 	// cout << "findK2Max" << endl;
-	// cout << "k1 = " << k1Max << endl;
+	// cout << "k1 = " << k1 << endl;
 	Aig_Obj_t *mu0, *mu1, *mu, *pAigObj;
 	int return_val;
 
@@ -1652,10 +1660,10 @@ int findK2Max(Aig_Man_t* SAig, sat_solver* m_pSat, Cnf_Dat_t* m_FCnf, vector<int
 	}
 
 	// Check for k2==k1
-	if(checkIsFUnsat(m_pSat, m_FCnf, cex, k1Max + 1, assump)) {
-		return_val = findK2Max_rec(m_pSat, m_FCnf, cex, k1Max + 2, numY - 1, assump);
+	if(checkIsFUnsat(m_pSat, m_FCnf, cex, k1 + 1, assump)) {
+		return_val = findK2Max_rec(m_pSat, m_FCnf, cex, k1 + 2, numY - 1, assump);
 	} else {
-		return_val = k1Max;
+		return_val = k1;
 	}
 
 	return return_val;
