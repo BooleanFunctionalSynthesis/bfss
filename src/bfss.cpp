@@ -251,7 +251,7 @@ int main(int argc, char * argv[]) {
 
 	clock_t main_end = clock();
 	cout<< "Total time:   " <<double( main_end-main_start)/CLOCKS_PER_SEC << endl;
-	
+
 	// Stop ABC
 	Abc_Stop();
 	return 0;
