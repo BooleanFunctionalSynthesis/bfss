@@ -1538,7 +1538,7 @@ int unigen_call(string fname, int nSamples) {
 	numUnigenCalls++;
 	assert(fname.find(' ') == string::npos);
 	system("rm -rf " UNIGEN_OUT_DIR "/");
-	string cmd = "python2 " UNIGEN_PY " -threads=4 -samples="+to_string(nSamples)+" "+fname+" " UNIGEN_OUT_DIR " > " UNIGEN_OUTPT_FPATH+to_string(numUnigenCalls) ;
+	string cmd = "python2 " UNIGEN_PY " -runIndex=0 -threads=4 -samples="+to_string(nSamples)+" "+fname+" " UNIGEN_OUT_DIR " > " UNIGEN_OUTPT_FPATH+to_string(numUnigenCalls) ;
 	cout << "\nCalling unigen: " << cmd << endl;
 	system(cmd.c_str());
 
