@@ -19,6 +19,8 @@ vector<int> varsXF, varsXS;
 vector<int> varsYF, varsYS; // to be eliminated
 int numOrigInputs, numX, numY;
 Abc_Frame_t* pAbc;
+// Cnf_Dat_t* m_FCnf;
+// sat_solver* m_pSat;
 
 ////////////////////////////////////////////////////////////////////////
 ///                            MAIN                                  ///
@@ -173,10 +175,8 @@ int main( int argc, char * argv[] )
 	Aig_Obj_t* FPrime_SAig = buildFPrime(SAig, F_SAig);
 	vector<vector<int> > r0(numY), r1(numY);
 	cout << "initializeRs(SAig, r0, r1)..."<<endl;
-	clock_t compose_start = clock();
 	initializeR0(SAig, r0);
 	initializeR1(SAig, r1);
-	clock_t compose_end = clock();
 
 	// cout << "checkSupportSanity(SAig, r0, r1)..."<<endl;
 	// checkSupportSanity(SAig, r0, r1);
@@ -211,19 +211,22 @@ int main( int argc, char * argv[] )
 		checkSupportSanity(SAig, r0, r1);
 	#endif
 
-	cex = vector<int>(2*numOrigInputs, 0);
+	// cex = vector<int>(2*numOrigInputs, 0);
+	int M = -1;
+	initializeAddR1R0toR();
+
 	// CEGAR Loop
 	cout << "Starting CEGAR Loop..."<<endl;
 	int numloops = 0;
 	// while(callSATfindCEX(SAig, cex, r0, r1)) {
-	while(getNextCEX(SAig, cex, r0, r1)) {
+	while(getNextCEX(SAig, M, r0, r1)) {
 		OUT("Iter " << numloops << ":\tFound CEX!");
-		cout<<'.'<<flush;
-		evaluateAig(SAig, cex);
+		// cout<<'.'<<flush;
+		// evaluateAig(SAig, cex);
 		#ifdef DEBUG_CHUNK
 			checkCexSanity(SAig, cex, r0, r1);
 		#endif
-		updateAbsRef(SAig, r0, r1, cex);
+		updateAbsRef(SAig, r0, r1, M);
 		numloops++;
 
 		if(numloops % 50 == 0) {
@@ -251,13 +254,11 @@ int main( int argc, char * argv[] )
 	cout << "Found Skolem Functions" << endl;
 	cout << "Num Iterations: " << numloops << endl;
 
+	assert(verifyResult(SAig, r0, r1, 0));
+
 	clock_t main_end = clock();
-
 	cout<< "Total time:   " <<double( main_end-main_start)/CLOCKS_PER_SEC << endl;
-	cout<< "Compose time: " <<double( compose_end-compose_start)/CLOCKS_PER_SEC << endl;
-
-	assert(verifyResult(SAig, r0, r1,0));
-
+	
 	// Stop ABC
 	Abc_Stop();
 	return 0;

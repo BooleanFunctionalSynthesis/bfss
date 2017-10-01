@@ -30,7 +30,7 @@ Abc_Ntk_t * Abc_NtkFromAigPhase(Aig_Man_t * pMan);
 #define UNIGEN_MODEL_FPATH	UNIGEN_OUT_DIR "/" UNIGEN_MODEL_FNAME
 #define UNIGEN_DIMAC_FPATH 	UNIGEN_DIMAC_FNAME
 #define UNIGEN_PY 			"UniGen2.py"
-#define UNIGEN_SAMPLES		22
+#define UNIGEN_SAMPLES		220
 
 // #define DEBUG
 // #define DEBUG_CHUNK
@@ -46,6 +46,8 @@ extern vector<int> varsXF, varsXS;
 extern vector<int> varsYF, varsYS; // to be eliminated
 extern int numOrigInputs, numX, numY;
 extern Abc_Frame_t* pAbc;
+// extern Cnf_Dat_t* m_FCnf;
+// extern sat_solver* m_pSat; 
 
 class edge;
 class node;
@@ -77,18 +79,22 @@ Cnf_Dat_t* 		buildErrorFormula(sat_solver* pSat, Aig_Man_t* SAig,
 					vector<vector<int> > &r0, vector<vector<int> > &r1);
 bool 			callSATfindCEX(Aig_Man_t* SAig,vector<int>& cex,
 					vector<vector<int> > &r0, vector<vector<int> > &r1);
-bool 			getNextCEX(Aig_Man_t*&SAig,vector<int>& cex,
-					vector<vector<int> > &r0, vector<vector<int> > &r1);
+bool 			getNextCEX(Aig_Man_t*&SAig, int& m, vector<vector<int> > &r0, 
+					vector<vector<int> > &r1);
 bool 			populateStoredCEX(Aig_Man_t* SAig,
 					vector<vector<int> > &r0, vector<vector<int> > &r1);
 void 			evaluateAig(Aig_Man_t* formula, const vector<int> &cex);
-Aig_Obj_t* 		satisfiesVec(Aig_Man_t* formula, const vector<int>& cex, const vector<int>& coObjs);
+Aig_Obj_t* 		satisfiesVec(Aig_Man_t* formula, const vector<int>& cex, const vector<int>& coObjs, bool reEvaluate);
 Aig_Obj_t* 		generalize(Aig_Man_t*pMan, vector<int> cex, const vector<int>& rl);
 bool 			Aig_Support_rec(Aig_Man_t* pMan, Aig_Obj_t* root, int inpNodeId, map<Aig_Obj_t*,bool>& memo);
 bool 			Aig_Support(Aig_Man_t* pMan, Aig_Obj_t* root, int inpNodeId);
 Aig_Obj_t* 		Aig_AndAigs(Aig_Man_t* pMan, Aig_Obj_t* Aig1, Aig_Obj_t* Aig2);
+Aig_Obj_t* 		Aig_OrAigs(Aig_Man_t* pMan, Aig_Obj_t* Aig1, Aig_Obj_t* Aig2) ;
+Aig_Obj_t* 		AND_rec(Aig_Man_t* SAig, vector<Aig_Obj_t* >& nodes, int start, int end);
+Aig_Obj_t* 		newAND(Aig_Man_t* SAig, vector<Aig_Obj_t* >& nodes) ;
+Aig_Obj_t* 		projectPi(Aig_Man_t* pMan, const vector<int> &cex, const int m);
 void 			updateAbsRef(Aig_Man_t* pMan, vector<vector<int> > &r0, vector<vector<int> > &r1,
-					const vector<int> &cex);
+					const int &m);
 Aig_Man_t* 		compressAig(Aig_Man_t* SAig);
 Aig_Man_t* 		compressAigByNtk(Aig_Man_t* SAig);
 void 			checkSupportSanity(Aig_Man_t*pMan, vector<vector<int> > &r0, vector<vector<int> > &r1);
@@ -105,7 +111,15 @@ void 			Aig_ComposeVec_rec( Aig_Man_t * p, Aig_Obj_t * pObj, vector<Aig_Obj_t *>
 Aig_Obj_t*	 	Aig_ComposeVec( Aig_Man_t * p, Aig_Obj_t * pRoot, vector<Aig_Obj_t *>& pFuncVec,
 					vector<int>& iVarVec );
 void 			Sat_SolverWriteDimacsAndIS( sat_solver * p, char * pFileName,
-					lit* assumpBegin, lit* assumpEnd, int incrementVars, vector<int>&IS );
+					lit* assumpBegin, lit* assumpEnd, vector<int>&IS, vector<int>&retSet);
 int 			unigen_call(string fname, int nSamples);
-bool 			unigen_fetchModels(map<int, int>& varNum2ID);
+bool 			unigen_fetchModels(Aig_Man_t* SAig, vector<vector<int> > &r0, 
+							vector<vector<int> > &r1, map<int, int>& varNum2ID, map<int, int>& varNum2R0R1);
 vector<lit>		setAllNegX(Cnf_Dat_t* SCnf, Aig_Man_t* SAig, int val);
+int 			findK2Max(Aig_Man_t* SAig, sat_solver* m_pSat, Cnf_Dat_t* m_FCnf, vector<int>&cex,
+							vector<vector<int> >&r0, vector<vector<int> >&r1, int k1Max, int prevM);
+int 			findK2Max_rec(sat_solver* pSat, Cnf_Dat_t* SCnf, vector<int>&cex, int k_start, int k_end, lit assump[]);
+bool 			checkIsFUnsat(sat_solver* pSat, Cnf_Dat_t* SCnf, vector<int>&cex, int k, lit assump[]);
+int 			filterAndPopulateK1Vec(Aig_Man_t* SAig, vector<vector<int> >&r0, vector<vector<int> >&r1, int prevM);
+int				populateK2Vec(Aig_Man_t* SAig, vector<vector<int> >&r0, vector<vector<int> >&r1, int prevM);
+void 			initializeAddR1R0toR();
