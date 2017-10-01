@@ -1682,10 +1682,6 @@ int populateK2Vec(Aig_Man_t* SAig, vector<vector<int> >&r0, vector<vector<int> >
 	int i = 0;
 	int max = -1;
 
-	sat_solver* m_pSat = sat_solver_new();
-	Cnf_Dat_t* m_FCnf = Cnf_Derive(SAig, Aig_ManCoNum(SAig));
-	addCnfToSolver(m_pSat, m_FCnf);
-
 	cout << "POPULATING K2 VECTOR" << endl;
 	assert(storedCEX_k2.size() == storedCEX.size());
 	for(auto cex:storedCEX) {
@@ -1704,8 +1700,6 @@ int populateK2Vec(Aig_Man_t* SAig, vector<vector<int> >&r0, vector<vector<int> >
 		i++;
 	}
 
-	sat_solver_delete(m_pSat);
-	Cnf_DataFree(m_FCnf);
 	return max;
 }
 
@@ -1716,7 +1710,7 @@ int findK2Max(Aig_Man_t* SAig, sat_solver* m_pSat, Cnf_Dat_t* m_FCnf, vector<int
 	int return_val;
 
 	lit assump[numOrigInputs + 1];
-	assump[0] = toLitCond(getCnfCoVarNum(m_FCnf, SAig, 1), 0);
+	assump[0] = m_f;
 
 	// push X values
 	for (int i = 0; i < numX; ++i) {

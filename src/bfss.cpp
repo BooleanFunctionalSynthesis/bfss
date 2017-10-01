@@ -15,6 +15,9 @@ vector<int> varsXF, varsXS;
 vector<int> varsYF, varsYS; // to be eliminated
 int numOrigInputs, numX, numY;
 Abc_Frame_t* pAbc;
+sat_solver* m_pSat;
+Cnf_Dat_t* m_FCnf;
+lit m_f;
 
 ////////////////////////////////////////////////////////////////////////
 ///                            MAIN                                  ///
@@ -164,6 +167,12 @@ int main(int argc, char * argv[]) {
 	// FPrime_SAig will always be Aig_ManCo( ... , 2)
 	cout << "buildF(SAig)..."<<endl;
 	Aig_Obj_t* F_SAig = buildF(SAig);
+
+	m_pSat = sat_solver_new();
+	m_FCnf = Cnf_Derive(SAig, Aig_ManCoNum(SAig));
+	m_f = toLitCond(getCnfCoVarNum(m_FCnf, SAig, 1), 0);
+	addCnfToSolver(m_pSat, m_FCnf);
+
 	cout << "buildFPrime(SAig)..."<<endl;
 	Aig_Obj_t* FPrime_SAig = buildFPrime(SAig, F_SAig);
 	vector<vector<int> > r0(numY), r1(numY);
@@ -251,6 +260,9 @@ int main(int argc, char * argv[]) {
 
 	clock_t main_end = clock();
 	cout<< "Total time:   " <<double( main_end-main_start)/CLOCKS_PER_SEC << endl;
+
+	sat_solver_delete(m_pSat);
+	Cnf_DataFree(m_FCnf);
 
 	// Stop ABC
 	Abc_Stop();
