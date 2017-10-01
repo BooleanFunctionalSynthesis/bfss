@@ -1,0 +1,13 @@
+diff --git a/src/sat/bsat/satSolver.c b/src/sat/bsat/satSolver.c
+index 4bced42..e74dcdf 100644
+--- a/src/sat/bsat/satSolver.c
++++ b/src/sat/bsat/satSolver.c
+@@ -514,7 +514,7 @@ static inline int sat_clause_compute_lbd( sat_solver* s, clause* c )
+  */
+ int sat_solver_clause_new(sat_solver* s, lit* begin, lit* end, int learnt)
+ {
+-    int fUseBinaryClauses = 1;
++    int fUseBinaryClauses = 0;
+     int size;
+     clause* c;
+     int h;

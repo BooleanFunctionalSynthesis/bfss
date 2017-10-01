@@ -1,14 +1,17 @@
 diff --git a/ugen2/cmsat/DimacsParser.cpp b/ugen2/cmsat/DimacsParser.cpp
-index 055dd6c..3ee6e4c 100755
+index 055dd6c..fd8335e 100755
 --- a/ugen2/cmsat/DimacsParser.cpp
 +++ b/ugen2/cmsat/DimacsParser.cpp
-@@ -195,6 +195,25 @@ void DimacsParser::parseIndependentSet(StreamBuffer& in) {
- }
+@@ -191,7 +191,24 @@ void DimacsParser::parseIndependentSet(StreamBuffer& in) {
+         var = abs(parsed_lit) - 1;
+         varVector.push(var);
+     }
++}
  
- /**
-+ * 
++/**
++ *
 + * @param in
-+ * @return 
++ * @return
 + * @breif Reads in and puts the variables in the return set
 + */
 +void DimacsParser::parseReturnSet(StreamBuffer& in) {
@@ -21,14 +24,10 @@ index 055dd6c..3ee6e4c 100755
 +        var = abs(parsed_lit) - 1;
 +        retVector.push(var);
 +    }
-+
-+}
-+
-+/**
- @brief Matches parameter "str" to content in "in"
-  */
- bool DimacsParser::match(StreamBuffer& in, const char* str) {
-@@ -326,6 +345,8 @@ void DimacsParser::parseComments(StreamBuffer& in, const std::string str) throw(
+ }
+ 
+ /**
+@@ -326,6 +343,8 @@ void DimacsParser::parseComments(StreamBuffer& in, const std::string str) throw(
  #endif //DEBUG_COMMENT_PARSING
      } else if (str == "ind") { //parsing the independent variables
          parseIndependentSet(in);
@@ -37,7 +36,7 @@ index 055dd6c..3ee6e4c 100755
      } else {
  #ifdef DEBUG_COMMENT_PARSING
          std::cout << "didn't understand in CNF file: 'c " << str << std::endl;
-@@ -527,6 +548,7 @@ void DimacsParser::parse_DIMACS(T input_stream) {
+@@ -527,6 +546,7 @@ void DimacsParser::parse_DIMACS(T input_stream) {
      StreamBuffer in(input_stream);
      parse_DIMACS_main(in);
      solver->addIndependentSet(varVector);
@@ -45,17 +44,57 @@ index 055dd6c..3ee6e4c 100755
  
      if (solver->conf.verbosity >= 1) {
          std::cout << "c -- clauses added: "
+diff --git a/ugen2/cmsat/DimacsParser.h b/ugen2/cmsat/DimacsParser.h
+index 9099fb8..9d28fe5 100755
+--- a/ugen2/cmsat/DimacsParser.h
++++ b/ugen2/cmsat/DimacsParser.h
+@@ -72,6 +72,7 @@ namespace CMSat {
+         std::string stringify(uint32_t x);
+         void parseSolveComment(StreamBuffer& in);
+         void parseIndependentSet(StreamBuffer & in);
++        void parseReturnSet(StreamBuffer & in);
+ 
+ 
+         size_t lineNum;
+@@ -84,6 +85,7 @@ namespace CMSat {
+         uint32_t debugLibPart; ///<printing partial solutions to debugLibPart1..N.output when "debugLib" is set to TRUE
+         vec<Lit> lits; ///<To reduce temporary creation overhead
+         vec<Var> varVector; ///< To reduce temporary creation overhead for independent/dependent sets
++        vec<Var> retVector; ///< To reduce temporary creation overhead for return sets
+         uint32_t numLearntClauses; ///<Number of learnt non-xor clauses added
+         uint32_t numNormClauses; ///<Number of non-learnt, non-xor claues added
+         uint32_t numXorClauses; ///<Number of non-learnt xor clauses added
+diff --git a/ugen2/cmsat/Main.cpp b/ugen2/cmsat/Main.cpp
+index efca99a..268d134 100644
+--- a/ugen2/cmsat/Main.cpp
++++ b/ugen2/cmsat/Main.cpp
+@@ -1029,6 +1029,16 @@ lbool Main::BoundedSAT(uint32_t maxSolutions, uint32_t minSolutions, Solver &sol
+                     solution += " ";
+                 }
+             }
++            for (uint32_t j = 0; j < solver.returnSet.size(); j++) {
++                var = solver.returnSet[j];
++                if (model[var] != l_Undef) {
++                    if (model[var] != l_True) {
++                        solution += "-";
++                    }
++                    solution += std::to_string(var+1);
++                    solution += " ";
++                }
++            }
+             solution += "0";
+ 
+             map<std::string, uint32_t>::iterator it = solutionMap.find(solution);
 diff --git a/ugen2/cmsat/Solver.cpp b/ugen2/cmsat/Solver.cpp
-index 0fc9309..d965917 100755
+index 0fc9309..e6db187 100755
 --- a/ugen2/cmsat/Solver.cpp
 +++ b/ugen2/cmsat/Solver.cpp
-@@ -664,6 +664,32 @@ delete independentSetTrack;
+@@ -664,6 +664,31 @@ delete independentSetTrack;
  }
  template bool Solver::addIndependentSet(vec<Var> & ps);
  
 +/***
 + Adds the return set, should be called only once
-+
 + */
 +template<class T>
 +bool Solver::addReturnSet(T & ps) {
@@ -74,7 +113,7 @@ index 0fc9309..d965917 100755
 +            (*returnSetTrack)[ps[i]] = l_True;
 +        }
 +    }
-+delete returnSetTrack;
++    delete returnSetTrack;
 +    return ok;
 +}
 +template bool Solver::addReturnSet(vec<Var> & ps);
