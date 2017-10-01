@@ -898,6 +898,61 @@ void evaluateAig(Aig_Man_t* formula, const vector<int> &cex) {
 }
 
 /** Function
+ * This evaluates all leaves of the Aig using values from cex
+ * The value of the node is stored in pObj->iData
+ * @param formula   [in]        Aig Manager
+ * @param cex       [in]        counter-example
+ */
+void evaluateXYLeaves(Aig_Man_t* formula, const vector<int> &cex) {
+	for (int i = 0; i < numX; ++i) {
+		Aig_ManObj(formula, varsXS[i])->iData = cex[i];
+		Aig_ObjSetTravIdCurrent(formula, Aig_ManObj(formula, varsXS[i]));
+	}
+	for (int i = 0; i < numY; ++i) {
+		Aig_ManObj(formula, varsYS[i])->iData = cex[numX + i];
+		Aig_ObjSetTravIdCurrent(formula, Aig_ManObj(formula, varsYS[i]));
+	}
+
+	// Setting Const1
+	Aig_ManObj(formula,0)->iData = 1;
+	Aig_ObjSetTravIdCurrent(formula, Aig_ManObj(formula,0));
+}
+
+/** Function
+ * This evaluates and returns head using values from leaves
+ * The value of the leaves is stored in pObj->iData
+ * @param formula   [in]        Aig Manager
+ * @param head      [in]        node to be evaluated
+ */
+bool evaluateAigAtNode(Aig_Man_t* formula, Aig_Obj_t*head) {
+
+	int isComplement = Aig_IsComplement(head);
+	head = Aig_Regular(head);
+
+	if(Aig_ObjIsTravIdCurrent(formula, head)) {
+		assert(head->iData == 0 or head->iData == 1);
+		return (bool) isComplement xor head->iData;
+	}
+
+	if(Aig_ObjIsCo(head)) {
+		Aig_ObjSetTravIdCurrent(formula,head);
+		head->iData = (int) evaluateAigAtNode(formula, Aig_ObjChild0(head));
+		return (bool) isComplement xor head->iData;
+	}
+
+	bool lc, rc;
+	lc = evaluateAigAtNode(formula, Aig_ObjChild0(head));
+	if(lc)
+		rc = evaluateAigAtNode(formula, Aig_ObjChild1(head));
+	else
+		rc = true;
+
+	head->iData = (int) (lc and rc);
+	Aig_ObjSetTravIdCurrent(formula,head);
+		return (bool) isComplement xor head->iData;
+}
+
+/** Function
  * Finds an element in coObjs that satisfies cex.
  * Returns the object, if found. Else, returns NULL.
  * Call evaluateAig(...) before this function.
@@ -1621,8 +1676,8 @@ vector<lit> setAllNegX(Cnf_Dat_t* SCnf, Aig_Man_t* SAig, int val) {
 }
 
 int filterAndPopulateK1Vec(Aig_Man_t* SAig, vector<vector<int> >&r0, vector<vector<int> >&r1, int prevM) {
-	int k;
-	int max = 0;
+	int k1;
+	int max = -1;
 	Aig_Obj_t *mu0, *mu1;
 	vector<bool> spurious(storedCEX.size());
 	int index = 0;
@@ -1634,33 +1689,59 @@ int filterAndPopulateK1Vec(Aig_Man_t* SAig, vector<vector<int> >&r0, vector<vect
 
 	for(auto& cex:storedCEX) {
 		assert(cex.size() == 2*numOrigInputs);
-		if((prevM != -1 and storedCEX_k2[index] == prevM) || 
+
+		evaluateXYLeaves(SAig,cex);
+		if((prevM != -1 and storedCEX_k2[index] == prevM) ||
 			(prevM == -1 and storedCEX_k1[index] == -1)) {
+			// Re-evaluating some Ys
 			for (int i = maxChange; i >= 0; --i) {
-				evaluateAig(SAig,cex);
 				bool r1i = false;
 				for(auto r1El: r1[i]) {
-					if(Aig_ManCo(SAig, r1El)->iData == 1) {
+					if(evaluateAigAtNode(SAig,Aig_ManCo(SAig, r1El))) {
 						r1i = true;
 						break;
 					}
 				}
 				cex[numX + i] = (int) !r1i;
+				Aig_ManObj(SAig, varsYS[i])->iData = cex[numX + i];
 			}
 		}
-		evaluateAig(SAig, cex);
-		spurious[index] = (bool)(Aig_ManCo(SAig, 1)->iData != 1);
+		spurious[index] = !evaluateAigAtNode(SAig,Aig_ManCo(SAig, 1));
 
 		if(spurious[index]) {
-			int k_max = (storedCEX_k2[index]==-1)?numY-1:storedCEX_k2[index];
-			for(k = k_max; k >= 0; k--) {
+			int k1_maxLim = (storedCEX_k2[index]==-1)?numY-1:storedCEX_k2[index];
+			for(k1 = k1_maxLim; k1 >= 0; k1--) {
+				// Check if r1[k1] is true
+				bool r1i = false;
+				for(auto r1El: r1[k1]) {
+					if(evaluateAigAtNode(SAig,Aig_ManCo(SAig, r1El))) {
+						r1i = true; break;
+					}
+				}
+				// Check if r0[k1] is true
+				bool r0i = false;
+				for(auto r0El: r0[k1]) {
+					if(evaluateAigAtNode(SAig,Aig_ManCo(SAig, r0El))) {
+						r0i = true; break;
+					}
+				}
+				if(r0i and r1i) break;
+			}
+			storedCEX_k1[index] = k1;
+			max = (k1 > max) ? k1 : max;
+
+			// DUBUGGING
+			int k;
+			for(k = k1_maxLim; k >= 0; k--) {
 				if(((mu0 = satisfiesVec(SAig, cex, r0[k], false)) != NULL) &&
 					((mu1 = satisfiesVec(SAig, cex, r1[k], false)) != NULL))
 					break;
 			}
-			storedCEX_k1[index] = k;
-			max = (k > max) ? k : max;
+			assert(k==k1);
+
 		}
+
+		Aig_ManIncrementTravId(SAig);
 		index++;
 	}
 
@@ -1676,6 +1757,8 @@ int filterAndPopulateK1Vec(Aig_Man_t* SAig, vector<vector<int> >&r0, vector<vect
 	storedCEX.resize(j);
 	storedCEX_k1.resize(j,-1);
 	storedCEX_k2.resize(j,-1);
+	cout << "done" << endl;
+	assert(max>=0 || j==0);
 	return max;
 }
 
@@ -1697,12 +1780,15 @@ int populateK2Vec(Aig_Man_t* SAig, vector<vector<int> >&r0, vector<vector<int> >
 		if(k2 == -1 or k2 == prevM) { // Change only if k2 == prevM
 			int clock1 = clock();
 			k1 = storedCEX_k1[i];
-			// cout << "Finding k2..." << endl;
-			// cout << "Search range from " << k1 << " to " << numY - 1 << endl;
+			cout << "prevk2 = " << k2 << endl;
+			cout << "prevM = " << prevM << endl;
+			cout << "Finding k2... index = " << i << endl;
+			cout << "Search range from " << k1 << " to " << numY - 1 << endl;
 			k2 = findK2Max(SAig, m_pSat, m_FCnf, cex, r0, r1, k1, prevM);
 			clock1 = clock() - clock1;
-			// printf ("Found k2 = %d, took (%f seconds)\n",k2,((float)clock1)/CLOCKS_PER_SEC);
+			printf ("Found k2 = %d, took (%f seconds)\n",k2,((float)clock1)/CLOCKS_PER_SEC);
 			storedCEX_k2[i] = k2;
+			assert(k2>=k1);
 		}
 		max = (k2 > max) ? k2 : max;
 		i++;
@@ -1710,6 +1796,7 @@ int populateK2Vec(Aig_Man_t* SAig, vector<vector<int> >&r0, vector<vector<int> >
 
 	sat_solver_delete(m_pSat);
 	Cnf_DataFree(m_FCnf);
+	cout << "done" << endl;
 	return max;
 }
 
@@ -1736,7 +1823,7 @@ int findK2Max(Aig_Man_t* SAig, sat_solver* m_pSat, Cnf_Dat_t* m_FCnf, vector<int
 // INV: k_end => SAT; k_start-1=> UNSAT
 int findK2Max_rec(sat_solver* pSat, Cnf_Dat_t* SCnf, vector<int>&cex,
 		int k_start, int k_end, lit assump[]) {
-	// printf("findK2Max_rec(%d,%d)\n", k_start, k_end);
+	printf("findK2Max_rec(%d,%d)\n", k_start, k_end);
 	assert(k_start <= k_end);
 	if(k_start == k_end)
 		return k_start - 1;
