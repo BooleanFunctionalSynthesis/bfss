@@ -1574,18 +1574,14 @@ bool unigen_fetchModels(Aig_Man_t* SAig, vector<vector<int> > &r0,
 	while(getline(infile, line)) {
 		if(line == " " || line == "")
 			continue;
+		int startPoint = (line[0] == ' ') ? 2 : 1;
+		line = line.substr(startPoint, line.size() - 4 - startPoint);
 		istringstream iss(line);
-		vector<string> model;
-		for(string s; iss >> s; ) {
-			model.push_back(s);
-		}
-		model[0] = model[0].substr(1);
-		model.pop_back();
 
 		vector<int> cex(2*numOrigInputs);
 		vector<int> r0Andr1Vars(numY);
-		for(auto it: model) {
-			int modelVal = stoi(it);
+		for(int it; iss >> it; ) {
+			int modelVal = it;
 			auto itID = varNum2ID.find(abs(modelVal));
 			if(itID != varNum2ID.end()) {
 				cex[itID->second] = (modelVal > 0) ? 1 : 0;
@@ -1597,10 +1593,10 @@ bool unigen_fetchModels(Aig_Man_t* SAig, vector<vector<int> > &r0,
 			}
 		}
 
-		// Find k1
+		// find k1
 		int k1 = numY-1;
 		while(r0Andr1Vars[k1] == 0) {k1--;}
-		assert(k1>=0);
+		assert(k1 >= 0);
 
 		storedCEX.push_back(cex);
 		storedCEX_k1.push_back(k1);
