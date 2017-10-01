@@ -175,10 +175,8 @@ int main( int argc, char * argv[] )
 	Aig_Obj_t* FPrime_SAig = buildFPrime(SAig, F_SAig);
 	vector<vector<int> > r0(numY), r1(numY);
 	cout << "initializeRs(SAig, r0, r1)..."<<endl;
-	clock_t compose_start = clock();
 	initializeR0(SAig, r0);
 	initializeR1(SAig, r1);
-	clock_t compose_end = clock();
 
 	// cout << "checkSupportSanity(SAig, r0, r1)..."<<endl;
 	// checkSupportSanity(SAig, r0, r1);
@@ -256,12 +254,10 @@ int main( int argc, char * argv[] )
 	cout << "Found Skolem Functions" << endl;
 	cout << "Num Iterations: " << numloops << endl;
 
-	clock_t main_end = clock();
-
-	cout<< "Total time:   " <<double( main_end-main_start)/CLOCKS_PER_SEC << endl;
-	cout<< "Compose time: " <<double( compose_end-compose_start)/CLOCKS_PER_SEC << endl;
-
 	assert(verifyResult(SAig, r0, r1, 0));
+
+	clock_t main_end = clock();
+	cout<< "Total time:   " <<double( main_end-main_start)/CLOCKS_PER_SEC << endl;
 	
 	// Stop ABC
 	Abc_Stop();

@@ -1634,7 +1634,8 @@ int filterAndPopulateK1Vec(Aig_Man_t* SAig, vector<vector<int> >&r0, vector<vect
 
 	for(auto& cex:storedCEX) {
 		assert(cex.size() == 2*numOrigInputs);
-		if(storedCEX_k2[index] == prevM || (prevM == -1 and storedCEX_k1[index] != -1)) {
+		if((prevM != -1 and storedCEX_k2[index] == prevM) || 
+			(prevM == -1 and storedCEX_k1[index] == -1)) {
 			for (int i = maxChange; i >= 0; --i) {
 				evaluateAig(SAig,cex);
 				bool r1i = false;
