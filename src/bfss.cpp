@@ -15,14 +15,11 @@ vector<int> varsXF, varsXS;
 vector<int> varsYF, varsYS; // to be eliminated
 int numOrigInputs, numX, numY;
 Abc_Frame_t* pAbc;
-// Cnf_Dat_t* m_FCnf;
-// sat_solver* m_pSat;
 
 ////////////////////////////////////////////////////////////////////////
 ///                            MAIN                                  ///
 ////////////////////////////////////////////////////////////////////////
-int main( int argc, char * argv[] )
-{
+int main(int argc, char * argv[]) {
 	string pFileName, varsFile, benchmarkName;
 	Abc_Obj_t* pAbcObj;
 	Aig_Obj_t* pAigObj;
@@ -31,7 +28,7 @@ int main( int argc, char * argv[] )
 	int i, j;
 	vector<int> cex;
 
-	assert(argc >= 2);
+	assert(argc == 2);
 	benchmarkName = string(argv[1]);
 	pFileName     = benchmarkName;
 	varsFile      = benchmarkName.substr(0,benchmarkName.find_last_of('.')) +
