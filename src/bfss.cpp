@@ -207,9 +207,9 @@ int main( int argc, char * argv[] )
 		Aig_ManForEachObj( SAig, pAigObj, i )
 			Aig_ObjPrintVerbose( pAigObj, 1 ), printf( "\n" );
 
-		cout << "checkSupportSanity(SAig, r0, r1)..."<<endl;
-		checkSupportSanity(SAig, r0, r1);
 	#endif
+	cout << "checkSupportSanity(SAig, r0, r1)..."<<endl;
+	checkSupportSanity(SAig, r0, r1);
 
 	// cex = vector<int>(2*numOrigInputs, 0);
 	int M = -1;

@@ -1775,13 +1775,13 @@ int populateK2Vec(Aig_Man_t* SAig, vector<vector<int> >&r0, vector<vector<int> >
 		if(k2 == -1 or k2 == prevM) { // Change only if k2 == prevM
 			int clock1 = clock();
 			k1 = storedCEX_k1[i];
-			cout << "prevk2 = " << k2 << endl;
-			cout << "prevM = " << prevM << endl;
-			cout << "Finding k2... index = " << i << endl;
-			cout << "Search range from " << k1 << " to " << numY - 1 << endl;
+			// cout << "prevk2 = " << k2 << endl;
+			// cout << "prevM = " << prevM << endl;
+			// cout << "Finding k2... index = " << i << endl;
+			// cout << "Search range from " << k1 << " to " << numY - 1 << endl;
 			k2 = findK2Max(SAig, m_pSat, m_FCnf, cex, r0, r1, k1, prevM);
 			clock1 = clock() - clock1;
-			printf ("Found k2 = %d, took (%f seconds)\n",k2,((float)clock1)/CLOCKS_PER_SEC);
+			// printf ("Found k2 = %d, took (%f seconds)\n",k2,((float)clock1)/CLOCKS_PER_SEC);
 			storedCEX_k2[i] = k2;
 			assert(k2>=k1);
 		}
@@ -1818,7 +1818,7 @@ int findK2Max(Aig_Man_t* SAig, sat_solver* m_pSat, Cnf_Dat_t* m_FCnf, vector<int
 // INV: k_end => SAT; k_start-1=> UNSAT
 int findK2Max_rec(sat_solver* pSat, Cnf_Dat_t* SCnf, vector<int>&cex,
 		int k_start, int k_end, lit assump[]) {
-	printf("findK2Max_rec(%d,%d)\n", k_start, k_end);
+	// printf("findK2Max_rec(%d,%d)\n", k_start, k_end);
 	assert(k_start <= k_end);
 	if(k_start == k_end)
 		return k_start - 1;
