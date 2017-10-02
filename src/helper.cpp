@@ -1195,6 +1195,9 @@ Aig_Man_t* compressAigByNtk(Aig_Man_t* SAig) {
 	Aig_Man_t* temp;
 	string command;
 
+	// TODO: Fix
+	return compressAig(SAig);
+
 	OUT("Cleaning up...");
 	int removed = Aig_ManCleanup(SAig);
 	cout << "Removed " << removed <<" nodes" << endl;
@@ -1679,7 +1682,7 @@ int filterAndPopulateK1Vec(Aig_Man_t* SAig, vector<vector<int> >&r0, vector<vect
 	int k1;
 	int max = -1;
 	Aig_Obj_t *mu0, *mu1;
-	vector<bool> spurious(storedCEX.size());
+	vector<bool> spurious(storedCEX.size(),1);
 	int index = 0;
 
 	cout << "POPULATING K1 VECTOR" << endl;
@@ -1690,9 +1693,11 @@ int filterAndPopulateK1Vec(Aig_Man_t* SAig, vector<vector<int> >&r0, vector<vect
 	for(auto& cex:storedCEX) {
 		assert(cex.size() == 2*numOrigInputs);
 
-		evaluateXYLeaves(SAig,cex);
 		if((prevM != -1 and storedCEX_k2[index] == prevM) ||
 			(prevM == -1 and storedCEX_k1[index] == -1)) {
+
+			// New algo
+			evaluateXYLeaves(SAig,cex);
 			// Re-evaluating some Ys
 			for (int i = maxChange; i >= 0; --i) {
 				bool r1i = false;
@@ -1705,43 +1710,33 @@ int filterAndPopulateK1Vec(Aig_Man_t* SAig, vector<vector<int> >&r0, vector<vect
 				cex[numX + i] = (int) !r1i;
 				Aig_ManObj(SAig, varsYS[i])->iData = cex[numX + i];
 			}
-		}
-		spurious[index] = !evaluateAigAtNode(SAig,Aig_ManCo(SAig, 1));
+			spurious[index] = !evaluateAigAtNode(SAig,Aig_ManCo(SAig, 1));
 
-		if(spurious[index]) {
-			int k1_maxLim = (storedCEX_k2[index]==-1)?numY-1:storedCEX_k2[index];
-			for(k1 = k1_maxLim; k1 >= 0; k1--) {
-				// Check if r1[k1] is true
-				bool r1i = false;
-				for(auto r1El: r1[k1]) {
-					if(evaluateAigAtNode(SAig,Aig_ManCo(SAig, r1El))) {
-						r1i = true; break;
+			if(spurious[index]) {
+				int k1_maxLim = (storedCEX_k2[index]==-1)?numY-1:storedCEX_k2[index];
+				for(k1 = k1_maxLim; k1 >= 0; k1--) {
+					// Check if r1[k1] is true
+					bool r1i = false;
+					for(auto r1El: r1[k1]) {
+						if(evaluateAigAtNode(SAig,Aig_ManCo(SAig, r1El))) {
+							r1i = true; break;
+						}
 					}
-				}
-				// Check if r0[k1] is true
-				bool r0i = false;
-				for(auto r0El: r0[k1]) {
-					if(evaluateAigAtNode(SAig,Aig_ManCo(SAig, r0El))) {
-						r0i = true; break;
+					// Check if r0[k1] is true
+					bool r0i = false;
+					for(auto r0El: r0[k1]) {
+						if(evaluateAigAtNode(SAig,Aig_ManCo(SAig, r0El))) {
+							r0i = true; break;
+						}
 					}
+					if(r0i and r1i) break;
 				}
-				if(r0i and r1i) break;
+				storedCEX_k1[index] = k1;
 			}
-			storedCEX_k1[index] = k1;
-			max = (k1 > max) ? k1 : max;
-
-			// DUBUGGING
-			int k;
-			for(k = k1_maxLim; k >= 0; k--) {
-				if(((mu0 = satisfiesVec(SAig, cex, r0[k], false)) != NULL) &&
-					((mu1 = satisfiesVec(SAig, cex, r1[k], false)) != NULL))
-					break;
-			}
-			assert(k==k1);
-
+			Aig_ManIncrementTravId(SAig);
 		}
 
-		Aig_ManIncrementTravId(SAig);
+		max = (storedCEX_k1[index] > max) ? storedCEX_k1[index] : max;
 		index++;
 	}
 
