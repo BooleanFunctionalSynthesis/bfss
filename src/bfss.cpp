@@ -260,6 +260,10 @@ int main(int argc, char * argv[]) {
 
 	cout << "Found Skolem Functions" << endl;
 	cout << "Num Iterations: " << numloops << endl;
+	cout << "Total Size: ";
+	Aig_ManPrintStats( SAig );
+	cout << endl;
+
 
 	assert(verifyResult(SAig, r0, r1, 0));
 
