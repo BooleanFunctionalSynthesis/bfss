@@ -199,6 +199,12 @@ int main(int argc, char * argv[]) {
  //            Aig_ObjPrintVerbose( pAigObj, 1 ), printf( "\n" );
  //    #endif
 	cout << "Created SAig..." << endl;
+
+	initializeAddR1R0toR();
+	propagateR1Cofactors(SAig,r0,r1);
+	cout << "checkSupportSanity(SAig, r0, r1)..."<<endl;
+	checkSupportSanity(SAig, r0, r1);
+
 	Aig_ManPrintStats( SAig );
 	cout << "Compressing SAig..." << endl;
 	SAig = compressAigByNtk(SAig);
@@ -215,7 +221,6 @@ int main(int argc, char * argv[]) {
 
 	// cex = vector<int>(2*numOrigInputs, 0);
 	int M = -1;
-	initializeAddR1R0toR();
 
 	// CEGAR Loop
 	cout << "Starting CEGAR Loop..."<<endl;

@@ -1787,3 +1787,19 @@ void initializeAddR1R0toR() {
 	addR1R0toR0 = vector<bool>(numY,true);
 	addR1R0toR1 = vector<bool>(numY,true);
 }
+
+void propagateR1Cofactors(Aig_Man_t* pMan, vector<vector<int> >& r0, vector<vector<int> >& r1) {
+	Aig_Obj_t *mu0, *mu1, *mu;
+
+	for(int i = 0; i<numY-1; i++) {
+		mu0 = newOR(pMan, r0[i]);
+		mu1 = newOR(pMan, r1[i]);
+		mu = Aig_AndAigs(pMan, mu0, mu1);
+
+		mu1 = Aig_SubstituteConst(pMan, mu, varsYS[i+1], 1);
+		Aig_ObjCreateCo(pMan, mu1);
+		r1[i+1].push_back(Aig_ManCoNum(pMan) - 1);
+
+		addR1R0toR1[i] = false;
+	}
+}
