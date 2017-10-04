@@ -1502,20 +1502,17 @@ void Aig_ComposeVecVec_rec(Aig_Man_t* p, Aig_Obj_t* pObj, vector<vector<Aig_Obj_
 	assert(!Aig_IsComplement(pObj));
 	if(Aig_ObjIsMarkA(pObj) )
 		return;
-	if(Aig_ObjIsConst1(pObj) || Aig_ObjIsCi(pObj)) {
-		vector<Aig_Obj_t *>* tempVec = new vector<Aig_Obj_t* >();
-		int i = 0;
-		for (auto iVarObj: iVarObjVec) {
-			if(pObj == iVarObj) {
-				for(int j = 0; j < pFuncVecs.size(); j++)
-					tempVec->push_back(pFuncVecs[j][i]);
-			}
-			i++;
-		}
-		if(tempVec->size() == 0) {
-			for(int i = 0; i < pFuncVecs.size(); i++)
-				tempVec->push_back(pObj);
-		}
+	vector<Aig_Obj_t *>* tempVec = new vector<Aig_Obj_t* >();
+	if(Aig_ObjIsConst1(pObj)) {
+		for(int i = 0; i < pFuncVecs.size(); i++)
+			tempVec->push_back(pObj);
+		pObj->pData = tempVec;
+		return;
+	}
+	if(Aig_ObjIsCi(pObj)) {
+		int i = nodeIdtoN[(pObj->Id) - 1];
+		for(int j = 0; j < pFuncVecs.size(); j++)
+			tempVec->push_back(pFuncVecs[j][i]);
 		pObj->pData = tempVec;
 		return;
 	}
