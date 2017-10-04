@@ -73,6 +73,7 @@ void 			populateVars(Abc_Ntk_t* FNtk, AigToNNF& nnf, string varsFile,
 					map<string,int>& name2IdF, map<int,string>& id2NameF);
 Aig_Obj_t* 		Aig_SubstituteConst(Aig_Man_t* pMan, Aig_Obj_t* initAig, int varId, int one);
 Aig_Obj_t* 		Aig_Substitute(Aig_Man_t* pMan, Aig_Obj_t* initAig, int varId, Aig_Obj_t* func);
+void 			initializenodeIdtoN();
 void 			initializeR0(Aig_Man_t* SAig,vector<vector<int> >& r0);
 void 			initializeR1(Aig_Man_t* SAig,vector<vector<int> >& r1);
 Aig_Obj_t* 		buildF(Aig_Man_t* SAig);
@@ -114,10 +115,16 @@ void 			checkCexSanity(Aig_Man_t* pMan, vector<int>& cex, vector<vector<int> >& 
 					vector<vector<int> >& r1);
 Aig_Obj_t* 		Aig_SubstituteVec(Aig_Man_t* pMan, Aig_Obj_t* initAig, vector<int>& varIdVec,
 					vector<Aig_Obj_t*>& funcVec);
+vector<Aig_Obj_t* >	Aig_SubstituteVecVec(Aig_Man_t* pMan, Aig_Obj_t* initAig, vector<int>& varIdVec,
+					vector<vector<Aig_Obj_t*> >& funcVecs);
 void 			Aig_ComposeVec_rec( Aig_Man_t * p, Aig_Obj_t * pObj, vector<Aig_Obj_t *>& pFuncVec,
 					vector<Aig_Obj_t* >& iVarObjVec );
 Aig_Obj_t*	 	Aig_ComposeVec( Aig_Man_t * p, Aig_Obj_t * pRoot, vector<Aig_Obj_t *>& pFuncVec,
 					vector<int>& iVarVec );
+void 			Aig_ComposeVecVec_rec(Aig_Man_t* p, Aig_Obj_t* pObj, vector<vector<Aig_Obj_t*> >& pFuncVecs,
+					vector<Aig_Obj_t* >& iVarObjVec);
+vector<Aig_Obj_t* > Aig_ComposeVecVec(Aig_Man_t* p, Aig_Obj_t* pRoot,
+					vector<vector<Aig_Obj_t*> >& pFuncVecs, vector<int>& iVarVec);
 void 			Sat_SolverWriteDimacsAndIS( sat_solver * p, char * pFileName,
 					lit* assumpBegin, lit* assumpEnd, vector<int>&IS, vector<int>&retSet);
 int 			unigen_call(string fname, int nSamples);

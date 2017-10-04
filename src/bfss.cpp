@@ -177,6 +177,7 @@ int main(int argc, char * argv[]) {
 	Aig_Obj_t* FPrime_SAig = buildFPrime(SAig, F_SAig);
 	vector<vector<int> > r0(numY), r1(numY);
 	cout << "initializeRs(SAig, r0, r1)..."<<endl;
+	initializenodeIdtoN();
 	initializeR0(SAig, r0);
 	initializeR1(SAig, r1);
 
@@ -256,7 +257,7 @@ int main(int argc, char * argv[]) {
 	cout << "Found Skolem Functions" << endl;
 	cout << "Num Iterations: " << numloops << endl;
 
-	assert(verifyResult(SAig, r0, r1, 0));
+	// assert(verifyResult(SAig, r0, r1, 0));
 
 	clock_t main_end = clock();
 	cout<< "Total time:   " <<double( main_end-main_start)/CLOCKS_PER_SEC << endl;
