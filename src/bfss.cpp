@@ -238,7 +238,7 @@ int main(int argc, char * argv[]) {
 		updateAbsRef(SAig, r0, r1, M);
 		numloops++;
 
-		if(numloops % 50 == 0) {
+		if(numloops % 1000 == 0) {
 			cout << numloops;
 			cout << endl;
 			Aig_ManPrintStats( SAig );
@@ -262,6 +262,8 @@ int main(int argc, char * argv[]) {
 
 	cout << "Found Skolem Functions" << endl;
 	cout << "Num Iterations: " << numloops << endl;
+	cout << "Num Fixes:      " << numFixes << endl;
+	cout << "Num CEX:        " << numCEX << endl;
 	cout << "Total Size: ";
 	Aig_ManPrintStats( SAig );
 	cout << endl;

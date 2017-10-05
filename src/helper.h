@@ -57,6 +57,8 @@ extern sat_solver* m_pSat;
 extern Cnf_Dat_t* m_FCnf;
 extern lit m_f;
 extern vector<bool>  useR1AsSkolem;
+extern int numFixes;
+extern int numCEX;
 
 class edge;
 class node;

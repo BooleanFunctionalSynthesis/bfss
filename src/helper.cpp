@@ -10,6 +10,8 @@ int numUnigenCalls = 0;
 vector<bool> addR1R0toR0;
 vector<bool> addR1R0toR1;
 vector<bool> useR1AsSkolem;
+int numFixes = 0;
+int numCEX   = 0;
 
 ////////////////////////////////////////////////////////////////////////
 ///                      HELPER FUNCTIONS                            ///
@@ -853,6 +855,8 @@ bool populateStoredCEX(Aig_Man_t* SAig,
 			return_val = true;
 		}
 	}
+	// Add to numCEX
+	numCEX += storedCEX.size();
 
 	sat_solver_delete(pSat);
 	Cnf_DataFree(SCnf);
@@ -1067,6 +1071,7 @@ void updateAbsRef(Aig_Man_t* pMan, vector<vector<int> > &r0, vector<vector<int> 
 				else
 					pi1_m = Aig_OrAigs(pMan, pi1_m, projectPi(pMan, storedCEX[i], m));
 				fixR1 = true;
+				numFixes++;
 				cout << "Adding " << i << " to pi1_m" << endl;
 			}
 			else {
@@ -1075,6 +1080,7 @@ void updateAbsRef(Aig_Man_t* pMan, vector<vector<int> > &r0, vector<vector<int> 
 				else
 					pi0_m = Aig_OrAigs(pMan, pi0_m, projectPi(pMan, storedCEX[i], m));
 				fixR0 = true;
+				numFixes++;
 				cout << "Adding " << i << " to pi0_m" << endl;
 			}
 		}
