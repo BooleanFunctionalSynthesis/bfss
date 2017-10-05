@@ -1,3 +1,6 @@
+#ifndef HELPER_H
+#define HELPER_H
+
 #include <iostream>
 #include <vector>
 #include <map>
@@ -8,6 +11,7 @@
 #include <fstream>
 #include <sstream>
 #include <ctime>
+#include "cxxopts.hpp"
 
 using namespace std;
 
@@ -28,6 +32,8 @@ Aig_Man_t * Abc_NtkToDar(Abc_Ntk_t * pNtk, int fExors, int fRegisters);
 Abc_Ntk_t * Abc_NtkFromAigPhase(Aig_Man_t * pMan);
 }
 
+#define STR_HELPER(X)		#X
+#define STR(X)				STR_HELPER(X)
 #define UNIGEN_OUT_DIR		"out"
 #define UNIGEN_INPUT_FNAME 	"errorFormula"
 #define UNIGEN_OUTPT_FNAME	"unigen_output.txt"
@@ -37,7 +43,7 @@ Abc_Ntk_t * Abc_NtkFromAigPhase(Aig_Man_t * pMan);
 #define UNIGEN_MODEL_FPATH	UNIGEN_OUT_DIR "/" UNIGEN_MODEL_FNAME
 #define UNIGEN_DIMAC_FPATH 	UNIGEN_DIMAC_FNAME
 #define UNIGEN_PY 			"UniGen2.py"
-#define UNIGEN_SAMPLES		220
+#define UNIGEN_SAMPLES_DEF	220
 
 // #define DEBUG
 // #define DEBUG_CHUNK
@@ -47,6 +53,20 @@ Abc_Ntk_t * Abc_NtkFromAigPhase(Aig_Man_t * pMan);
 #else
 	#define OUT( x )
 #endif
+
+class  edge;
+class  node;
+class  AigToNNF;
+
+enum sType {skolemR0, skolemR1, skolemRx};
+struct optionStruct {
+	bool 	proactiveProp;
+	bool 	useABCSolver;
+	string 	benchmark;
+	string 	varsOrder;
+	sType 	skolemType;
+	int 	numSamples;
+};
 
 extern vector<int> varsSInv;
 extern vector<int> varsXF, varsXS;
@@ -59,10 +79,8 @@ extern lit m_f;
 extern vector<bool>  useR1AsSkolem;
 extern int numFixes;
 extern int numCEX;
-
-class edge;
-class node;
-class AigToNNF;
+extern cxxopts::Options optParser;
+extern optionStruct options;
 
 int 			CommandExecute(Abc_Frame_t* pAbc, string cmd);
 vector<string> 	tokenize( const string& p_pcstStr, char delim );
@@ -139,3 +157,7 @@ void			propagateR0Cofactors(Aig_Man_t* pMan, vector<vector<int> >& r0, vector<ve
 void			propagateR_Cofactors(Aig_Man_t* pMan, vector<vector<int> >& r0, vector<vector<int> >& r1);
 void			propagateR0R1Cofactors(Aig_Man_t* pMan, vector<vector<int> >& r0, vector<vector<int> >& r1);
 void			chooseSmallerR_(Aig_Man_t* pMan, vector<vector<int> >& r0, vector<vector<int> >& r1);
+void			chooseR_(Aig_Man_t* pMan, vector<vector<int> >& r0, vector<vector<int> >& r1);
+void			parseOptions(int argc, char * argv[]);
+
+#endif

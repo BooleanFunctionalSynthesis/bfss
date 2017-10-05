@@ -12,10 +12,81 @@ vector<bool> addR1R0toR1;
 vector<bool> useR1AsSkolem;
 int numFixes = 0;
 int numCEX   = 0;
+cxxopts::Options optParser("bfss", "bfss: Blazingly Fast Skolem Synthesis");
+optionStruct options;
 
 ////////////////////////////////////////////////////////////////////////
 ///                      HELPER FUNCTIONS                            ///
 ////////////////////////////////////////////////////////////////////////
+void parseOptions(int argc, char * argv[]) {
+	bool lazy;
+	string skolemType;
+	optParser.positional_help("");
+	optParser.add_options()
+		("b, benchmark", "Specify the benchmark (required)", cxxopts::value<string>(options.benchmark), "FILE")
+		("v, varsOrder", "Specify the variable ordering", cxxopts::value<string>(options.varsOrder), "FILE")
+		("skolem", "Specify skolem function to be used (r0/r1/rx)", cxxopts::value<string>(skolemType)->default_value("rx"))
+		("a, ABC", "Use ABC's solver for SAT calls", cxxopts::value<bool>(options.useABCSolver))
+		("l, lazy", "Don't propagate r0/r1 proactively", cxxopts::value<bool>(lazy))
+		("h, help", "Print this help")
+		("s, samples", "Number of unigen samples requested per call (default: " STR(UNIGEN_SAMPLES_DEF) ")", cxxopts::value<int>(options.numSamples), "N")
+		("positional",
+			"Positional arguments: these are the arguments that are entered "
+			"without an option", cxxopts::value<std::vector<string>>())
+		;
+
+	optParser.parse_positional({"benchmark", "varsOrder","positional"});
+	optParser.parse(argc, argv);
+
+	if(options.varsOrder == "")
+		options.varsOrder = options.benchmark.substr(0,options.benchmark.find_last_of('.')) + "_varstoelim.txt";
+
+	SwitchToABCSolver = options.useABCSolver;
+	options.proactiveProp = !lazy;
+
+	if (optParser.count("help")) {
+		cout << optParser.help({"", "Group"}) << std::endl;
+		exit(0);
+	}
+
+	if (!optParser.count("benchmark")) {
+		cerr << endl << "Error: Benchmark not specified" << endl << endl;
+		cout << optParser.help({"", "Group"}) << std::endl;
+		exit(0);
+	}
+
+	if (!optParser.count("samples")) {
+		options.numSamples = UNIGEN_SAMPLES_DEF;
+	}
+	else if(options.useABCSolver) {
+		cerr << endl << "Error: Sample count and ABC's solver are exclusive" << endl << endl;
+		cout << optParser.help({"", "Group"}) << std::endl;
+		exit(0);
+	}
+
+	if(skolemType == "r0")
+		options.skolemType = sType::skolemR0;
+	else if(skolemType == "r1")
+		options.skolemType = sType::skolemR0;
+	else if(skolemType == "rx")
+		options.skolemType = sType::skolemRx;
+	else {
+		cerr << endl << "Error: " << skolemType << " is an invalid skolemType" << endl << endl;
+		cout << optParser.help({"", "Group"}) << std::endl;
+		exit(0);
+	}
+
+	cout << "Configuration: " << endl;
+	cout << "{" << endl;
+	cout << "\t proactiveProp: " << options.proactiveProp << endl;
+	cout << "\t useABCSolver:  " << options.useABCSolver << endl;
+	cout << "\t benchmark:     " << options.benchmark << endl;
+	cout << "\t varsOrder:     " << options.varsOrder << endl;
+	cout << "\t skolemType:    " << options.skolemType << endl;
+	cout << "\t numSamples:    " << options.numSamples << endl;
+	cout << "}" << endl;
+}
+
 int CommandExecute(Abc_Frame_t* pAbc, string cmd) {
 	int ret = Cmd_CommandExecute(pAbc, (char*) cmd.c_str());
 	if(ret) {
@@ -768,7 +839,7 @@ bool populateStoredCEX(Aig_Man_t* SAig,
 			&assumptions[0], &assumptions[0] + numX, IS, RS);
 
 		// Call Unigen
-		status = unigen_call(UNIGEN_DIMAC_FPATH, UNIGEN_SAMPLES);
+		status = unigen_call(UNIGEN_DIMAC_FPATH, options.numSamples);
 	}
 	else {
 		status = -1; // Switch to ABC
@@ -927,8 +998,8 @@ Aig_Obj_t* satisfiesVec(Aig_Man_t* formula, const vector<int>& cex, const vector
 	for(int i = 0; i < coObjs.size(); i++) {
 		OUT("Accessing Co "<<coObjs[i]<<" Id "<< Aig_ManCo(formula,coObjs[i])->Id);
 		if(Aig_ManCo(formula,coObjs[i])->iData == 1) {
-		    OUT("Satisfied ID " << Aig_ManCo(formula,coObjs[i])->Id);
-		    return Aig_ManCo(formula,coObjs[i]);
+			OUT("Satisfied ID " << Aig_ManCo(formula,coObjs[i])->Id);
+			return Aig_ManCo(formula,coObjs[i]);
 		}
 	}
 	OUT("Nothing satisfied");
@@ -1467,47 +1538,47 @@ Aig_Obj_t * Aig_ComposeVec( Aig_Man_t * p, Aig_Obj_t * pRoot, vector<Aig_Obj_t *
 }
 
 static void Sat_SolverClauseWriteDimacs( FILE * pFile, clause * pC) {
-    int i;
-    for ( i = 0; i < (int)pC->size; i++ )
-        fprintf( pFile, "%s%d ", (lit_sign(pC->lits[i])? "-": ""),  lit_var(pC->lits[i]));
-    fprintf( pFile, "0\n" );
+	int i;
+	for ( i = 0; i < (int)pC->size; i++ )
+		fprintf( pFile, "%s%d ", (lit_sign(pC->lits[i])? "-": ""),  lit_var(pC->lits[i]));
+	fprintf( pFile, "0\n" );
 }
 
 void Sat_SolverWriteDimacsAndIS(sat_solver * p, char * pFileName,
 	lit* assumpBegin, lit* assumpEnd, vector<int>&IS, vector<int>&retSet) {
-    Sat_Mem_t * pMem = &p->Mem;
-    FILE * pFile;
-    clause * c;
-    int i, k, nUnits;
+	Sat_Mem_t * pMem = &p->Mem;
+	FILE * pFile;
+	clause * c;
+	int i, k, nUnits;
 
-    // count the number of unit clauses
-    nUnits = 0;
-    for ( i = 0; i < p->size; i++ )
-        if ( p->levels[i] == 0 && p->assigns[i] != 3 )
-            nUnits++;
+	// count the number of unit clauses
+	nUnits = 0;
+	for ( i = 0; i < p->size; i++ )
+		if ( p->levels[i] == 0 && p->assigns[i] != 3 )
+			nUnits++;
 
-    // start the file
-    pFile = pFileName ? fopen( pFileName, "wb" ) : stdout;
-    if ( pFile == NULL )
-    {
-        printf( "Sat_SolverWriteDimacs(): Cannot open the ouput file.\n" );
-        return;
-    }
+	// start the file
+	pFile = pFileName ? fopen( pFileName, "wb" ) : stdout;
+	if ( pFile == NULL )
+	{
+		printf( "Sat_SolverWriteDimacs(): Cannot open the ouput file.\n" );
+		return;
+	}
 
-    fprintf( pFile, "p cnf %d %d\n", p->size, Sat_MemEntryNum(&p->Mem, 0)-1+Sat_MemEntryNum(&p->Mem, 1)+nUnits+(int)(assumpEnd-assumpBegin) );
+	fprintf( pFile, "p cnf %d %d\n", p->size, Sat_MemEntryNum(&p->Mem, 0)-1+Sat_MemEntryNum(&p->Mem, 1)+nUnits+(int)(assumpEnd-assumpBegin) );
 
-    // TODO: Print Independent Support
-    i=0;
-    fprintf( pFile, "c ind ");
-    for(auto it:IS) {
-    	if(i == 10) {
-    		fprintf( pFile, "0\nc ind ");
-    		i = 0;
-    	}
-    	fprintf( pFile, "%d ", it);
-    	i++;
-    }
-    fprintf( pFile, "0\n");
+	// TODO: Print Independent Support
+	i=0;
+	fprintf( pFile, "c ind ");
+	for(auto it:IS) {
+		if(i == 10) {
+			fprintf( pFile, "0\nc ind ");
+			i = 0;
+		}
+		fprintf( pFile, "%d ", it);
+		i++;
+	}
+	fprintf( pFile, "0\n");
 
 	// TODO: Print Return Set
 	i=0;
@@ -1522,32 +1593,32 @@ void Sat_SolverWriteDimacsAndIS(sat_solver * p, char * pFileName,
 	}
 	fprintf( pFile, "0\n");
 
-    // write the original clauses
-    Sat_MemForEachClause(pMem, c, i, k)
-        Sat_SolverClauseWriteDimacs(pFile, c);
+	// write the original clauses
+	Sat_MemForEachClause(pMem, c, i, k)
+		Sat_SolverClauseWriteDimacs(pFile, c);
 
-    // write the learned clauses
+	// write the learned clauses
 	Sat_MemForEachLearned(pMem, c, i, k)
 		Sat_SolverClauseWriteDimacs(pFile, c);
 
-    // write zero-level assertions
-    for (i = 0; i < p->size; i++)
-        if (p->levels[i] == 0 && p->assigns[i] != 3) // varX
-            fprintf(pFile, "%s%d 0\n",
-                    (p->assigns[i] == 1)? "-": "",    // var0
-                     i);
+	// write zero-level assertions
+	for (i = 0; i < p->size; i++)
+		if (p->levels[i] == 0 && p->assigns[i] != 3) // varX
+			fprintf(pFile, "%s%d 0\n",
+					(p->assigns[i] == 1)? "-": "",    // var0
+					 i);
 
-    // write the assump
-    if (assumpBegin) {
-        for (;assumpBegin != assumpEnd; assumpBegin++) {
-            fprintf( pFile, "%s%d 0\n",
-                     lit_sign(*assumpBegin)? "-": "",
-                     lit_var(*assumpBegin));
-        }
-    }
+	// write the assump
+	if (assumpBegin) {
+		for (;assumpBegin != assumpEnd; assumpBegin++) {
+			fprintf( pFile, "%s%d 0\n",
+					 lit_sign(*assumpBegin)? "-": "",
+					 lit_var(*assumpBegin));
+		}
+	}
 
-    fprintf(pFile, "\n");
-    if (pFileName) fclose(pFile);
+	fprintf(pFile, "\n");
+	if (pFileName) fclose(pFile);
 }
 
 /**Function
@@ -1814,6 +1885,7 @@ void initializeAddR1R0toR() {
 }
 
 void propagateR1Cofactors(Aig_Man_t* pMan, vector<vector<int> >& r0, vector<vector<int> >& r1) {
+	cout << "propagateR1Cofactors" << endl;
 	Aig_Obj_t *mu0, *mu1, *mu;
 
 	for(int i = 0; i<numY-1; i++) {
@@ -1830,6 +1902,7 @@ void propagateR1Cofactors(Aig_Man_t* pMan, vector<vector<int> >& r0, vector<vect
 }
 
 void propagateR0Cofactors(Aig_Man_t* pMan, vector<vector<int> >& r0, vector<vector<int> >& r1) {
+	cout << "propagateR0Cofactors" << endl;
 	Aig_Obj_t *mu0, *mu1, *mu;
 
 	for(int i = 0; i<numY-1; i++) {
@@ -1846,6 +1919,7 @@ void propagateR0Cofactors(Aig_Man_t* pMan, vector<vector<int> >& r0, vector<vect
 }
 
 void propagateR_Cofactors(Aig_Man_t* pMan, vector<vector<int> >& r0, vector<vector<int> >& r1) {
+	cout << "propagateR_Cofactors" << endl;
 	Aig_Obj_t *mu0, *mu1, *mu;
 
 	for(int i = 0; i<numY-1; i++) {
@@ -1869,6 +1943,7 @@ void propagateR_Cofactors(Aig_Man_t* pMan, vector<vector<int> >& r0, vector<vect
 }
 
 void propagateR0R1Cofactors(Aig_Man_t* pMan, vector<vector<int> >& r0, vector<vector<int> >& r1) {
+	cout << "propagateR0R1Cofactors" << endl;
 	Aig_Obj_t *mu0, *mu1, *mu;
 	vector<int> r0Addn(numY);
 	vector<int> r1Addn(numY);
@@ -1907,4 +1982,19 @@ void chooseSmallerR_(Aig_Man_t* pMan, vector<vector<int> >& r0, vector<vector<in
 
 	clock_t end = clock();
 	cout << "Time taken = " << double( end-start)/CLOCKS_PER_SEC << endl;
+}
+
+void chooseR_(Aig_Man_t* pMan, vector<vector<int> >& r0, vector<vector<int> >& r1) {
+	if(options.skolemType == sType::skolemR0) {
+		cout << "Choosing r0 as Skolem" << endl;
+		useR1AsSkolem = vector<bool>(numY,false);
+	}
+	else if(options.skolemType == sType::skolemR1) {
+		cout << "Choosing ~r1 as Skolem" << endl;
+		useR1AsSkolem = vector<bool>(numY,true);
+	}
+	else {
+		cout << "Choosing smaller of r0/r1 as Skolem" << endl;
+		chooseSmallerR_(pMan, r0, r1);
+	}
 }

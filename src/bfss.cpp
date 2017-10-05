@@ -23,7 +23,7 @@ lit m_f;
 ///                            MAIN                                  ///
 ////////////////////////////////////////////////////////////////////////
 int main(int argc, char * argv[]) {
-	string pFileName, varsFile, benchmarkName;
+	string varsFile, benchmarkName;
 	Abc_Obj_t* pAbcObj;
 	Aig_Obj_t* pAigObj;
 	map<string, int> name2IdF;
@@ -31,16 +31,15 @@ int main(int argc, char * argv[]) {
 	int i, j;
 	vector<int> cex;
 
-	assert(argc == 2);
-	benchmarkName = string(argv[1]);
-	pFileName     = benchmarkName;
-	varsFile      = benchmarkName.substr(0,benchmarkName.find_last_of('.')) +
-					((argc==2)?"_varstoelim.txt":string(argv[2]));
+	parseOptions(argc, argv);
+
+	benchmarkName = options.benchmark;
+	varsFile      = options.varsOrder;
 
 	clock_t main_start = clock();
 
 	OUT("get FNtk..." );
-	Abc_Ntk_t* FNtk = getNtk(pFileName,true);
+	Abc_Ntk_t* FNtk = getNtk(benchmarkName,true);
 	OUT("get FAig..." );
 	Aig_Man_t* FAig = Abc_NtkToDar(FNtk, 0, 0);
 
@@ -79,7 +78,7 @@ int main(int argc, char * argv[]) {
 	// #endif
 
 	#ifdef COMPARE_SAIGS // Compare SAig1 to old SAig
-		AigToNNF nnf2(pFileName);
+		AigToNNF nnf2(benchmarkName);
 		OUT("nnf2 parse..." );
 		nnf2.parse();
 		OUT("nnf2 process..." );
@@ -197,12 +196,19 @@ int main(int argc, char * argv[]) {
  //            Aig_ObjPrintVerbose( pAigObj, 1 ), printf( "\n" );
  //    #endif
 	cout << "Created SAig..." << endl;
+	cout << endl;
 
 	// Pre-process R0/R1
 	useR1AsSkolem = vector<bool>(numY,true);
 	initializeAddR1R0toR();
-	propagateR0R1Cofactors(SAig,r0,r1);
-	chooseSmallerR_(SAig,r0,r1);
+	if(options.proactiveProp)
+		switch(options.skolemType) {
+			case (sType::skolemR0): propagateR0Cofactors(SAig,r0,r1); break;
+			case (sType::skolemR1): propagateR1Cofactors(SAig,r0,r1); break;
+			case (sType::skolemRx): propagateR0R1Cofactors(SAig,r0,r1); break;
+		}
+	chooseR_(SAig,r0,r1);
+	cout << endl;
 
 	cout << "checkSupportSanity(SAig, r0, r1)..."<<endl;
 	checkSupportSanity(SAig, r0, r1);
