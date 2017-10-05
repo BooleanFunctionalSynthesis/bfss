@@ -56,6 +56,7 @@ extern Abc_Frame_t* pAbc;
 extern sat_solver* m_pSat;
 extern Cnf_Dat_t* m_FCnf;
 extern lit m_f;
+extern vector<bool>  useR1AsSkolem;
 
 class edge;
 class node;
@@ -132,3 +133,7 @@ int 			filterAndPopulateK1Vec(Aig_Man_t* SAig, vector<vector<int> >&r0, vector<v
 int				populateK2Vec(Aig_Man_t* SAig, vector<vector<int> >&r0, vector<vector<int> >&r1, int prevM);
 void 			initializeAddR1R0toR();
 void			propagateR1Cofactors(Aig_Man_t* pMan, vector<vector<int> >& r0, vector<vector<int> >& r1);
+void			propagateR0Cofactors(Aig_Man_t* pMan, vector<vector<int> >& r0, vector<vector<int> >& r1);
+void			propagateR_Cofactors(Aig_Man_t* pMan, vector<vector<int> >& r0, vector<vector<int> >& r1);
+void			propagateR0R1Cofactors(Aig_Man_t* pMan, vector<vector<int> >& r0, vector<vector<int> >& r1);
+void			chooseSmallerR_(Aig_Man_t* pMan, vector<vector<int> >& r0, vector<vector<int> >& r1);

@@ -161,8 +161,6 @@ int main(int argc, char * argv[]) {
 	int removed = Aig_ManCleanup(SAig);
 	OUT("Removed "<<removed<<" nodes");
 
-
-
 	// F_SAig      will always be Aig_ManCo( ... , 1)
 	// FPrime_SAig will always be Aig_ManCo( ... , 2)
 	cout << "buildF(SAig)..."<<endl;
@@ -200,8 +198,12 @@ int main(int argc, char * argv[]) {
  //    #endif
 	cout << "Created SAig..." << endl;
 
+	// Pre-process R0/R1
+	useR1AsSkolem = vector<bool>(numY,true);
 	initializeAddR1R0toR();
-	propagateR1Cofactors(SAig,r0,r1);
+	propagateR0R1Cofactors(SAig,r0,r1);
+	chooseSmallerR_(SAig,r0,r1);
+
 	cout << "checkSupportSanity(SAig, r0, r1)..."<<endl;
 	checkSupportSanity(SAig, r0, r1);
 
