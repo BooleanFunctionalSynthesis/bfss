@@ -1863,10 +1863,10 @@ vector<lit> setAllNegX(Cnf_Dat_t* SCnf, Aig_Man_t* SAig, int val) {
 }
 
 int filterAndPopulateK1Vec(Aig_Man_t* SAig, vector<vector<int> >&r0, vector<vector<int> >&r1, int prevM) {
-	int k;
-	int max = 0;
+	int k = -1;
+	int max = -1;
 	Aig_Obj_t *mu0, *mu1;
-	vector<bool> spurious(storedCEX.size());
+	vector<bool> spurious(storedCEX.size(),1);
 	int index = 0;
 
 	// cout << "POPULATING K1 VECTOR" << endl;
@@ -1890,20 +1890,23 @@ int filterAndPopulateK1Vec(Aig_Man_t* SAig, vector<vector<int> >&r0, vector<vect
 				}
 				cex[numX + i] = (int) (useR1AsSkolem[i] ^ r_i);
 			}
-		}
-		evaluateAig(SAig, cex);
-		spurious[index] = (bool)(Aig_ManCo(SAig, 1)->iData != 1);
+			evaluateAig(SAig, cex);
+			spurious[index] = (bool)(Aig_ManCo(SAig, 1)->iData != 1);
 
-		if(spurious[index]) {
-			int k_max = (storedCEX_k2[index]==-1)?numY-1:storedCEX_k2[index];
-			for(k = k_max; k >= 0; k--) {
-				if(((mu0 = satisfiesVec(SAig, cex, r0[k], false)) != NULL) &&
-					((mu1 = satisfiesVec(SAig, cex, r1[k], false)) != NULL))
-					break;
+			if(spurious[index]) {
+				int k_max = (storedCEX_k2[index]==-1)?numY-1:storedCEX_k2[index];
+				for(k = k_max; k >= 0; k--) {
+					if(((mu0 = satisfiesVec(SAig, cex, r0[k], false)) != NULL) &&
+						((mu1 = satisfiesVec(SAig, cex, r1[k], false)) != NULL))
+						break;
+				}
+				storedCEX_k1[index] = k;
 			}
-			storedCEX_k1[index] = k;
-			max = (k > max) ? k : max;
 		}
+
+		if(spurious[index])
+			max = (storedCEX_k1[index] > max) ? storedCEX_k1[index] : max;
+
 		index++;
 	}
 
@@ -1919,6 +1922,7 @@ int filterAndPopulateK1Vec(Aig_Man_t* SAig, vector<vector<int> >&r0, vector<vect
 	storedCEX.resize(j);
 	storedCEX_k1.resize(j,-1);
 	storedCEX_k2.resize(j,-1);
+	assert(max>=0 || j==0);
 	return max;
 }
 
