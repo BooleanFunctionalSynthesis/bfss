@@ -1,11 +1,98 @@
 #include "helper.h"
 #include "formula.h"
 
-map<int,bool> CoEval;
+vector<vector<int> > storedCEX;
+vector<int> storedCEX_k1;
+vector<int> storedCEX_k2;
+vector<int> nodeIdtoN;
+bool new_flag = true;
+bool SwitchToABCSolver = false;
+int numUnigenCalls = 0;
+vector<bool> addR1R0toR0;
+vector<bool> addR1R0toR1;
+vector<bool> useR1AsSkolem;
+int numFixes = 0;
+int numCEX   = 0;
+cxxopts::Options optParser("bfss", "bfss: Blazingly Fast Skolem Synthesis");
+optionStruct options;
+vector<vector<int> > k2Trend;
 
 ////////////////////////////////////////////////////////////////////////
 ///                      HELPER FUNCTIONS                            ///
 ////////////////////////////////////////////////////////////////////////
+void parseOptions(int argc, char * argv[]) {
+	bool lazy;
+	string skolemType;
+	optParser.positional_help("");
+	optParser.add_options()
+		("b, benchmark", "Specify the benchmark (required)", cxxopts::value<string>(options.benchmark), "FILE")
+		("v, varsOrder", "Specify the variable ordering", cxxopts::value<string>(options.varsOrder), "FILE")
+		("skolem", "Specify skolem function to be used (r0/r1/rx)", cxxopts::value<string>(skolemType)->default_value("rx"))
+		("a, ABC", "Use ABC's solver for SAT calls", cxxopts::value<bool>(options.useABCSolver))
+		("e, evalAigAtNode", "Efficiently evaluate AIG on a need-only basis", cxxopts::value<bool>(options.evalAigAtNode))
+		("l, lazy", "Don't propagate r0/r1 proactively", cxxopts::value<bool>(lazy))
+		("h, help", "Print this help")
+		("s, samples", "Number of unigen samples requested per call (default: " STR(UNIGEN_SAMPLES_DEF) ")", cxxopts::value<int>(options.numSamples), "N")
+		("t, threads", "Number of unigen threads (default: " STR(UNIGEN_THREADS_DEF) ")", cxxopts::value<int>(options.numThreads), "N")
+		("positional",
+			"Positional arguments: these are the arguments that are entered "
+			"without an option", cxxopts::value<std::vector<string>>())
+		;
+
+	optParser.parse_positional({"benchmark", "varsOrder","positional"});
+	optParser.parse(argc, argv);
+
+	if(options.varsOrder == "")
+		options.varsOrder = options.benchmark.substr(0,options.benchmark.find_last_of('.')) + "_varstoelim.txt";
+
+	SwitchToABCSolver = options.useABCSolver;
+	options.proactiveProp = !lazy;
+
+	if (optParser.count("help")) {
+		cout << optParser.help({"", "Group"}) << std::endl;
+		exit(0);
+	}
+
+	if (!optParser.count("benchmark")) {
+		cerr << endl << "Error: Benchmark not specified" << endl << endl;
+		cout << optParser.help({"", "Group"}) << std::endl;
+		exit(0);
+	}
+
+	if (!optParser.count("samples")) {
+		options.numSamples = UNIGEN_SAMPLES_DEF;
+	}
+	else if(options.useABCSolver) {
+		cerr << endl << "Error: Sample count and ABC's solver are exclusive" << endl << endl;
+		cout << optParser.help({"", "Group"}) << std::endl;
+		exit(0);
+	}
+
+	if(skolemType == "r0")
+		options.skolemType = sType::skolemR0;
+	else if(skolemType == "r1")
+		options.skolemType = sType::skolemR0;
+	else if(skolemType == "rx")
+		options.skolemType = sType::skolemRx;
+	else {
+		cerr << endl << "Error: " << skolemType << " is an invalid skolemType" << endl << endl;
+		cout << optParser.help({"", "Group"}) << std::endl;
+		exit(0);
+	}
+
+	cout << "Configuration: " << endl;
+	cout << "{" << endl;
+	cout << "\t proactiveProp: " << options.proactiveProp << endl;
+	cout << "\t useABCSolver:  " << options.useABCSolver << endl;
+	cout << "\t evalAigAtNode: " << options.evalAigAtNode << endl;
+	cout << "\t benchmark:     " << options.benchmark << endl;
+	cout << "\t varsOrder:     " << options.varsOrder << endl;
+	cout << "\t skolemType:    " << options.skolemType << endl;
+	cout << "\t numSamples:    " << options.numSamples << endl;
+	cout << "\t numThreads:    " << options.numThreads << endl;
+	cout << "}" << endl;
+}
+
 int CommandExecute(Abc_Frame_t* pAbc, string cmd) {
 	int ret = Cmd_CommandExecute(pAbc, (char*) cmd.c_str());
 	if(ret) {
@@ -42,7 +129,6 @@ string type2String(Aig_Type_t t) {
 void Equate(sat_solver *pSat, int varA, int varB) {
 	lit Lits[3];
 	assert(varA!=0 && varB!=0);
-	// cout << "Equate " << varA << " = " <<varB<<endl;
 	// A -> B
 	Lits[0] = toLitCond( abs(-varA), -varA<0 );
 	Lits[1] = toLitCond( abs(varB), varB<0 );
@@ -59,7 +145,6 @@ void Equate(sat_solver *pSat, int varA, int varB) {
 void Xor(sat_solver *pSat, int varA, int varB) {
 	lit Lits[3];
 	assert(varA!=0 && varB!=0);
-	cout << "XOR " << varA << " ^ " <<varB<<endl;
 	// A or B
 	Lits[0] = toLitCond( abs(varA), varA<0 );
 	Lits[1] = toLitCond( abs(varB), varB<0 );
@@ -94,12 +179,8 @@ Abc_Ntk_t*  getNtk(string pFileName, bool fraig) {
 	if (CommandExecute(pAbc, cmd)) { // Simplify
 		return NULL;
 	}
-	// cmd = "print_stats";
-	// if (CommandExecute(pAbc, cmd)) { // Stats
-	//     return NULL;
-	// }
 
-	Abc_Ntk_t* pNtk =  Abc_FrameReadNtk (pAbc);
+	Abc_Ntk_t* pNtk =  Abc_FrameReadNtk(pAbc);
 	// Aig_Man_t* pAig = Abc_NtkToDar(pNtk, 0, 0);
 	return pNtk;
 }
@@ -161,6 +242,15 @@ void populateVars(Abc_Ntk_t* FNtk, AigToNNF& nnf, string varsFile,
 		varsXS.push_back(nnf.var_num2Id[it]);
 	for(auto it : varsYF)
 		varsYS.push_back(nnf.var_num2Id[it]);
+
+	// for (int i = 0; i < numX; ++i) {
+	// 	varsSInv[varsXS[i]] = i;
+	// 	varsSInv[numOrigInputs + varsXS[i]] = numOrigInputs + i;
+	// }
+	// for (int i = 0; i < numY; ++i) {
+	// 	varsSInv[varsYS[i]] = numX + i;
+	// 	varsSInv[numOrigInputs + varsYS[i]] = numOrigInputs + numX + i;
+	// }
 }
 
 /** Function
@@ -175,10 +265,8 @@ Aig_Obj_t* Aig_SubstituteConst(Aig_Man_t* pMan, Aig_Obj_t* initAig, int varId, i
 	Aig_Obj_t* constf = (one? const1: Aig_Not(const1));
 	Aig_Obj_t* currFI = Aig_ObjIsCo(Aig_Regular(initAig))? initAig->pFanin0: initAig;
 	Aig_Obj_t* afterCompose = Aig_Compose(pMan, currFI, constf, varId-1);
-	if(Aig_ObjIsCo(afterCompose))
-		return Aig_ObjChild0(afterCompose);
-	else
-		return afterCompose;
+	assert(!Aig_ObjIsCo(Aig_Regular(afterCompose)));
+	return afterCompose;
 }
 
 /** Function
@@ -192,15 +280,8 @@ Aig_Obj_t* Aig_Substitute(Aig_Man_t* pMan, Aig_Obj_t* initAig, int varId, Aig_Ob
 	Aig_Obj_t* currFI = Aig_ObjIsCo(Aig_Regular(initAig))? initAig->pFanin0: initAig;
 	func = Aig_ObjIsCo(Aig_Regular(func))? func->pFanin0: func;
 	Aig_Obj_t* afterCompose = Aig_Compose(pMan, currFI, func, varId-1);
-	if(Aig_ObjIsCo(Aig_Regular(afterCompose))) {
-		OUT(afterCompose);
-		Aig_ObjPrintVerbose(Aig_Regular(afterCompose),1);
-		cout << endl;
-		assert(false);
-		return Aig_ObjChild0(afterCompose);
-	}
-	else
-		return afterCompose;
+	assert(!Aig_ObjIsCo(Aig_Regular(afterCompose)));
+	return afterCompose;
 }
 
 Aig_Obj_t* Aig_SubstituteVec(Aig_Man_t* pMan, Aig_Obj_t* initAig, vector<int>& varIdVec,
@@ -213,16 +294,26 @@ Aig_Obj_t* Aig_SubstituteVec(Aig_Man_t* pMan, Aig_Obj_t* initAig, vector<int>& v
 		varIdVec[i]--;
 	}
 	Aig_Obj_t* afterCompose = Aig_ComposeVec(pMan, currFI, funcVec, varIdVec);
-	if(Aig_ObjIsCo(Aig_Regular(afterCompose))) {
-		OUT(afterCompose);
-		Aig_ObjPrintVerbose(Aig_Regular(afterCompose),1);
-		cout << endl;
-		assert(false);
-		return Aig_ObjChild0(afterCompose);
-	}
-	else
-		return afterCompose;
+	assert(!Aig_ObjIsCo(Aig_Regular(afterCompose)));
+	return afterCompose;
 }
+
+vector<Aig_Obj_t* > Aig_SubstituteVecVec(Aig_Man_t* pMan, Aig_Obj_t* initAig, 
+	vector<vector<Aig_Obj_t*> >& funcVecs) {
+	Aig_Obj_t* currFI;
+	currFI = Aig_ObjIsCo(Aig_Regular(initAig))? initAig->pFanin0: initAig;
+	for(int i = 0; i < numY; i++) {
+		for (int j = 0; j < funcVecs[i].size(); ++j) {
+			funcVecs[i][j] = Aig_ObjIsCo(Aig_Regular(funcVecs[i][j]))? funcVecs[i][j]->pFanin0: funcVecs[i][j];
+		}
+	}
+	vector<Aig_Obj_t* > afterCompose = Aig_ComposeVecVec(pMan, currFI, funcVecs);
+	for (int i = 0; i < numY; ++i) {
+		assert(!Aig_ObjIsCo(Aig_Regular(afterCompose[i])));
+	}
+	return afterCompose;
+}
+
 
 /** Function
  * Composes inputs of SAig with appropriate delta and gamma, makes the resulting
@@ -231,134 +322,117 @@ Aig_Obj_t* Aig_SubstituteVec(Aig_Man_t* pMan, Aig_Obj_t* initAig, vector<int>& v
  * @param r0   [out]        Underapproximates the Cannot-be-0 sets
  * @param r1   [out]        Underapproximates the Cannot-be-1 sets
  */
-void initializeR0(Aig_Man_t* SAig, vector<vector<int> >& r0) {
-	OUT("initializing R0...");
-	for(int i = 0; i < numY; ++i) {
-		vector<Aig_Obj_t* > funcVec;
-		vector<int> varIdVec;
-		Aig_Obj_t* delta = Aig_ManCo(SAig, 0);
-		for(int j = 0; j < numX; j++) {
-			funcVec.push_back(Aig_Not(Aig_ManObj(SAig, varsXS[j])));
-			varIdVec.push_back(varsXS[j]);
-		}
-		for(int j = 0; j < numY; j++) {
-			if(j < i) {
-				funcVec.push_back(Aig_ManConst0(SAig));
-				varIdVec.push_back(varsYS[j]);
-			} else if(j == i) {
-				funcVec.push_back(Aig_ManConst1(SAig));
-				varIdVec.push_back(varsYS[j]);
-			} else {
-				funcVec.push_back(Aig_Not(Aig_ManObj(SAig, varsYS[j])));
-				varIdVec.push_back(varsYS[j]);
-			}
-		}
-		for(int j = 0; j < numX; j++) {
-			funcVec.push_back(Aig_ManObj(SAig, varsXS[j]));
-			varIdVec.push_back(numOrigInputs + varsXS[j]);
-		}
-		for(int j = 0; j < numY; j++) {
-			if(j <= i) {
-				funcVec.push_back(Aig_ManConst0(SAig));
-				varIdVec.push_back(numOrigInputs + varsYS[j]);
-			} else {
-				funcVec.push_back(Aig_ManObj(SAig, varsYS[j]));
-				varIdVec.push_back(numOrigInputs + varsYS[j]);
-			}
-		}
-		delta = Aig_SubstituteVec(SAig, delta, varIdVec, funcVec);
-		Aig_ObjCreateCo(SAig, delta);
-		r0[i].push_back(Aig_ManCoNum(SAig)-1);
+void initializeCompose(Aig_Man_t* SAig, vector<Aig_Obj_t* >& Fs,
+		vector<vector<int> >& r0, vector<vector<int> >& r1) {
+	nodeIdtoN.resize(2*numOrigInputs);
+	for(int i = 0; i < numX; i++) {
+		nodeIdtoN[varsXS[i] - 1] = i;
+		nodeIdtoN[numOrigInputs + varsXS[i] - 1] = numOrigInputs + i;
 	}
-}
-
-void initializeR1(Aig_Man_t* SAig, vector<vector<int> >& r1) {
-	OUT("initializing R1...");
-	for(int i = 0; i < numY; ++i) {
-		std::vector<Aig_Obj_t* > funcVec;
-		std::vector<int> varIdVec;
-		Aig_Obj_t* gamma = Aig_ManCo(SAig, 0);
-		for(int j = 0; j < numX; j++) {
-			funcVec.push_back(Aig_Not(Aig_ManObj(SAig, varsXS[j])));
-			varIdVec.push_back(varsXS[j]);
-		}
-		for(int j = 0; j < numY; j++) {
-			if(j <= i) {
-				funcVec.push_back(Aig_ManConst0(SAig));
-				varIdVec.push_back(varsYS[j]);
-			} else {
-				funcVec.push_back(Aig_Not(Aig_ManObj(SAig, varsYS[j])));
-				varIdVec.push_back(varsYS[j]);
-			}
-		}
-		for(int j = 0; j < numX; j++) {
-			funcVec.push_back(Aig_ManObj(SAig, varsXS[j]));
-			varIdVec.push_back(numOrigInputs + varsXS[j]);
-		}
-		for(int j = 0; j < numY; j++) {
-			if(j < i) {
-				funcVec.push_back(Aig_ManConst0(SAig));
-				varIdVec.push_back(numOrigInputs + varsYS[j]);
-			} else if(j == i) {
-				funcVec.push_back(Aig_ManConst1(SAig));
-				varIdVec.push_back(numOrigInputs + varsYS[j]);
-			} else {
-				funcVec.push_back(Aig_ManObj(SAig, varsYS[j]));
-				varIdVec.push_back(numOrigInputs + varsYS[j]);
-			}
-		}
-		gamma = Aig_SubstituteVec(SAig, gamma, varIdVec, funcVec);
-		Aig_ObjCreateCo(SAig, gamma);
-		r1[i].push_back(Aig_ManCoNum(SAig)-1);
+	for(int i = 0; i < numY; i++) {
+		nodeIdtoN[varsYS[i] - 1] = numX + i;
+		nodeIdtoN[numOrigInputs + varsYS[i] - 1] = numOrigInputs + numX + i;
 	}
-}
 
-/** Function
- * Returns a CO representing F; Composes SAig:
- * replaces x_neg inputs with not(x)
- * replaces y_neg inputs with not(y)
- * @param SAig [in out]     Aig Manager
- */
-Aig_Obj_t* buildF(Aig_Man_t* SAig) {
-	Aig_Obj_t* head = Aig_ManCo(SAig,0);
+	vector<vector<Aig_Obj_t* > > funcVecVec;
+	vector<Aig_Obj_t* > retVec;
 	vector<Aig_Obj_t* > funcVec;
-	vector<int> iVarVec;
+
+	funcVec.resize(0);
 	for(int i = 0; i < numX; ++i) {
 		funcVec.push_back(Aig_Not(Aig_ManObj(SAig, varsXS[i])));
-		iVarVec.push_back(varsXS[i]);
 	}
 	for(int i = 0; i < numY; ++i) {
 		funcVec.push_back(Aig_Not(Aig_ManObj(SAig, varsYS[i])));
-		iVarVec.push_back(varsYS[i]);
 	}
 	for(int i = 0; i < numX; ++i) {
 		funcVec.push_back(Aig_ManObj(SAig, varsXS[i]));
-		iVarVec.push_back(varsXS[i] + numOrigInputs);
 	}
 	for(int i = 0; i < numY; ++i) {
 		funcVec.push_back(Aig_ManObj(SAig, varsYS[i]));
-		iVarVec.push_back(varsYS[i] + numOrigInputs);
 	}
-	head = Aig_SubstituteVec(SAig, head, iVarVec, funcVec);
-	return Aig_ObjCreateCo(SAig, Aig_Not(head));
-}
+	funcVecVec.push_back(funcVec);
 
-/** Function
- * Returns a CO representing F; Composes SAig:
- * replaces x_neg inputs with not(x)
- * replaces y     inputs with not(y_neg)
- * @param SAig [in out]     Aig Manager
- */
-Aig_Obj_t* buildFPrime(Aig_Man_t* SAig, const Aig_Obj_t* F_SAig) {
-	Aig_Obj_t* head = (Aig_Obj_t*) F_SAig;
-	vector<Aig_Obj_t* > funcVec;
-	vector<int> iVarVec;
-	for(int i = 0; i < numY; ++i) {
-		funcVec.push_back(Aig_ManObj(SAig, varsYS[i] + numOrigInputs));
-		iVarVec.push_back(varsYS[i]);
+	funcVec.resize(0);
+	for(int i = 0; i < numX; ++i) {
+		funcVec.push_back(Aig_Not(Aig_ManObj(SAig, varsXS[i])));
 	}
-	head = Aig_SubstituteVec(SAig, head, iVarVec, funcVec);
-	return Aig_ObjCreateCo(SAig, head);
+	for(int i = 0; i < numY; ++i) {
+		funcVec.push_back(Aig_Not(Aig_ManObj(SAig, numOrigInputs + varsYS[i])));
+	}
+	for(int i = 0; i < numX; ++i) {
+		funcVec.push_back(Aig_ManObj(SAig, varsXS[i]));
+	}
+	for(int i = 0; i < numY; ++i) {
+		funcVec.push_back(Aig_ManObj(SAig, numOrigInputs + varsYS[i]));
+	}
+	funcVecVec.push_back(funcVec);
+
+	for(int i = 0; i < numY; ++i) {
+		funcVec.resize(0);
+		for(int j = 0; j < numX; j++) {
+			funcVec.push_back(Aig_Not(Aig_ManObj(SAig, varsXS[j])));
+		}
+		for(int j = 0; j < numY; j++) {
+			if(j < i) {
+				funcVec.push_back(Aig_ManConst0(SAig));
+			} else if(j == i) {
+				funcVec.push_back(Aig_ManConst1(SAig));
+			} else {
+				funcVec.push_back(Aig_Not(Aig_ManObj(SAig, varsYS[j])));
+			}
+		}
+		for(int j = 0; j < numX; j++) {
+			funcVec.push_back(Aig_ManObj(SAig, varsXS[j]));
+		}
+		for(int j = 0; j < numY; j++) {
+			if(j <= i) {
+				funcVec.push_back(Aig_ManConst0(SAig));
+			} else {
+				funcVec.push_back(Aig_ManObj(SAig, varsYS[j]));
+			}
+		}
+		funcVecVec.push_back(funcVec);
+	}
+
+	for(int i = 0; i < numY; ++i) {
+		funcVec.resize(0);
+		for(int j = 0; j < numX; j++) {
+			funcVec.push_back(Aig_Not(Aig_ManObj(SAig, varsXS[j])));
+		}
+		for(int j = 0; j < numY; j++) {
+			if(j <= i) {
+				funcVec.push_back(Aig_ManConst0(SAig));
+			} else {
+				funcVec.push_back(Aig_Not(Aig_ManObj(SAig, varsYS[j])));
+			}
+		}
+		for(int j = 0; j < numX; j++) {
+			funcVec.push_back(Aig_ManObj(SAig, varsXS[j]));
+		}
+		for(int j = 0; j < numY; j++) {
+			if(j < i) {
+				funcVec.push_back(Aig_ManConst0(SAig));
+			} else if(j == i) {
+				funcVec.push_back(Aig_ManConst1(SAig));
+			} else {
+				funcVec.push_back(Aig_ManObj(SAig, varsYS[j]));
+			}
+		}
+		funcVecVec.push_back(funcVec);
+	}
+
+	retVec = Aig_SubstituteVecVec(SAig, Aig_ManCo(SAig, 0), funcVecVec);
+	Fs[0] = Aig_ObjCreateCo(SAig, Aig_Not(retVec[0]));
+	Fs[1] = Aig_ObjCreateCo(SAig, Aig_Not(retVec[1]));
+	for(int i = 0; i < numY; i++) {
+		Aig_ObjCreateCo(SAig, retVec[2 + i]);
+		r0[i].push_back(Aig_ManCoNum(SAig) - 1);
+	}
+	for(int i = 0; i < numY; i++) {
+		Aig_ObjCreateCo(SAig, retVec[2 + numY + i]);
+		r1[i].push_back(Aig_ManCoNum(SAig) - 1);
+	}
 }
 
 /** Function
@@ -466,6 +540,39 @@ lit OR(sat_solver* pSat, lit lh, lit rh) {
 }
 
 /** Function
+ * Returns a new sat solver variable denoting AND of lh and rh
+ * @param pSat      [in]        Sat Solver
+ * @param lh        [in]        lhs
+ * @param rh        [in]        rhs
+ */
+lit AND(sat_solver* pSat, lit lh, lit rh) {
+	int nv = sat_solver_newvar(pSat);
+
+	lit Lits[4];
+	assert(lh!=0 && rh!=0);
+	// lh and rh -> nv
+	Lits[0] = toLitCond( abs( nv),  nv<0 );
+	Lits[1] = toLitCond( abs(-lh), -lh<0 );
+	Lits[2] = toLitCond( abs(-rh), -rh<0 );
+	if(!sat_solver_addclause( pSat, Lits, Lits + 3 ))
+		assert(false);
+
+	// nv -> lh
+	Lits[0] = toLitCond( abs( lh),  lh<0 );
+	Lits[1] = toLitCond( abs(-nv), -nv<0 );
+	if(!sat_solver_addclause( pSat, Lits, Lits + 2 ))
+		assert(false);
+
+	// nv -> rh
+	Lits[0] = toLitCond( abs( rh),  rh<0 );
+	Lits[1] = toLitCond( abs(-nv), -nv<0 );
+	if(!sat_solver_addclause( pSat, Lits, Lits + 2 ))
+		assert(false);
+
+	return nv;
+}
+
+/** Function
  * Adds CNF Formula to Solver
  * @param pSat      [in]        Sat Solver
  * @param cnf       [in]        Cnf Formula
@@ -484,7 +591,7 @@ void addCnfToSolver(sat_solver* pSat, Cnf_Dat_t* cnf) {
  * @param SAig      [in]        Aig to build the formula from
  */
 Cnf_Dat_t* buildErrorFormula(sat_solver* pSat, Aig_Man_t* SAig,
-	vector<vector<int> > &r0, vector<vector<int> > &r1) {
+	vector<vector<int> > &r0, vector<vector<int> > &r1, vector<int> &r0Andr1Vars) {
 	Abc_Obj_t* pAbcObj;
 	int i;
 
@@ -515,18 +622,28 @@ Cnf_Dat_t* buildErrorFormula(sat_solver* pSat, Aig_Man_t* SAig,
 	// assert F(X, Y) = false, F(X, Y') = true
 	addVarToSolver(pSat, SCnf->pVarNums[Aig_ManCo(SAig,1)->Id], 0);
 	addVarToSolver(pSat, SCnf->pVarNums[Aig_ManCo(SAig,2)->Id], 1);
-	// lit LA[3];
-	// LA[0] = toLitCond(SCnf->pVarNums[Aig_ManCo(SAig,1)->Id],1);
-	// LA[1] = toLitCond(SCnf->pVarNums[Aig_ManCo(SAig,2)->Id],0);
 
-	// Assert y_i == -r1[i]
-	Sat_SolverWriteDimacs(pSat,"sat_solver.dimacs",NULL,NULL,1);
+	r0Andr1Vars.resize(numY);
+
 	for (int i = 0; i < numY; ++i) {
-		int l = -addRlToSolver(pSat, SCnf, SAig, r1[i]);
-		OUT("equating  ID:     "<<varsYS[i]<<"="<<-Aig_ManCo(SAig,r1[i][0])->Id);
-		OUT("          varNum: "<<SCnf->pVarNums[varsYS[i]]<<"="<<l);
-		Equate(pSat, SCnf->pVarNums[varsYS[i]], l);
-		Sat_SolverWriteDimacs(pSat,(char*)("sat_solver.dimacs-" + to_string(i)).c_str(),NULL,NULL,1);
+		// Adding variables for r0[i] & r1[i]
+		int r1i = addRlToSolver(pSat, SCnf, SAig, r1[i]);
+		int r0i  = addRlToSolver(pSat, SCnf, SAig, r0[i]);
+		int r0r1 = AND(pSat, r0i, r1i);
+		r0Andr1Vars[i] = r0r1;
+
+		if(useR1AsSkolem[i]) {
+			// Assert y_i == -r1[i]
+			OUT("equating  ID:     "<<varsYS[i]<<"="<<-Aig_ManCo(SAig,r1[i][0])->Id);
+			OUT("          varNum: "<<SCnf->pVarNums[varsYS[i]]<<"="<<-r1i);
+			Equate(pSat, SCnf->pVarNums[varsYS[i]], -r1i);
+		}
+		else {
+			// Assert y_i == r0[i]
+			OUT("equating  ID:     "<<varsYS[i]<<"="<<Aig_ManCo(SAig,r0[i][0])->Id);
+			OUT("          varNum: "<<SCnf->pVarNums[varsYS[i]]<<"="<<r0i);
+			Equate(pSat, SCnf->pVarNums[varsYS[i]], r0i);
+		}
 	}
 	return SCnf;
 }
@@ -534,7 +651,6 @@ Cnf_Dat_t* buildErrorFormula(sat_solver* pSat, Aig_Man_t* SAig,
 /** Function
  * Builds the ErrorFormula, Calls Sat Solver on it, populates cex.
  * Returns false if UNSAT.
- * F(X,Y') and !F(X,Y) and \forall i (y_i == !r1[i])
  * @param pSat      [in]        Sat Solver
  * @param SAig      [in]        Aig to build the formula from
  * @param cex       [out]       Counter-example, contains values of X Y neg_X neg_Y in order.
@@ -543,8 +659,36 @@ bool callSATfindCEX(Aig_Man_t* SAig,vector<int>& cex,
 	vector<vector<int> > &r0, vector<vector<int> > &r1) {
 	OUT("callSATfindCEX..." );
 	bool return_val;
+
+	// Milking to check if CEX is still valid
+	if(true) {
+		// cout << "milking"<<endl;
+		for (int i = numY-1; i >= 0; --i)
+		{
+			assert(useR1AsSkolem[i]);
+			evaluateAig(SAig,cex);
+			bool r1i = false;
+			for(auto r1El: r1[i]) {
+				if(Aig_ManCo(SAig, r1El)->iData == 1) {
+					r1i = true;
+					break;
+				}
+			}
+			cex[numX + i] = (int) !r1i;
+		}
+		evaluateAig(SAig,cex);
+
+		if(Aig_ManCo(SAig, 1)->iData != 1) { //CEX still spurious, return
+			// cout << "CEX still spurious, returning..." << endl;
+			return true;
+		}
+	}
+	// cout << "milked, not spurious"<<endl;
+
+	vector<int> r0Andr1Vars(numY);
+
 	sat_solver *pSat = sat_solver_new();
-	Cnf_Dat_t *SCnf  = buildErrorFormula(pSat, SAig, r0, r1);
+	Cnf_Dat_t *SCnf  = buildErrorFormula(pSat, SAig, r0, r1, r0Andr1Vars);
 
 	OUT("Simplifying..." );
 	if(!sat_solver_simplify(pSat)) {
@@ -553,7 +697,11 @@ bool callSATfindCEX(Aig_Man_t* SAig,vector<int>& cex,
 	}
 	else {
 		OUT("Solving..." );
-		int status = sat_solver_solve(pSat, 0, 0, (ABC_INT64_T)0, (ABC_INT64_T)0, (ABC_INT64_T)0, (ABC_INT64_T)0);
+		vector<lit> assumptions = setAllNegX(SCnf, SAig, false);
+		int status = sat_solver_solve(pSat,
+						&assumptions[0], &assumptions[0] + numX,
+						(ABC_INT64_T)0, (ABC_INT64_T)0,
+						(ABC_INT64_T)0, (ABC_INT64_T)0);
 
 		if (status == l_False) {
 			OUT("Formula is unsat");
@@ -579,12 +727,9 @@ bool callSATfindCEX(Aig_Man_t* SAig,vector<int>& cex,
 			int * v = Sat_SolverGetModel(pSat, &cex[0], cex.size());
 			cex = vector<int>(v,v+cex.size());
 
-			int i;
-			Aig_Obj_t* pAigObj;
-			CoEval.clear();
-			Aig_ManForEachCo(SAig,pAigObj,i) {
-				CoEval[i] = sat_solver_var_value(pSat, SCnf->pVarNums[pAigObj->Id]);
-			}
+			// Getting r0Andr1Vars is not useful here
+			int * w = Sat_SolverGetModel(pSat, &r0Andr1Vars[0], r0Andr1Vars.size());
+			r0Andr1Vars = vector<int>(w,w+r0Andr1Vars.size());
 
 			#ifdef DEBUG_CHUNK
 				OUT("Serial#  AigPID  Cnf-VarNum  CEX");
@@ -616,13 +761,193 @@ bool callSATfindCEX(Aig_Man_t* SAig,vector<int>& cex,
 }
 
 /** Function
+ * Returns next stored satisfying CEX. Calls Unigen if no CEX are stored.
+ * Note: Uses only X-part of CEX
+ * @param pSat      [in]        Sat Solver
+ * @param SAig      [in]        Aig to build the formula from
+ * @param cex       [out]       Counter-example, contains values of X Y neg_X neg_Y in order.
+ * @param r0        [in]        Underapproximations of cant-be-0 sets.
+ * @param r1        [in]        Underapproximations of cant-be-1 sets.
+ */
+bool getNextCEX(Aig_Man_t*&SAig, int& M, vector<vector<int> > &r0, vector<vector<int> > &r1) {
+	OUT("getNextCEX...");
+
+	while(true) {
+		while(!storedCEX.empty()) {
+			int k1Max = options.evalAigAtNode? 
+							filterAndPopulateK1VecFast(SAig, r0, r1, M) : 
+							filterAndPopulateK1Vec(SAig, r0, r1, M);
+			if(storedCEX.empty())
+				break;
+			int k2Max = populateK2Vec(SAig, r0, r1, M);
+			assert(storedCEX_k1.size() == storedCEX.size());
+			assert(storedCEX_k2.size() == storedCEX.size());
+			// cout << "K1 K2 Data:" << endl;
+			// for (int i = 0; i < storedCEX.size(); ++i) {
+			// 	cout << i << ":\tk1: " << storedCEX_k1[i] << "\tk2: " << storedCEX_k2[i] << endl;
+			// }
+			cout << "k1Max: " << k1Max << "\tk2Max: " << k2Max << endl;
+			M = k2Max;
+			return true;
+		}
+
+		// For functions that use prevM
+		M = -1;
+
+		// Ran out of CEX, fetch new
+		if (populateStoredCEX(SAig, r0, r1) == false)
+			return false;
+	}
+}
+
+/** Function
+ * Calls Unigen on the error formula, populates storedCEX
+ * @param SAig      [in]        Aig to build the formula from
+ * @param r0        [in]        Underapproximations of cant-be-0 sets.
+ * @param r1        [in]        Underapproximations of cant-be-1 sets.
+ */
+bool populateStoredCEX(Aig_Man_t* SAig,
+	vector<vector<int> > &r0, vector<vector<int> > &r1) {
+	OUT("populating Stored CEX...");
+	bool return_val;
+	int status;
+	vector<int> r0Andr1Vars(numY);
+
+	sat_solver *pSat = sat_solver_new();
+	Cnf_Dat_t *SCnf  = buildErrorFormula(pSat, SAig, r0, r1, r0Andr1Vars);
+
+	OUT("Simplifying..." );
+	if(!sat_solver_simplify(pSat)) { // Found Skolem Functions
+		OUT("Formula is trivially unsat");
+		sat_solver_delete(pSat);
+		Cnf_DataFree(SCnf);
+		return false;
+	}
+
+	if( ! SwitchToABCSolver) {
+		// Compute IS
+		vector<int> IS;
+		for(int i=0; i<numX; ++i) // X
+			IS.push_back(SCnf->pVarNums[varsXS[i]]);
+
+		// Compute ReturnSet
+		vector<int> RS;
+		for(int i=0; i<numX; ++i) // X
+			RS.push_back(SCnf->pVarNums[varsXS[i]]);
+		for(int i=0; i<numY; ++i) // Y
+			RS.push_back(SCnf->pVarNums[varsYS[i]]);
+		for(int i=0; i<numY; ++i) // r0Andr1Vars
+			RS.push_back(r0Andr1Vars[i]);
+		assert(r0Andr1Vars.size()==numY);
+
+		// Print Dimacs
+		vector<lit> assumptions = setAllNegX(SCnf, SAig, false);
+		Sat_SolverWriteDimacsAndIS(pSat, UNIGEN_DIMAC_FPATH,
+			&assumptions[0], &assumptions[0] + numX, IS, RS);
+
+		// Call Unigen
+		status = unigen_call(UNIGEN_DIMAC_FPATH, options.numSamples, options.numThreads);
+	}
+	else {
+		status = -1; // Switch to ABC
+	}
+
+	if(status == 0) { // UNSAT
+		OUT("Formula is UNSAT");
+		return_val = false;
+	}
+	else if(status == 1) { // Successful
+		// Read CEX
+		map<int, int> varNum2ID;
+		for(int i=0; i<numX; ++i)
+			varNum2ID[SCnf->pVarNums[varsXS[i]]] = i;
+		for(int i=0; i<numY; ++i)
+			varNum2ID[SCnf->pVarNums[varsYS[i]]] = numX + i;
+		for(int i=0; i<numX; ++i)
+			varNum2ID[SCnf->pVarNums[numOrigInputs + varsXS[i]]] = numOrigInputs + i;
+		for(int i=0; i<numY; ++i)
+			varNum2ID[SCnf->pVarNums[numOrigInputs + varsYS[i]]] = numOrigInputs + numX + i;
+
+		// For fetching r0[m] and r1[m] from solver
+		map<int, int> varNum2R0R1;
+		for(int i=0; i<r0Andr1Vars.size(); i++) {
+			varNum2R0R1[r0Andr1Vars[i]] = i;
+		}
+
+		if(unigen_fetchModels(SAig, r0, r1, varNum2ID, varNum2R0R1)) {
+			OUT("Formula is SAT, stored CEXs");
+			return_val = true;
+		}
+		else {
+			OUT("Formula is UNSAT");
+			return_val = false;
+		}
+	}
+	else { // Too little solutions
+		assert(status == -1);
+		OUT("UNIGEN says too little solutions");
+		if(!SwitchToABCSolver)
+			cout << "\nSwitching to ABC's solver" << endl;
+
+		SwitchToABCSolver = true;
+
+		vector<lit> assumptions = setAllNegX(SCnf, SAig, false);
+		status = sat_solver_solve(pSat,
+						&assumptions[0], &assumptions[0] + numX,
+						(ABC_INT64_T)0, (ABC_INT64_T)0,
+						(ABC_INT64_T)0, (ABC_INT64_T)0);
+
+		if (status == l_False) {
+			OUT("Formula is unsat");
+			return_val = false;
+		}
+		else if (status == l_True) {
+			OUT("Formula is sat; storing CEX");
+
+			vector<int> cex(2*numOrigInputs);
+			for (int i = 0; i < numX; ++i) {
+				cex[i] = SCnf->pVarNums[varsXS[i]];
+			}
+			for (int i = 0; i < numY; ++i) {
+				cex[numX + i] = SCnf->pVarNums[varsYS[i]];
+			}
+			for (int i = 0; i < numX; ++i) {
+				cex[numOrigInputs + i] = SCnf->pVarNums[varsXS[i] + numOrigInputs];
+			}
+			for (int i = 0; i < numY; ++i) {
+				cex[numOrigInputs + numX + i] = SCnf->pVarNums[varsYS[i] + numOrigInputs];
+			}
+			int * v = Sat_SolverGetModel(pSat, &cex[0], cex.size());
+			cex = vector<int>(v,v+cex.size());
+
+			// Obtaining value of k1
+			int * w = Sat_SolverGetModel(pSat, &r0Andr1Vars[0], r0Andr1Vars.size());
+			r0Andr1Vars = vector<int>(w,w+r0Andr1Vars.size());
+			int k1 = numY-1;
+			while(r0Andr1Vars[k1] == 0) {k1--;}
+			assert(k1>=0);
+
+			storedCEX.push_back(cex);
+			storedCEX_k1.push_back(k1);
+			storedCEX_k2.push_back(-1);
+			return_val = true;
+		}
+	}
+	// Add to numCEX
+	numCEX += storedCEX.size();
+
+	sat_solver_delete(pSat);
+	Cnf_DataFree(SCnf);
+	return return_val;
+}
+
+/** Function
  * This evaluates all nodes of the Aig using values from cex
  * The value of the node is stored in pObj->iData
  * @param formula   [in]        Aig Manager
  * @param cex       [in]        counter-example
  */
 void evaluateAig(Aig_Man_t* formula, const vector<int> &cex) {
-	// assert(cex.size() == Aig_ManCiNum(formula));
 	int i;
 	Aig_Obj_t* pObj;
 
@@ -641,7 +966,6 @@ void evaluateAig(Aig_Man_t* formula, const vector<int> &cex) {
 	Aig_ManObj(formula,0)->iData = 1;
 
 	Aig_ManForEachObj(formula, pObj, i) {
-		// cout << "Evaluating node " << pObj->Id << endl;
 		if(pObj->Id > 2*numOrigInputs) {
 			pObj->iData = 1;
 			int ld, rd;
@@ -650,7 +974,6 @@ void evaluateAig(Aig_Man_t* formula, const vector<int> &cex) {
 				if(Aig_IsComplement(pObj->pFanin0))
 					ld = 1 - ld;
 
-				// cout << "\tld = " << ld << endl;
 				pObj->iData *= ld;
 			}
 			if(Aig_ObjFanin1(pObj) != NULL) {
@@ -658,13 +981,66 @@ void evaluateAig(Aig_Man_t* formula, const vector<int> &cex) {
 				if(Aig_IsComplement(pObj->pFanin1))
 					rd = 1 - rd;
 
-				// cout << "\trd = " << ld << endl;
 				pObj->iData *= rd;
 			}
 		}
-		// cout << "\tEvaluated node " << pObj->Id <<"\t= "<<pObj->iData<<endl;
 	}
 	return;
+}
+
+/** Function
+ * This evaluates all leaves of the Aig using values from cex
+ * The value of the node is stored in pObj->iData
+ * @param formula   [in]        Aig Manager
+ * @param cex       [in]        counter-example
+ */
+void evaluateXYLeaves(Aig_Man_t* formula, const vector<int> &cex) {
+	for (int i = 0; i < numX; ++i) {
+		Aig_ManObj(formula, varsXS[i])->iData = cex[i];
+		Aig_ObjSetTravIdCurrent(formula, Aig_ManObj(formula, varsXS[i]));
+	}
+	for (int i = 0; i < numY; ++i) {
+		Aig_ManObj(formula, varsYS[i])->iData = cex[numX + i];
+		Aig_ObjSetTravIdCurrent(formula, Aig_ManObj(formula, varsYS[i]));
+	}
+
+	// Setting Const1
+	Aig_ManObj(formula,0)->iData = 1;
+	Aig_ObjSetTravIdCurrent(formula, Aig_ManObj(formula,0));
+}
+
+/** Function
+ * This evaluates and returns head using values from leaves
+ * The value of the leaves is stored in pObj->iData
+ * @param formula   [in]        Aig Manager
+ * @param head      [in]        node to be evaluated
+ */
+bool evaluateAigAtNode(Aig_Man_t* formula, Aig_Obj_t*head) {
+
+	int isComplement = Aig_IsComplement(head);
+	head = Aig_Regular(head);
+
+	if(Aig_ObjIsTravIdCurrent(formula, head)) {
+		assert(head->iData == 0 or head->iData == 1);
+		return (bool) isComplement xor head->iData;
+	}
+
+	if(Aig_ObjIsCo(head)) {
+		Aig_ObjSetTravIdCurrent(formula,head);
+		head->iData = (int) evaluateAigAtNode(formula, Aig_ObjChild0(head));
+		return (bool) isComplement xor head->iData;
+	}
+
+	bool lc, rc;
+	lc = evaluateAigAtNode(formula, Aig_ObjChild0(head));
+	if(lc)
+		rc = evaluateAigAtNode(formula, Aig_ObjChild1(head));
+	else
+		rc = true;
+
+	head->iData = (int) (lc and rc);
+	Aig_ObjSetTravIdCurrent(formula,head);
+		return (bool) isComplement xor head->iData;
 }
 
 /** Function
@@ -675,17 +1051,18 @@ void evaluateAig(Aig_Man_t* formula, const vector<int> &cex) {
  * @param cex       [in]        Counterexample
  * @param coObjs    [in]        Co numbers in Aig Manager to check
  */
-Aig_Obj_t* satisfiesVec(Aig_Man_t* formula, const vector<int>& cex, const vector<int>& coObjs) {
-	evaluateAig(formula, cex);
+Aig_Obj_t* satisfiesVec(Aig_Man_t* formula, const vector<int>& cex, const vector<int>& coObjs, bool reEvaluate) {
+
+	if(reEvaluate)
+		evaluateAig(formula, cex);
+
 	OUT("satisfiesVec...");
 	for(int i = 0; i < coObjs.size(); i++) {
 		OUT("Accessing Co "<<coObjs[i]<<" Id "<< Aig_ManCo(formula,coObjs[i])->Id);
-		// if(Aig_ManCo(formula,coObjs[i])->iData == 1) {
-		//     OUT("Satisfied ID " << Aig_ManCo(formula,coObjs[i])->Id);
-		//     return Aig_ManCo(formula,coObjs[i]);
-		// }
-		if(CoEval[coObjs[i]])
-			  return Aig_ManCo(formula,coObjs[i]);
+		if(Aig_ManCo(formula,coObjs[i])->iData == 1) {
+			OUT("Satisfied ID " << Aig_ManCo(formula,coObjs[i])->Id);
+			return Aig_ManCo(formula,coObjs[i]);
+		}
 	}
 	OUT("Nothing satisfied");
 	return NULL;
@@ -697,8 +1074,8 @@ Aig_Obj_t* satisfiesVec(Aig_Man_t* formula, const vector<int>& cex, const vector
  * @param cex       [in]        counter-example to be generalized
  * @param rl        [in]        Underaproximations of Cant-be sets
  */
-static inline Aig_Obj_t* generalize(Aig_Man_t*pMan, vector<int> cex, const vector<int>& rl) {
-	return satisfiesVec(pMan, cex, rl);
+Aig_Obj_t* generalize(Aig_Man_t*pMan, vector<int> cex, const vector<int>& rl) {
+	return satisfiesVec(pMan, cex, rl, true);
 }
 
 /** Function
@@ -755,6 +1132,56 @@ Aig_Obj_t* Aig_AndAigs(Aig_Man_t* pMan, Aig_Obj_t* Aig1, Aig_Obj_t* Aig2) {
 }
 
 /** Function
+ * Returns Or of Aig1 and Aig2
+ * @param pMan      [in]        Aig Manager
+ * @param Aig1      [in]
+ * @param Aig2      [in]
+ */
+Aig_Obj_t* Aig_OrAigs(Aig_Man_t* pMan, Aig_Obj_t* Aig1, Aig_Obj_t* Aig2) {
+	Aig_Obj_t* lhs = Aig_ObjIsCo(Aig_Regular(Aig1))? Aig_Regular(Aig1)->pFanin0: Aig1;
+	Aig_Obj_t* rhs = Aig_ObjIsCo(Aig_Regular(Aig2))? Aig_Regular(Aig2)->pFanin0: Aig2;
+	return Aig_Or(pMan, lhs, rhs);
+}
+
+Aig_Obj_t* AND_rec(Aig_Man_t* SAig, vector<Aig_Obj_t* >& nodes, int start, int end) {
+	// cout << "And_rec on start: " << start << " " << "end " << end << endl;
+	assert(end > start);
+	if(end == start+1)
+		return nodes[start];
+
+	int mid = (start+end)/2;
+	Aig_Obj_t* lh = AND_rec(SAig, nodes, start, mid);
+	Aig_Obj_t* rh = AND_rec(SAig, nodes, mid, end);
+	Aig_Obj_t* nv = Aig_And(SAig, lh, rh);
+
+	return nv;
+}
+
+Aig_Obj_t* newAND(Aig_Man_t* SAig, vector<Aig_Obj_t* >& nodes) {
+	return AND_rec(SAig, nodes, 0, nodes.size());
+}
+
+
+Aig_Obj_t* projectPi(Aig_Man_t* pMan, const vector<int> &cex, const int m) {
+	vector<Aig_Obj_t*> pi_m(numOrigInputs - m - 1);
+	for(int i = 0; i < numX; i++) {
+		pi_m[i] = (cex[i] == 1)?Aig_ManObj(pMan, varsXS[i]):Aig_Not(Aig_ManObj(pMan, varsXS[i]));
+	}
+	for(int i = m + 1; i < numY; i++) {
+		pi_m[numX + i - m - 1] = (cex[numX + i] == 1)?Aig_ManObj(pMan, varsYS[i]):Aig_Not(Aig_ManObj(pMan, varsYS[i]));
+	}
+	return newAND(pMan, pi_m);
+}
+
+Aig_Obj_t* projectPiSmall(Aig_Man_t* pMan, const vector<int> &cex) {
+	vector<Aig_Obj_t*> pi_m(numX);
+	for(int i = 0; i < numX; i++) {
+		pi_m[i] = (cex[i] == 1)?Aig_ManObj(pMan, varsXS[i]):Aig_Not(Aig_ManObj(pMan, varsXS[i]));
+	}
+	return newAND(pMan, pi_m);
+}
+
+/** Function
  * This updates r0 and r1 while eliminating cex
  * @param pMan      [in]        Aig Manager
  * @param r0        [in out]    Underaproximations of Cant-be-0 sets
@@ -762,66 +1189,80 @@ Aig_Obj_t* Aig_AndAigs(Aig_Man_t* pMan, Aig_Obj_t* Aig1, Aig_Obj_t* Aig2) {
  * @param cex       [in]        counter-example
  */
 void updateAbsRef(Aig_Man_t* pMan, vector<vector<int> > &r0, vector<vector<int> > &r1,
-	const vector<int> &cex) {
-
-	for (int i = 0; i < numX; ++i)
-		OUT(varsXS[i] << "\t" << cex[i]);
-	for (int i = 0; i < numY; ++i)
-		OUT(varsYS[i] << "\t" << cex[numX + i]);
-	for (int i = 0; i < numX; ++i)
-		OUT(numOrigInputs + varsXS[i] << "\t" << cex[numOrigInputs + i]);
-	for (int i = 0; i < numY; ++i)
-		OUT(numOrigInputs + varsYS[i] << "\t" << cex[numOrigInputs + numX + i]);
+	const int &m) {
 
 	OUT("updateAbsRef...");
-	int k, l, i;
-	Aig_Obj_t *mu0, *mu1, *mu, *pAigObj;
+	int k, l;
+	Aig_Obj_t *mu0, *mu1, *mu, *pi1_m, *pi0_m;
+	mu0 = mu1 = mu = pi1_m = pi0_m = NULL;
 
-	evaluateAig(pMan, cex);
-
-	OUT("Finding k...");
-	for(k = numY-1; k >= 0; k--) {
-		OUT("\nChecking k="<<k);
-		if(((mu0 = satisfiesVec(pMan, cex, r0[k])) != NULL) &&
-			((mu1 = satisfiesVec(pMan, cex, r1[k])) != NULL))
-			break;
-	}
+	// cout << "UpdateAbsRef m is " << m << endl;
+	k = m;
+	l = m + 1;
 	assert(k >= 0);
-	// mu0 = generalize(pMan,cex, r0[k]);
-	// mu1 = generalize(pMan,cex, r1[k]);
-	mu = Aig_AndAigs(pMan, mu0, mu1);
-	l = k + 1;
+	assert(l < numY);
 
-	while(true) {
-		OUT("Running updateAbsRef Loop at l = "<<l);
-		assert(l<numY);
-		if(Aig_Support(pMan, mu, varsYS[l])) {
-			if(cex[numX + l] == 1) {
-				mu1 = Aig_SubstituteConst(pMan, mu, varsYS[l], 1);
-				Aig_ObjCreateCo(pMan, mu1);
-				OUT("Pushing " << Aig_ManCoNum(pMan)-1 << " r1["<<l<<"]");
-				r1[l].push_back(Aig_ManCoNum(pMan)-1);
-				if(satisfiesVec(pMan, cex, r0[l]) != NULL) {
-					mu0 = generalize(pMan,cex,r0[l]);
-					mu = Aig_AndAigs(pMan, mu0, mu1);
-				}
-				else {
-					OUT("CEX Solved, breaking...");
-					break;
-				}
+	bool fixR0 = false;
+	bool fixR1 = false;
+	for(int i = 0; i < storedCEX.size(); i++) {
+		if(storedCEX_k2[i] == m) {
+			if(storedCEX[i][numX + l] == 1) {
+				if(!fixR1)
+					pi1_m = projectPi(pMan, storedCEX[i], m);
+				else
+					pi1_m = Aig_OrAigs(pMan, pi1_m, projectPiSmall(pMan, storedCEX[i]));
+				fixR1 = true;
+				numFixes++;
+				// cout << "Adding " << i << " to pi1_m" << endl;
 			}
 			else {
-				mu0 = Aig_SubstituteConst(pMan, mu, varsYS[l], 0);
-				Aig_ObjCreateCo(pMan, mu0);
-				OUT("Pushing new node to r0["<<l<<"]...");
-				r0[l].push_back(Aig_ManCoNum(pMan)-1);
-				mu1 = generalize(pMan,cex,r1[l]);
-				mu = Aig_AndAigs(pMan, mu0, mu1);
+				if(!fixR0)
+					pi0_m = projectPi(pMan, storedCEX[i], m);
+				else
+					pi0_m = Aig_OrAigs(pMan, pi0_m, projectPiSmall(pMan, storedCEX[i]));
+				fixR0 = true;
+				numFixes++;
+				// cout << "Adding " << i << " to pi0_m" << endl;
 			}
 		}
-		l = l+1;
 	}
-	OUT("updateAbsRef done...");
+
+	if((fixR0 and addR1R0toR0[m]) or (fixR1 and addR1R0toR1[m])) {
+		mu0 = newOR(pMan, r0[m]);
+		mu1 = newOR(pMan, r1[m]);
+		mu = Aig_AndAigs(pMan, mu0, mu1);
+	}
+
+	if(fixR0) {
+		if(addR1R0toR0[m]) {
+			mu0 = Aig_OrAigs(pMan, mu, pi0_m);
+			addR1R0toR0[m]   = false;
+			addR1R0toR0[m+1] = true;
+			addR1R0toR1[m+1] = true;
+		}
+		else {
+			mu0 = pi0_m;
+		}
+		mu0 = Aig_SubstituteConst(pMan, mu0, varsYS[l], 0);
+		Aig_ObjCreateCo(pMan, mu0);
+		r0[l].push_back(Aig_ManCoNum(pMan) - 1);
+	}
+
+	if(fixR1) {
+		if(addR1R0toR1[m]) {
+			mu1 = Aig_OrAigs(pMan, mu, pi1_m);
+			addR1R0toR1[m]   = false;
+			addR1R0toR0[m+1] = true;
+			addR1R0toR1[m+1] = true;
+		}
+		else {
+			mu1 = pi1_m;
+		}
+		mu1 = Aig_SubstituteConst(pMan, mu1, varsYS[l], 1);
+		Aig_ObjCreateCo(pMan, mu1);
+		r1[l].push_back(Aig_ManCoNum(pMan) - 1);
+	}
+
 	return;
 }
 
@@ -833,7 +1274,7 @@ void updateAbsRef(Aig_Man_t* pMan, vector<vector<int> > &r0, vector<vector<int> 
 Aig_Man_t* compressAig(Aig_Man_t* SAig) {
 	OUT("Cleaning up...");
 	int removed = Aig_ManCleanup(SAig);
-	OUT("Removed "<<removed<<" nodes");
+	cout << "Removed " << removed <<" nodes" << endl;
 
 	Aig_Man_t* temp = SAig;
 	// Dar_ManCompress2( Aig_Man_t * pAig, int fBalance,
@@ -855,13 +1296,18 @@ Aig_Man_t* compressAigByNtk(Aig_Man_t* SAig) {
 	Aig_Man_t* temp;
 	string command;
 
+	// TODO: FIX
+	if(options.evalAigAtNode) {
+		cout << "WARNING: Not using Ntk for compression" << endl;
+		return compressAig(SAig);
+	}
+
 	OUT("Cleaning up...");
 	int removed = Aig_ManCleanup(SAig);
-	OUT("Removed "<<removed<<" nodes");
+	cout << "Removed " << removed <<" nodes" << endl;
 
 	Abc_Ntk_t * SNtk = Abc_NtkFromAigPhase(SAig);
 	Abc_FrameSetCurrentNetwork(pAbc, SNtk);
-	// command = "rewrite -l; fraig;";
 	command = "fraig; balance; rewrite -l; rewrite -lz; balance; rewrite -lz; \
 				balance; rewrite -l; refactor -l; balance; rewrite -l; \
 				rewrite -lz; balance; refactor -lz; rewrite -lz; balance;";
@@ -939,11 +1385,10 @@ Aig_Obj_t* newOR(Aig_Man_t* SAig, vector<int>& nodes) {
 	return OR_rec(SAig, nodes, 0, nodes.size());
 }
 
-void Aig_ObjDeleteCo( Aig_Man_t * p, Aig_Obj_t * pObj )
-{
+void Aig_ObjDeleteCo( Aig_Man_t * p, Aig_Obj_t * pObj) {
+	// Function Not Tested, use at your own risk!
 	assert( Aig_ObjIsCo(pObj) );
 	Aig_ObjDisconnect(p,pObj);
-	// Aig_ObjDeref(Aig_ObjFanin0(pObj));
 	pObj->pFanin0 = NULL;
 	p->nObjs[pObj->Type]--;
 	Vec_PtrWriteEntry( p->vObjs, pObj->Id, NULL );
@@ -958,19 +1403,18 @@ Aig_Obj_t* Aig_XOR(Aig_Man_t*p, Aig_Obj_t*p0, Aig_Obj_t*p1) {
 bool verifyResult(Aig_Man_t* SAig, vector<vector<int> >& r0,
 	vector<vector<int> >& r1, bool deleteCos) {
 	int i; Aig_Obj_t*pAigObj;
-	vector<int> r1Aigs(numY);
+	vector<int> r_Aigs(numY);
 	cout << "Verifying Result..." << endl;
-	OUT("compressAigByNtk...");
-	SAig = compressAigByNtk(SAig);
 
 	OUT("Taking Ors..." << i);
 	for(int i = 0; i < numY; i++) {
-		if(r1[i].size() == 1) {
-			r1Aigs[i] = r1[i][0];
+		vector<int>& r_ = useR1AsSkolem[i]?r1[i]:r0[i];
+		if(r_.size() == 1) {
+			r_Aigs[i] = r_[0];
 		}
 		else {
-			pAigObj = Aig_ObjCreateCo(SAig,newOR(SAig, r1[i]));
-			r1Aigs[i] = Aig_ManCoNum(SAig)-1;
+			pAigObj = Aig_ObjCreateCo(SAig,newOR(SAig, r_));
+			r_Aigs[i] = Aig_ManCoNum(SAig)-1;
 			assert(pAigObj!=NULL);
 		}
 	}
@@ -979,7 +1423,7 @@ bool verifyResult(Aig_Man_t* SAig, vector<vector<int> >& r0,
 		// Delete extra stuff
 		set<int> requiredCOs;
 		set<Aig_Obj_t*> redundantCos;
-		for(auto it:r1Aigs)
+		for(auto it:r_Aigs)
 			requiredCOs.insert(Aig_ManCo(SAig,it)->Id);
 		requiredCOs.insert(Aig_ManCo(SAig,1)->Id);
 		Aig_ManForEachCo( SAig, pAigObj, i) {
@@ -991,23 +1435,23 @@ bool verifyResult(Aig_Man_t* SAig, vector<vector<int> >& r0,
 			Aig_ObjDeleteCo(SAig,it);
 		}
 
-		// Recompute r1Aigs
+		// Recompute r_Aigs
 		vector<pair<int, int> > vv(numY);
 		i = 0;
-		for(auto it:r1Aigs)
+		for(auto it:r_Aigs)
 			vv[i++] = make_pair(it,i);
 
 		sort(vv.begin(), vv.end());
 		i=1;
 		for(auto it:vv) {
-			r1Aigs[it.second] = i++;
+			r_Aigs[it.second] = i++;
 		}
 	}
 
 	OUT("compressAigByNtk...");
 	SAig = compressAigByNtk(SAig);
 
-	#ifdef DEBUG_CHUNK // Print SAig, r1, r1Aigs
+	#ifdef DEBUG_CHUNK // Print SAig, r1, r_Aigs
 		cout << "\nSAig: " << endl;
 		Aig_ManForEachObj( SAig, pAigObj, i )
 			Aig_ObjPrintVerbose( pAigObj, 1 ), printf( "\n" );
@@ -1020,8 +1464,8 @@ bool verifyResult(Aig_Man_t* SAig, vector<vector<int> >& r0,
 			i++;
 		}
 		i=0;
-		for(auto it:r1Aigs) {
-			cout<<"r1Aigs["<<i<<"] : " << r1Aigs[i] << endl;
+		for(auto it:r_Aigs) {
+			cout<<"r_Aigs["<<i<<"] : " << r_Aigs[i] << endl;
 			i++;
 		}
 	#endif
@@ -1032,29 +1476,32 @@ bool verifyResult(Aig_Man_t* SAig, vector<vector<int> >& r0,
 	}
 
 	OUT("Reverse Substitution...");
+	int iter = 0;
 	for(int i = numY-2; i >= 0; --i) {
-		Aig_Obj_t * curr = Aig_ManCo(SAig, r1Aigs[i]);
-		if(i==3) {
-			assert(true);
-		}
+		iter++;
+		Aig_Obj_t * curr = Aig_ManCo(SAig, r_Aigs[i]);
 		for(int j = i + 1; j < numY; ++j) {
 			Aig_ManForEachObj(SAig,pAigObj,i_temp) {
 				assert(Aig_ObjIsConst1(pAigObj) || Aig_ObjIsCi(pAigObj) || Aig_ObjIsCo(pAigObj) || (Aig_ObjFanin0(pAigObj) && Aig_ObjFanin1(pAigObj)));
 			}
 
-			curr = Aig_Substitute(SAig, curr, varsYS[j], Aig_Not(Aig_ObjChild0(Aig_ManCo(SAig,r1Aigs[j]))));
-			assert(r1Aigs[i]!=NULL);
+			Aig_Obj_t* skolem_j = useR1AsSkolem[j]?Aig_Not(Aig_ObjChild0(Aig_ManCo(SAig,r_Aigs[j]))):Aig_ObjChild0(Aig_ManCo(SAig,r_Aigs[j]));
+			curr = Aig_Substitute(SAig, curr, varsYS[j], skolem_j);
+			assert(r_Aigs[i]!=NULL);
 			assert(Aig_ObjIsCo(Aig_Regular(curr))==false);
 		}
 		Aig_ObjCreateCo(SAig,curr);
-		r1Aigs[i] = Aig_ManCoNum(SAig)-1;
-		assert(r1Aigs[i]!=NULL);
+		r_Aigs[i] = Aig_ManCoNum(SAig)-1;
+		assert(r_Aigs[i]!=NULL);
+		if(iter%30 == 0)
+			SAig = compressAigByNtk(SAig);
 	}
 
 	OUT("Final F Resubstitution...");
 	Aig_Obj_t* F = Aig_ManCo(SAig, (deleteCos?0:1));
 	for(int i = 0; i < numY; i++) {
-		F = Aig_Substitute(SAig, F, varsYS[i], Aig_Not(Aig_ObjChild0(Aig_ManCo(SAig,r1Aigs[i]))));
+		Aig_Obj_t* skolem_i = useR1AsSkolem[i]?Aig_Not(Aig_ObjChild0(Aig_ManCo(SAig,r_Aigs[i]))):Aig_ObjChild0(Aig_ManCo(SAig,r_Aigs[i]));
+		F = Aig_Substitute(SAig, F, varsYS[i], skolem_i);
 	}
 	OUT("F Id:     "<<Aig_Regular(F)->Id);
 	OUT("F compl:  "<<Aig_IsComplement(F));
@@ -1071,7 +1518,6 @@ bool verifyResult(Aig_Man_t* SAig, vector<vector<int> >& r0,
 	OUT("Aig_ManCoNum(SAig): "<<Aig_ManCoNum(SAig));
 	int F_num = Aig_ManCoNum(SAig)-1;
 
-
 	#ifdef DEBUG_CHUNK // Print SAig
 		cout << "\nSAig: " << endl;
 		Aig_ManForEachObj( SAig, pAigObj, i )
@@ -1085,14 +1531,11 @@ bool verifyResult(Aig_Man_t* SAig, vector<vector<int> >& r0,
 	Cnf_Dat_t* FCnf = Cnf_Derive(SAig, Aig_ManCoNum(SAig));
 	addCnfToSolver(pSat, FCnf);
 
-	// addVarToSolver(pSat, getCnfCoVarNum(FCnf, SAig, F_num), 0);
-	// addVarToSolver(pSat, getCnfCoVarNum(FCnf, SAig, (deleteCos?0:1)), 1);
 	lit LA[3];
 	LA[0] = toLitCond(getCnfCoVarNum(FCnf, SAig, F_num),1);
 	LA[1] = toLitCond(getCnfCoVarNum(FCnf, SAig, (deleteCos?0:1)),0);
 
 	bool return_val;
-	// int status = sat_solver_solve(pSat, 0, 0, (ABC_INT64_T)0, (ABC_INT64_T)0, (ABC_INT64_T)0, (ABC_INT64_T)0);
 	int status = sat_solver_solve(pSat, LA, LA+2, (ABC_INT64_T)0, (ABC_INT64_T)0, (ABC_INT64_T)0, (ABC_INT64_T)0);
 	if (status == l_False) {
 		cout << "Verified!" << endl;
@@ -1123,7 +1566,10 @@ void checkCexSanity(Aig_Man_t* pMan, vector<int>& cex, vector<vector<int> >& r0,
 	for (int i = 0; i < numY; ++i)
 	{
 		OUT("\t checking for i=" << i);
-		assert((cex[numX + i]==1) ^ (satisfiesVec(pMan, cex, r1[i])!=NULL));
+		if(useR1AsSkolem[i])
+			assert((cex[numX + i]==1) ^ (satisfiesVec(pMan, cex, r1[i], true)!=NULL));
+		else
+			assert(!((cex[numX + i]==1) ^ (satisfiesVec(pMan, cex, r0[i], true)!=NULL)));
 	}
 }
 
@@ -1141,7 +1587,6 @@ void Aig_ComposeVec_rec( Aig_Man_t * p, Aig_Obj_t * pObj, vector<Aig_Obj_t *>& p
 			}
 			i++;
 		}
-		// pObj->pData = pFuncVec[idS[pObj->Id] - 1];
 		return;
 	}
 	Aig_ComposeVec_rec( p, Aig_ObjFanin0(pObj), pFuncVec, iVarObjVec );
@@ -1152,12 +1597,10 @@ void Aig_ComposeVec_rec( Aig_Man_t * p, Aig_Obj_t * pObj, vector<Aig_Obj_t *>& p
 }
 
 Aig_Obj_t * Aig_ComposeVec( Aig_Man_t * p, Aig_Obj_t * pRoot, vector<Aig_Obj_t *>& pFuncVec,
-	vector<int>& iVarVec )
-{
+	vector<int>& iVarVec ) {
 	// quit if the PI variable is not defined
 	for(auto iVar: iVarVec) {
-		if ( iVar >= Aig_ManCiNum(p) )
-		{
+		if (iVar >= Aig_ManCiNum(p)) {
 			printf( "Aig_Compose(): The PI variable %d is not defined.\n", iVar );
 			return NULL;
 		}
@@ -1172,4 +1615,657 @@ Aig_Obj_t * Aig_ComposeVec( Aig_Man_t * p, Aig_Obj_t * pRoot, vector<Aig_Obj_t *
 	// clear the markings
 	Aig_ConeUnmark_rec( Aig_Regular(pRoot) );
 	return Aig_NotCond( (Aig_Obj_t *)Aig_Regular(pRoot)->pData, Aig_IsComplement(pRoot) );
+}
+
+void Aig_VecVecConeUnmark_rec(Aig_Obj_t * pObj) {
+	assert(!Aig_IsComplement(pObj));
+	// cout<<"Aig_VecVecConeUnmark_rec: ";
+	// Aig_ObjPrintVerbose(pObj,1);
+	// cout <<endl;
+	// if(Aig_ObjIsConst1(pObj) || Aig_ObjIsCi(pObj))
+ //    	cout << "TOOOO111" << endl;
+	if(!Aig_ObjIsMarkA(pObj))
+		return;
+	if(Aig_ObjIsConst1(pObj) || Aig_ObjIsCi(pObj)) {
+		// cout << "TOOOO" << endl;
+		delete (vector<Aig_Obj_t*> *)(pObj->pData);
+		assert(Aig_ObjIsMarkA(pObj)); // loop detection
+		Aig_ObjClearMarkA(pObj);
+		return;
+	}
+	delete (vector<Aig_Obj_t*> *)(pObj->pData);
+	Aig_VecVecConeUnmark_rec(Aig_ObjFanin0(pObj));
+	Aig_VecVecConeUnmark_rec(Aig_ObjFanin1(pObj));
+	assert(Aig_ObjIsMarkA(pObj)); // loop detection
+	Aig_ObjClearMarkA(pObj);
+}
+
+void Aig_ComposeVecVec_rec(Aig_Man_t* p, Aig_Obj_t* pObj, vector<vector<Aig_Obj_t*> >& pFuncVecs) {
+	assert(!Aig_IsComplement(pObj));
+	if(Aig_ObjIsMarkA(pObj) )
+		return;
+	vector<Aig_Obj_t *>* tempData = new vector<Aig_Obj_t* >();
+	if(Aig_ObjIsConst1(pObj)) {
+		for(int i = 0; i < pFuncVecs.size(); i++)
+			tempData->push_back(pObj);
+		pObj->pData = tempData;
+		assert(!Aig_ObjIsMarkA(pObj)); // loop detection
+		Aig_ObjSetMarkA(pObj);
+		return;
+	}
+	if(Aig_ObjIsCi(pObj)) {
+		int i = nodeIdtoN[(pObj->Id) - 1];
+		for(int j = 0; j < pFuncVecs.size(); j++)
+			tempData->push_back(pFuncVecs[j][i]);
+		pObj->pData = tempData;
+		assert(!Aig_ObjIsMarkA(pObj)); // loop detection
+		Aig_ObjSetMarkA(pObj);
+		return;
+	}
+	Aig_ComposeVecVec_rec(p, Aig_ObjFanin0(pObj), pFuncVecs);
+	Aig_ComposeVecVec_rec(p, Aig_ObjFanin1(pObj), pFuncVecs);
+	for(int j = 0; j < pFuncVecs.size(); j++) {
+		Aig_Obj_t *l = Aig_ObjFanin0(pObj)? Aig_NotCond(((vector<Aig_Obj_t* >*)(Aig_ObjFanin0(pObj)->pData))->at(j), Aig_ObjFaninC0(pObj)) : NULL;
+		Aig_Obj_t *r = Aig_ObjFanin1(pObj)? Aig_NotCond(((vector<Aig_Obj_t* >*)(Aig_ObjFanin1(pObj)->pData))->at(j), Aig_ObjFaninC1(pObj)) : NULL;
+		tempData->push_back(Aig_And(p, l, r));
+	}
+	pObj->pData = tempData;
+	assert(!Aig_ObjIsMarkA(pObj)); // loop detection
+	Aig_ObjSetMarkA(pObj);
+}
+
+vector<Aig_Obj_t* > Aig_ComposeVecVec(Aig_Man_t* p, Aig_Obj_t* pRoot,
+	vector<vector<Aig_Obj_t*> >& pFuncVecs) {
+	Aig_ComposeVecVec_rec(p, Aig_Regular(pRoot), pFuncVecs);
+	// clear the markings
+	vector<Aig_Obj_t* >* pRootpData = (vector<Aig_Obj_t* > *)(Aig_Regular(pRoot)->pData);
+	int pRootIsComp = Aig_IsComplement(pRoot);
+	vector<Aig_Obj_t* > result;
+	for(int i = 0; i < pRootpData->size(); i++) {
+		result.push_back(Aig_NotCond(pRootpData->at(i), pRootIsComp));
+	}
+	Aig_VecVecConeUnmark_rec(Aig_Regular(pRoot));
+	return result;
+}
+
+static void Sat_SolverClauseWriteDimacs( FILE * pFile, clause * pC) {
+	int i;
+	for ( i = 0; i < (int)pC->size; i++ )
+		fprintf( pFile, "%s%d ", (lit_sign(pC->lits[i])? "-": ""),  lit_var(pC->lits[i]));
+	fprintf( pFile, "0\n" );
+}
+
+void Sat_SolverWriteDimacsAndIS(sat_solver * p, char * pFileName,
+	lit* assumpBegin, lit* assumpEnd, vector<int>&IS, vector<int>&retSet) {
+	Sat_Mem_t * pMem = &p->Mem;
+	FILE * pFile;
+	clause * c;
+	int i, k, nUnits;
+
+	// count the number of unit clauses
+	nUnits = 0;
+	for ( i = 0; i < p->size; i++ )
+		if ( p->levels[i] == 0 && p->assigns[i] != 3 )
+			nUnits++;
+
+	// start the file
+	pFile = pFileName ? fopen( pFileName, "wb" ) : stdout;
+	if ( pFile == NULL )
+	{
+		printf( "Sat_SolverWriteDimacs(): Cannot open the ouput file.\n" );
+		return;
+	}
+
+	fprintf( pFile, "p cnf %d %d\n", p->size, Sat_MemEntryNum(&p->Mem, 0)-1+Sat_MemEntryNum(&p->Mem, 1)+nUnits+(int)(assumpEnd-assumpBegin) );
+
+	// TODO: Print Independent Support
+	i=0;
+	fprintf( pFile, "c ind ");
+	for(auto it:IS) {
+		if(i == 10) {
+			fprintf( pFile, "0\nc ind ");
+			i = 0;
+		}
+		fprintf( pFile, "%d ", it);
+		i++;
+	}
+	fprintf( pFile, "0\n");
+
+	// TODO: Print Return Set
+	i=0;
+	fprintf( pFile, "c ret ");
+	for(auto it:retSet) {
+		if(i == 10) {
+			fprintf( pFile, "0\nc ret ");
+			i = 0;
+		}
+		fprintf( pFile, "%d ", it);
+		i++;
+	}
+	fprintf( pFile, "0\n");
+
+	// write the original clauses
+	Sat_MemForEachClause(pMem, c, i, k)
+		Sat_SolverClauseWriteDimacs(pFile, c);
+
+	// write the learned clauses
+	Sat_MemForEachLearned(pMem, c, i, k)
+		Sat_SolverClauseWriteDimacs(pFile, c);
+
+	// write zero-level assertions
+	for (i = 0; i < p->size; i++)
+		if (p->levels[i] == 0 && p->assigns[i] != 3) // varX
+			fprintf(pFile, "%s%d 0\n",
+					(p->assigns[i] == 1)? "-": "",    // var0
+					 i);
+
+	// write the assump
+	if (assumpBegin) {
+		for (;assumpBegin != assumpEnd; assumpBegin++) {
+			fprintf( pFile, "%s%d 0\n",
+					 lit_sign(*assumpBegin)? "-": "",
+					 lit_var(*assumpBegin));
+		}
+	}
+
+	fprintf(pFile, "\n");
+	if (pFileName) fclose(pFile);
+}
+
+/**Function
+ * returns 0  when unsat
+ * returns -1 when sat but number of solutions is too small
+ * returns  1 when sat and models succesfully populated UNIGEN_MODEL_FPATH
+ */
+int unigen_call(string fname, int nSamples, int nThreads) {
+	numUnigenCalls++;
+	assert(fname.find(' ') == string::npos);
+	system("rm -rf " UNIGEN_OUT_DIR "/");
+	string cmd = "python2 " UNIGEN_PY " -runIndex=0 -threads="+to_string(nThreads)+" -samples="+to_string(nSamples)+" "+fname+" " UNIGEN_OUT_DIR " > " UNIGEN_OUTPT_FPATH+to_string(numUnigenCalls) ;
+	cout << "\nCalling unigen: " << cmd << endl;
+	system(cmd.c_str());
+
+	// Check for SAT
+	ifstream infile(UNIGEN_OUTPT_FPATH + to_string(numUnigenCalls));
+	if(!infile.is_open()){
+		cout << "Failed to open file : " UNIGEN_OUTPT_FPATH <<endl;
+		assert(false);
+	}
+	string line;
+	while(getline(infile, line)) {
+		if(line.find("enumerate")!=string::npos)
+			return -1;
+		else if(line.find("nsatisfiable")!=string::npos)
+			return 0;
+	}
+	return 1;
+}
+
+bool unigen_fetchModels(Aig_Man_t* SAig, vector<vector<int> > &r0,
+	vector<vector<int> > &r1, map<int, int>& varNum2ID, map<int, int>& varNum2R0R1) {
+
+	ifstream infile(UNIGEN_MODEL_FPATH);
+	if(!infile.is_open()) {
+		cout << "File : " UNIGEN_MODEL_FPATH " not found" << endl;
+		assert(false);
+		return false;
+	}
+
+	bool flag = false;
+	string line;
+	vector<unordered_map<int, int> > models;
+	while(getline(infile, line)) {
+		if(line == " " || line == "")
+			continue;
+		int startPoint = (line[0] == ' ') ? 2 : 1;
+		line = line.substr(startPoint, line.size() - 4 - startPoint);
+		istringstream iss(line);
+
+		vector<int> cex(2*numOrigInputs,-1);
+		vector<int> r0Andr1Vars(numY);
+		for(int it; iss >> it; ) {
+			int modelVal = it;
+			auto itID = varNum2ID.find(abs(modelVal));
+			if(itID != varNum2ID.end()) {
+				cex[itID->second] = (modelVal > 0) ? 1 : 0;
+			}
+			else {
+				auto itR0R1 = varNum2R0R1.find(abs(modelVal));
+				assert(itR0R1 != varNum2R0R1.end());
+				r0Andr1Vars[itR0R1->second] = (modelVal > 0) ? 1 : 0;
+			}
+		}
+		// Sanity Check
+		for(int i = 0; i<numX; i++)
+			assert(cex[numOrigInputs+i]==-1);
+
+		// find k1
+		int k1 = numY-1;
+		while(r0Andr1Vars[k1] == 0) {k1--;}
+		assert(k1 >= 0);
+
+		storedCEX.push_back(cex);
+		storedCEX_k1.push_back(k1);
+		storedCEX_k2.push_back(-1);
+		flag = true;
+	}
+	cout << "storedCEX.size() = " << storedCEX.size() << endl;
+
+	return flag;
+}
+
+vector<lit> setAllNegX(Cnf_Dat_t* SCnf, Aig_Man_t* SAig, int val) {
+	vector<lit> res(numX);
+	for (int i = 0; i < numX; ++i) {
+		res[i] = toLitCond(SCnf->pVarNums[numOrigInputs + varsXS[i]], (int) val==0);
+	}
+	return res;
+}
+
+int filterAndPopulateK1Vec(Aig_Man_t* SAig, vector<vector<int> >&r0, vector<vector<int> >&r1, int prevM) {
+	int k = -1;
+	int max = -1;
+	Aig_Obj_t *mu0, *mu1;
+	vector<bool> spurious(storedCEX.size(),1);
+	int index = 0;
+
+	// cout << "POPULATING K1 VECTOR" << endl;
+	assert(storedCEX_k1.size() == storedCEX.size());
+
+	int maxChange = (prevM==-1)? (numY-1) : (prevM+1);
+
+	for(auto& cex:storedCEX) {
+		assert(cex.size() == 2*numOrigInputs);
+		if((prevM != -1 and storedCEX_k2[index] == prevM) ||
+			(prevM == -1 and storedCEX_k1[index] == -1)) {
+			for (int i = maxChange; i >= 0; --i) {
+				evaluateAig(SAig,cex);
+				vector<int>& r_ = useR1AsSkolem[i]?r1[i]:r0[i];
+				bool r_i = false;
+				for(auto r_El: r_) {
+					if(Aig_ManCo(SAig, r_El)->iData == 1) {
+						r_i = true;
+						break;
+					}
+				}
+				cex[numX + i] = (int) (useR1AsSkolem[i] ^ r_i);
+			}
+			evaluateAig(SAig, cex);
+			spurious[index] = (bool)(Aig_ManCo(SAig, 1)->iData != 1);
+
+			if(spurious[index]) {
+				int k_max = (storedCEX_k2[index]==-1)?numY-1:storedCEX_k2[index];
+				for(k = k_max; k >= 0; k--) {
+					if(((mu0 = satisfiesVec(SAig, cex, r0[k], false)) != NULL) &&
+						((mu1 = satisfiesVec(SAig, cex, r1[k], false)) != NULL))
+						break;
+				}
+				storedCEX_k1[index] = k;
+			}
+		}
+
+		if(spurious[index])
+			max = (storedCEX_k1[index] > max) ? storedCEX_k1[index] : max;
+
+		index++;
+	}
+
+	int j = 0;
+	for(int i = 0; i < storedCEX.size(); i++) {
+		if(spurious[i]) {
+			storedCEX[j] = storedCEX[i];
+			storedCEX_k1[j] = storedCEX_k1[i];
+			storedCEX_k2[j] = storedCEX_k2[i];
+			j++;
+		}
+	}
+	storedCEX.resize(j);
+	storedCEX_k1.resize(j,-1);
+	storedCEX_k2.resize(j,-1);
+	assert(max>=0 || j==0);
+	return max;
+}
+
+int filterAndPopulateK1VecFast(Aig_Man_t* SAig, vector<vector<int> >&r0, vector<vector<int> >&r1, int prevM) {
+	int k1;
+	int max = -1;
+	Aig_Obj_t *mu0, *mu1;
+	vector<bool> spurious(storedCEX.size(),1);
+	int index = 0;
+
+	// cout << "POPULATING K1 VECTOR" << endl;
+	assert(storedCEX_k1.size() == storedCEX.size());
+
+	int maxChange = (prevM==-1)? (numY-1) : (prevM+1);
+
+	for(auto& cex:storedCEX) {
+		assert(cex.size() == 2*numOrigInputs);
+
+		if((prevM != -1 and storedCEX_k2[index] == prevM) ||
+			(prevM == -1 and storedCEX_k1[index] == -1)) {
+
+			// New algo
+			evaluateXYLeaves(SAig,cex);
+			// Re-evaluating some Ys
+			for (int i = maxChange; i >= 0; --i) {
+				vector<int>& r_ = useR1AsSkolem[i]?r1[i]:r0[i];
+				bool r_i = false;
+				for(auto r_El: r_) {
+					if(evaluateAigAtNode(SAig,Aig_ManCo(SAig, r_El))) {
+						r_i = true;
+						break;
+					}
+				}
+				cex[numX + i] = (int) (useR1AsSkolem[i] ^ r_i);
+				Aig_ManObj(SAig, varsYS[i])->iData = cex[numX + i];
+			}
+			spurious[index] = !evaluateAigAtNode(SAig,Aig_ManCo(SAig, 1));
+
+			if(spurious[index]) {
+				int k1_maxLim = (storedCEX_k2[index]==-1)?numY-1:storedCEX_k2[index];
+				for(k1 = k1_maxLim; k1 >= 0; k1--) {
+					// Check if r1[k1] is true
+					bool r1i = false;
+					for(auto r1El: r1[k1]) {
+						if(evaluateAigAtNode(SAig,Aig_ManCo(SAig, r1El))) {
+							r1i = true; break;
+						}
+					}
+					// Check if r0[k1] is true
+					bool r0i = false;
+					for(auto r0El: r0[k1]) {
+						if(evaluateAigAtNode(SAig,Aig_ManCo(SAig, r0El))) {
+							r0i = true; break;
+						}
+					}
+					if(r0i and r1i) break;
+				}
+				storedCEX_k1[index] = k1;
+			}
+			Aig_ManIncrementTravId(SAig);
+		}
+
+		if(spurious[index])
+			max = (storedCEX_k1[index] > max) ? storedCEX_k1[index] : max;
+		
+		index++;
+	}
+
+	int j = 0;
+	for(int i = 0; i < storedCEX.size(); i++) {
+		if(spurious[i]) {
+			storedCEX[j] = storedCEX[i];
+			storedCEX_k1[j] = storedCEX_k1[i];
+			storedCEX_k2[j] = storedCEX_k2[i];
+			j++;
+		}
+	}
+	storedCEX.resize(j);
+	storedCEX_k1.resize(j,-1);
+	storedCEX_k2.resize(j,-1);
+	assert(max>=0 || j==0);
+	return max;
+}
+
+int populateK2Vec(Aig_Man_t* SAig, vector<vector<int> >&r0, vector<vector<int> >&r1, int prevM) {
+	int k1;
+	int k2;
+	int k2_prev;
+	int i = 0;
+	int max = -1;
+
+	// cout << "POPULATING K2 VECTOR" << endl;
+	assert(storedCEX_k2.size() == storedCEX.size());
+	for(auto cex:storedCEX) {
+		k2 = storedCEX_k2[i];
+		if(k2 == -1 or k2 == prevM) { // Change only if k2 == prevM
+			int clock1 = clock();
+			k2_prev = k2;
+			k1 = storedCEX_k1[i];
+			// cout << "Finding k2..." << endl;
+			// cout << "Search range from " << k1 << " to " << numY - 1 << endl;
+			k2 = findK2Max(SAig, m_pSat, m_FCnf, cex, r0, r1, k1, prevM);
+			clock1 = clock() - clock1;
+			// printf ("Found k2 = %d, took (%f seconds)\n",k2,((float)clock1)/CLOCKS_PER_SEC);
+			storedCEX_k2[i] = k2;
+			assert(k2>=k1);
+			k2Trend[(k2_prev==-1)?numY:k2_prev][k2]++;
+		}
+		max = (k2 > max) ? k2 : max;
+		i++;
+	}
+
+	return max;
+}
+
+int findK2Max(Aig_Man_t* SAig, sat_solver* m_pSat, Cnf_Dat_t* m_FCnf, vector<int>&cex,
+	vector<vector<int> >&r0, vector<vector<int> >&r1, int k1, int prevM) {
+
+	Aig_Obj_t *mu0, *mu1, *mu, *pAigObj;
+	int return_val;
+
+	lit assump[numOrigInputs + 1];
+	assump[0] = m_f;
+
+	// push X values
+	for (int i = 0; i < numX; ++i) {
+		assump[i + 1] = toLitCond(m_FCnf->pVarNums[varsXS[i]], (int)cex[i]==0);
+	}
+
+	int k_end = (prevM==-1)?numY-1:prevM;
+	return_val = findK2Max_rec(m_pSat, m_FCnf, cex, k1 + 1, k_end, assump);
+
+	return return_val;
+}
+
+// INV: k_end => SAT; k_start-1=> UNSAT
+int findK2Max_rec(sat_solver* pSat, Cnf_Dat_t* SCnf, vector<int>&cex,
+		int k_start, int k_end, lit assump[]) {
+	// printf("findK2Max_rec(%d,%d)\n", k_start, k_end);
+	assert(k_start <= k_end);
+	if(k_start == k_end)
+		return k_start - 1;
+	if(k_start + 1 == k_end)
+		if(checkIsFUnsat(pSat, SCnf, cex, k_start, assump))
+			return k_start;
+		else
+			return k_start - 1;
+
+	int k_mid = (k_start + k_end)/2;
+	if(checkIsFUnsat(pSat,SCnf,cex, k_mid, assump)) { // going right
+		return findK2Max_rec(pSat, SCnf, cex, k_mid + 1, k_end, assump);
+	} else {
+		return findK2Max_rec(pSat, SCnf, cex, k_start, k_mid, assump);
+	}
+}
+
+bool checkIsFUnsat(sat_solver* pSat, Cnf_Dat_t* SCnf, vector<int>&cex,
+		int k, lit assump[]) {
+	// cout << "SAT call, check for k2 = " << k << endl;
+	// printf("checkIsFUnsat(%d)\n",k);
+	assert(k < numY);
+	if(k == numY - 1)
+		return false;
+	if(k == 0)
+		return true;
+	// sat_solver_bookmark(pSat);
+
+	// Push counterexamples from k+1 till numY-1 (excluded)
+	for (int i = numY - 1; i > k; --i) {
+		assump[numOrigInputs - i] = toLitCond(SCnf->pVarNums[varsYS[i]],(int)cex[numX + i]==0);
+	}
+
+	if(!sat_solver_simplify(pSat)) {
+		// cout << "Trivially unsat" << endl;
+		return true;
+	}
+
+	int clock1 = clock();
+	int status = sat_solver_solve(pSat, assump, assump + (numOrigInputs - k),
+					(ABC_INT64_T)0, (ABC_INT64_T)0,
+					(ABC_INT64_T)0, (ABC_INT64_T)0);
+	clock1 = clock() - clock1;
+	// printf ("Time SAT call (%f s) ",((float)clock1)/CLOCKS_PER_SEC);
+
+	if (status == l_False) {
+		// cout << "returned unsat" << endl;
+		return true;
+	}
+	else {
+		assert(status == l_True);
+		// cout << "returned sat" << endl;
+		return false;
+	}
+}
+
+void initializeAddR1R0toR() {
+	addR1R0toR0 = vector<bool>(numY,true);
+	addR1R0toR1 = vector<bool>(numY,true);
+}
+
+void propagateR1Cofactors(Aig_Man_t* pMan, vector<vector<int> >& r0, vector<vector<int> >& r1) {
+	cout << "propagateR1Cofactors" << endl;
+	Aig_Obj_t *mu0, *mu1, *mu;
+
+	for(int i = 0; i<numY-1; i++) {
+		mu0 = newOR(pMan, r0[i]);
+		mu1 = newOR(pMan, r1[i]);
+		mu = Aig_AndAigs(pMan, mu0, mu1);
+
+		mu1 = Aig_SubstituteConst(pMan, mu, varsYS[i+1], 1);
+		Aig_ObjCreateCo(pMan, mu1);
+		r1[i+1].push_back(Aig_ManCoNum(pMan) - 1);
+
+		addR1R0toR1[i] = false;
+	}
+}
+
+void propagateR0Cofactors(Aig_Man_t* pMan, vector<vector<int> >& r0, vector<vector<int> >& r1) {
+	cout << "propagateR0Cofactors" << endl;
+	Aig_Obj_t *mu0, *mu1, *mu;
+
+	for(int i = 0; i<numY-1; i++) {
+		mu0 = newOR(pMan, r0[i]);
+		mu1 = newOR(pMan, r1[i]);
+		mu = Aig_AndAigs(pMan, mu0, mu1);
+
+		mu0 = Aig_SubstituteConst(pMan, mu, varsYS[i+1], 0);
+		Aig_ObjCreateCo(pMan, mu0);
+		r0[i+1].push_back(Aig_ManCoNum(pMan) - 1);
+
+		addR1R0toR0[i] = false;
+	}
+}
+
+void propagateR_Cofactors(Aig_Man_t* pMan, vector<vector<int> >& r0, vector<vector<int> >& r1) {
+	cout << "propagateR_Cofactors" << endl;
+	Aig_Obj_t *mu0, *mu1, *mu;
+
+	for(int i = 0; i<numY-1; i++) {
+		mu0 = newOR(pMan, r0[i]);
+		mu1 = newOR(pMan, r1[i]);
+		mu = Aig_AndAigs(pMan, mu0, mu1);
+
+		if(useR1AsSkolem[i+1]) {
+			mu1 = Aig_SubstituteConst(pMan, mu, varsYS[i+1], 1);
+			Aig_ObjCreateCo(pMan, mu1);
+			r1[i+1].push_back(Aig_ManCoNum(pMan) - 1);
+			addR1R0toR1[i] = false;
+		}
+		else {
+			mu0 = Aig_SubstituteConst(pMan, mu, varsYS[i+1], 0);
+			Aig_ObjCreateCo(pMan, mu0);
+			r0[i+1].push_back(Aig_ManCoNum(pMan) - 1);
+			addR1R0toR0[i] = false;
+		}
+	}
+}
+
+void propagateR0R1Cofactors(Aig_Man_t* pMan, vector<vector<int> >& r0, vector<vector<int> >& r1) {
+	cout << "propagateR0R1Cofactors" << endl;
+	Aig_Obj_t *mu0, *mu1, *mu;
+	vector<int> r0Addn(numY);
+	vector<int> r1Addn(numY);
+	for(int i = 0; i<numY-1; i++) {
+		mu0 = newOR(pMan, r0[i]);
+		mu1 = newOR(pMan, r1[i]);
+		mu = Aig_AndAigs(pMan, mu0, mu1);
+
+		mu1 = Aig_SubstituteConst(pMan, mu, varsYS[i+1], 1);
+		Aig_ObjCreateCo(pMan, mu1);
+		r1Addn[i+1] = Aig_ManCoNum(pMan) - 1;
+		addR1R0toR1[i] = false;
+
+		mu0 = Aig_SubstituteConst(pMan, mu, varsYS[i+1], 0);
+		Aig_ObjCreateCo(pMan, mu0);
+		r0Addn[i+1] = Aig_ManCoNum(pMan) - 1;
+		addR1R0toR0[i] = false;
+	}
+	for(int i = 1; i<numY; i++) {
+		r1[i].push_back(r1Addn[i]);
+		r0[i].push_back(r0Addn[i]);
+	}
+}
+
+void chooseSmallerR_(Aig_Man_t* pMan, vector<vector<int> >& r0, vector<vector<int> >& r1) {
+	clock_t start = clock();
+
+	cout << "Skolem Choices: " << endl;
+	for (int i = 0; i < numY; ++i) {
+		int sizeR1 = Aig_DagSize(newOR(pMan, r1[i]));
+		int sizeR0 = Aig_DagSize(newOR(pMan, r0[i]));
+		useR1AsSkolem[i] = sizeR1 < sizeR0;
+		cout << useR1AsSkolem[i] << " ";
+	}
+	cout << endl;
+
+	clock_t end = clock();
+	cout << "Time taken = " << double( end-start)/CLOCKS_PER_SEC << endl;
+}
+
+void chooseR_(Aig_Man_t* pMan, vector<vector<int> >& r0, vector<vector<int> >& r1) {
+	if(options.skolemType == sType::skolemR0) {
+		cout << "Choosing r0 as Skolem" << endl;
+		useR1AsSkolem = vector<bool>(numY,false);
+	}
+	else if(options.skolemType == sType::skolemR1) {
+		cout << "Choosing ~r1 as Skolem" << endl;
+		useR1AsSkolem = vector<bool>(numY,true);
+	}
+	else {
+		cout << "Choosing smaller of r0/r1 as Skolem" << endl;
+		chooseSmallerR_(pMan, r0, r1);
+	}
+}
+
+void printK2Trend() {
+	int totalSum = 0;
+	cout << "k2Trend:" << endl;
+	cout << "\t";
+	for (int j = numY-1; j >= 0; --j) {
+		cout << "Y" << j << "\t";
+	}
+	cout << "Sum" << endl;
+	for (int i = numY; i >= 0; --i) {
+		int rowSum = 0;
+		if(i == numY)
+			cout << "Init" << "\t";
+		else
+			cout << "Y" << i << "\t";
+		for (int j = numY-1; j >= 0; --j) {
+			cout << k2Trend[i][j] << "\t";
+			rowSum += k2Trend[i][j];
+		}
+		cout << rowSum << endl;
+		totalSum += rowSum;
+	}
+	cout << "Sum\t";
+	for (int i = numY-1; i >= 0; --i) {
+		int colSum = 0;
+		for (int j = numY; j >= 0; --j) {
+			colSum += k2Trend[j][i];
+		}
+		cout << colSum << "\t";
+	}
+	cout << totalSum << endl << endl;
 }
