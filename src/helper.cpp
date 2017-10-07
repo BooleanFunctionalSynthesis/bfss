@@ -1111,6 +1111,14 @@ Aig_Obj_t* projectPi(Aig_Man_t* pMan, const vector<int> &cex, const int m) {
 	return newAND(pMan, pi_m);
 }
 
+Aig_Obj_t* projectPiSmall(Aig_Man_t* pMan, const vector<int> &cex) {
+	vector<Aig_Obj_t*> pi_m(numX);
+	for(int i = 0; i < numX; i++) {
+		pi_m[i] = (cex[i] == 1)?Aig_ManObj(pMan, varsXS[i]):Aig_Not(Aig_ManObj(pMan, varsXS[i]));
+	}
+	return newAND(pMan, pi_m);
+}
+
 /** Function
  * This updates r0 and r1 while eliminating cex
  * @param pMan      [in]        Aig Manager
@@ -1140,7 +1148,7 @@ void updateAbsRef(Aig_Man_t* pMan, vector<vector<int> > &r0, vector<vector<int> 
 				if(!fixR1)
 					pi1_m = projectPi(pMan, storedCEX[i], m);
 				else
-					pi1_m = Aig_OrAigs(pMan, pi1_m, projectPi(pMan, storedCEX[i], m));
+					pi1_m = Aig_OrAigs(pMan, pi1_m, projectPiSmall(pMan, storedCEX[i]));
 				fixR1 = true;
 				numFixes++;
 				cout << "Adding " << i << " to pi1_m" << endl;
@@ -1149,7 +1157,7 @@ void updateAbsRef(Aig_Man_t* pMan, vector<vector<int> > &r0, vector<vector<int> 
 				if(!fixR0)
 					pi0_m = projectPi(pMan, storedCEX[i], m);
 				else
-					pi0_m = Aig_OrAigs(pMan, pi0_m, projectPi(pMan, storedCEX[i], m));
+					pi0_m = Aig_OrAigs(pMan, pi0_m, projectPiSmall(pMan, storedCEX[i]));
 				fixR0 = true;
 				numFixes++;
 				cout << "Adding " << i << " to pi0_m" << endl;
