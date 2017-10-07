@@ -67,6 +67,26 @@ void parseOptions(int argc, char * argv[]) {
 		cout << optParser.help({"", "Group"}) << std::endl;
 		exit(0);
 	}
+	else if(options.numSamples <= 0) {
+		cerr << endl << "Error: Sample count must be positive" << endl << endl;
+		cout << optParser.help({"", "Group"}) << std::endl;
+		exit(0);
+	}
+
+
+	if (!optParser.count("threads")) {
+		options.numThreads = UNIGEN_THREADS_DEF;
+	}
+	else if(options.useABCSolver) {
+		cerr << endl << "Error: Number of threads and ABC's solver are exclusive" << endl << endl;
+		cout << optParser.help({"", "Group"}) << std::endl;
+		exit(0);
+	}
+	else if(options.numThreads <= 0) {
+		cerr << endl << "Error: Number of threads must be positive" << endl << endl;
+		cout << optParser.help({"", "Group"}) << std::endl;
+		exit(0);
+	}
 
 	if(skolemType == "r0")
 		options.skolemType = sType::skolemR0;
