@@ -91,7 +91,7 @@ void parseOptions(int argc, char * argv[]) {
 	if(skolemType == "r0")
 		options.skolemType = sType::skolemR0;
 	else if(skolemType == "r1")
-		options.skolemType = sType::skolemR0;
+		options.skolemType = sType::skolemR1;
 	else if(skolemType == "rx")
 		options.skolemType = sType::skolemRx;
 	else {
