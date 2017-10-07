@@ -29,6 +29,7 @@ void parseOptions(int argc, char * argv[]) {
 		("v, varsOrder", "Specify the variable ordering", cxxopts::value<string>(options.varsOrder), "FILE")
 		("skolem", "Specify skolem function to be used (r0/r1/rx)", cxxopts::value<string>(skolemType)->default_value("rx"))
 		("a, ABC", "Use ABC's solver for SAT calls", cxxopts::value<bool>(options.useABCSolver))
+		("e, evalAigAtNode", "Efficiently evaluate AIG on a need-only basis", cxxopts::value<bool>(options.evalAigAtNode))
 		("l, lazy", "Don't propagate r0/r1 proactively", cxxopts::value<bool>(lazy))
 		("h, help", "Print this help")
 		("s, samples", "Number of unigen samples requested per call (default: " STR(UNIGEN_SAMPLES_DEF) ")", cxxopts::value<int>(options.numSamples), "N")
@@ -83,6 +84,7 @@ void parseOptions(int argc, char * argv[]) {
 	cout << "{" << endl;
 	cout << "\t proactiveProp: " << options.proactiveProp << endl;
 	cout << "\t useABCSolver:  " << options.useABCSolver << endl;
+	cout << "\t evalAigAtNode: " << options.evalAigAtNode << endl;
 	cout << "\t benchmark:     " << options.benchmark << endl;
 	cout << "\t varsOrder:     " << options.varsOrder << endl;
 	cout << "\t skolemType:    " << options.skolemType << endl;
@@ -772,7 +774,9 @@ bool getNextCEX(Aig_Man_t*&SAig, int& M, vector<vector<int> > &r0, vector<vector
 
 	while(true) {
 		while(!storedCEX.empty()) {
-			int k1Max = filterAndPopulateK1Vec(SAig, r0, r1, M);
+			int k1Max = options.evalAigAtNode? 
+							filterAndPopulateK1VecFast(SAig, r0, r1, M) : 
+							filterAndPopulateK1Vec(SAig, r0, r1, M);
 			if(storedCEX.empty())
 				break;
 			int k2Max = populateK2Vec(SAig, r0, r1, M);
@@ -982,6 +986,61 @@ void evaluateAig(Aig_Man_t* formula, const vector<int> &cex) {
 		}
 	}
 	return;
+}
+
+/** Function
+ * This evaluates all leaves of the Aig using values from cex
+ * The value of the node is stored in pObj->iData
+ * @param formula   [in]        Aig Manager
+ * @param cex       [in]        counter-example
+ */
+void evaluateXYLeaves(Aig_Man_t* formula, const vector<int> &cex) {
+	for (int i = 0; i < numX; ++i) {
+		Aig_ManObj(formula, varsXS[i])->iData = cex[i];
+		Aig_ObjSetTravIdCurrent(formula, Aig_ManObj(formula, varsXS[i]));
+	}
+	for (int i = 0; i < numY; ++i) {
+		Aig_ManObj(formula, varsYS[i])->iData = cex[numX + i];
+		Aig_ObjSetTravIdCurrent(formula, Aig_ManObj(formula, varsYS[i]));
+	}
+
+	// Setting Const1
+	Aig_ManObj(formula,0)->iData = 1;
+	Aig_ObjSetTravIdCurrent(formula, Aig_ManObj(formula,0));
+}
+
+/** Function
+ * This evaluates and returns head using values from leaves
+ * The value of the leaves is stored in pObj->iData
+ * @param formula   [in]        Aig Manager
+ * @param head      [in]        node to be evaluated
+ */
+bool evaluateAigAtNode(Aig_Man_t* formula, Aig_Obj_t*head) {
+
+	int isComplement = Aig_IsComplement(head);
+	head = Aig_Regular(head);
+
+	if(Aig_ObjIsTravIdCurrent(formula, head)) {
+		assert(head->iData == 0 or head->iData == 1);
+		return (bool) isComplement xor head->iData;
+	}
+
+	if(Aig_ObjIsCo(head)) {
+		Aig_ObjSetTravIdCurrent(formula,head);
+		head->iData = (int) evaluateAigAtNode(formula, Aig_ObjChild0(head));
+		return (bool) isComplement xor head->iData;
+	}
+
+	bool lc, rc;
+	lc = evaluateAigAtNode(formula, Aig_ObjChild0(head));
+	if(lc)
+		rc = evaluateAigAtNode(formula, Aig_ObjChild1(head));
+	else
+		rc = true;
+
+	head->iData = (int) (lc and rc);
+	Aig_ObjSetTravIdCurrent(formula,head);
+		return (bool) isComplement xor head->iData;
 }
 
 /** Function
@@ -1236,6 +1295,12 @@ Aig_Man_t* compressAig(Aig_Man_t* SAig) {
 Aig_Man_t* compressAigByNtk(Aig_Man_t* SAig) {
 	Aig_Man_t* temp;
 	string command;
+
+	// TODO: FIX
+	if(options.evalAigAtNode) {
+		cout << "WARNING: Not using Ntk for compression" << endl;
+		return compressAig(SAig);
+	}
 
 	OUT("Cleaning up...");
 	int removed = Aig_ManCleanup(SAig);
@@ -1857,6 +1922,87 @@ int filterAndPopulateK1Vec(Aig_Man_t* SAig, vector<vector<int> >&r0, vector<vect
 	return max;
 }
 
+int filterAndPopulateK1VecFast(Aig_Man_t* SAig, vector<vector<int> >&r0, vector<vector<int> >&r1, int prevM) {
+	int k1;
+	int max = -1;
+	Aig_Obj_t *mu0, *mu1;
+	vector<bool> spurious(storedCEX.size(),1);
+	int index = 0;
+
+	// cout << "POPULATING K1 VECTOR" << endl;
+	assert(storedCEX_k1.size() == storedCEX.size());
+
+	int maxChange = (prevM==-1)? (numY-1) : (prevM+1);
+
+	for(auto& cex:storedCEX) {
+		assert(cex.size() == 2*numOrigInputs);
+
+		if((prevM != -1 and storedCEX_k2[index] == prevM) ||
+			(prevM == -1 and storedCEX_k1[index] == -1)) {
+
+			// New algo
+			evaluateXYLeaves(SAig,cex);
+			// Re-evaluating some Ys
+			for (int i = maxChange; i >= 0; --i) {
+				vector<int>& r_ = useR1AsSkolem[i]?r1[i]:r0[i];
+				bool r_i = false;
+				for(auto r_El: r_) {
+					if(evaluateAigAtNode(SAig,Aig_ManCo(SAig, r_El))) {
+						r_i = true;
+						break;
+					}
+				}
+				cex[numX + i] = (int) (useR1AsSkolem[i] ^ r_i);
+				Aig_ManObj(SAig, varsYS[i])->iData = cex[numX + i];
+			}
+			spurious[index] = !evaluateAigAtNode(SAig,Aig_ManCo(SAig, 1));
+
+			if(spurious[index]) {
+				int k1_maxLim = (storedCEX_k2[index]==-1)?numY-1:storedCEX_k2[index];
+				for(k1 = k1_maxLim; k1 >= 0; k1--) {
+					// Check if r1[k1] is true
+					bool r1i = false;
+					for(auto r1El: r1[k1]) {
+						if(evaluateAigAtNode(SAig,Aig_ManCo(SAig, r1El))) {
+							r1i = true; break;
+						}
+					}
+					// Check if r0[k1] is true
+					bool r0i = false;
+					for(auto r0El: r0[k1]) {
+						if(evaluateAigAtNode(SAig,Aig_ManCo(SAig, r0El))) {
+							r0i = true; break;
+						}
+					}
+					if(r0i and r1i) break;
+				}
+				storedCEX_k1[index] = k1;
+			}
+			Aig_ManIncrementTravId(SAig);
+		}
+
+		if(spurious[index])
+			max = (storedCEX_k1[index] > max) ? storedCEX_k1[index] : max;
+		
+		index++;
+	}
+
+	int j = 0;
+	for(int i = 0; i < storedCEX.size(); i++) {
+		if(spurious[i]) {
+			storedCEX[j] = storedCEX[i];
+			storedCEX_k1[j] = storedCEX_k1[i];
+			storedCEX_k2[j] = storedCEX_k2[i];
+			j++;
+		}
+	}
+	storedCEX.resize(j);
+	storedCEX_k1.resize(j,-1);
+	storedCEX_k2.resize(j,-1);
+	assert(max>=0 || j==0);
+	return max;
+}
+
 int populateK2Vec(Aig_Man_t* SAig, vector<vector<int> >&r0, vector<vector<int> >&r1, int prevM) {
 	int k1;
 	int k2;
@@ -1878,6 +2024,7 @@ int populateK2Vec(Aig_Man_t* SAig, vector<vector<int> >&r0, vector<vector<int> >
 			clock1 = clock() - clock1;
 			// printf ("Found k2 = %d, took (%f seconds)\n",k2,((float)clock1)/CLOCKS_PER_SEC);
 			storedCEX_k2[i] = k2;
+			assert(k2>=k1);
 			k2Trend[(k2_prev==-1)?numY:k2_prev][k2]++;
 		}
 		max = (k2 > max) ? k2 : max;
