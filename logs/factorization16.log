@@ -1,0 +1,231 @@
+shubham [~/Github/bfss] time ./bin/bfss benchmarks/factorization16.v -s 2200
+Configuration: 
+{
+	 proactiveProp: 1
+	 useABCSolver:  0
+	 evalAigAtNode: 0
+	 benchmark:     benchmarks/factorization16.v
+	 varsOrder:     benchmarks/factorization16_varstoelim.txt
+	 skolemType:    2
+	 numSamples:    2200
+	 numThreads:    0
+}
+numX 16
+numY 16
+numOrigInputs 32
+initializeCompose(SAig, Fs, r0, r1)...
+Mega compose time: 0.004698
+Created SAig...
+
+propagateR0R1Cofactors
+Choosing smaller of r0/r1 as Skolem
+Skolem Choices: 
+0 0 0 0 1 0 1 1 0 0 1 1 0 0 0 1 
+Time taken = 0.000276
+
+checkSupportSanity(SAig, r0, r1)...
+Aig New         : pi =    64  po =    65  and =    9159  lev =  56
+Compressing SAig...
+Removed 178 nodes
+(null)          : pi =    64  po =    65  and =    5373  lev =  64
+Starting CEGAR Loop...
+
+Calling unigen: python2 UniGen2.py -runIndex=0 -threads=0 -samples=2200 errorFormula.cnf out > unigen_output.txt1
+exec: No such file or directory
+storedCEX.size() = 2041
+k1Max: 7	k2Max: 14
+k1Max: 7	k2Max: 13
+k1Max: 7	k2Max: 11
+k1Max: 7	k2Max: 10
+k1Max: 7	k2Max: 9
+k1Max: 7	k2Max: 8
+k1Max: 7	k2Max: 7
+k1Max: 4	k2Max: 6
+k1Max: 4	k2Max: 5
+k1Max: 3	k2Max: 4
+k1Max: 3	k2Max: 3
+
+Calling unigen: python2 UniGen2.py -runIndex=0 -threads=0 -samples=2200 errorFormula.cnf out > unigen_output.txt2
+exec: No such file or directory
+storedCEX.size() = 2043
+k1Max: 7	k2Max: 14
+k1Max: 7	k2Max: 13
+k1Max: 7	k2Max: 11
+k1Max: 7	k2Max: 10
+k1Max: 7	k2Max: 9
+k1Max: 7	k2Max: 8
+k1Max: 7	k2Max: 7
+k1Max: 4	k2Max: 6
+k1Max: 3	k2Max: 5
+k1Max: 3	k2Max: 4
+k1Max: 3	k2Max: 3
+
+Calling unigen: python2 UniGen2.py -runIndex=0 -threads=0 -samples=2200 errorFormula.cnf out > unigen_output.txt3
+exec: No such file or directory
+storedCEX.size() = 2027
+k1Max: 7	k2Max: 14
+k1Max: 7	k2Max: 13
+k1Max: 7	k2Max: 11
+k1Max: 7	k2Max: 10
+k1Max: 7	k2Max: 9
+k1Max: 7	k2Max: 8
+k1Max: 7	k2Max: 7
+k1Max: 4	k2Max: 6
+k1Max: 4	k2Max: 5
+k1Max: 3	k2Max: 4
+k1Max: 3	k2Max: 3
+
+Calling unigen: python2 UniGen2.py -runIndex=0 -threads=0 -samples=2200 errorFormula.cnf out > unigen_output.txt4
+exec: No such file or directory
+storedCEX.size() = 1989
+k1Max: 7	k2Max: 14
+k1Max: 7	k2Max: 13
+k1Max: 7	k2Max: 11
+k1Max: 7	k2Max: 10
+k1Max: 7	k2Max: 9
+k1Max: 7	k2Max: 8
+k1Max: 7	k2Max: 7
+k1Max: 4	k2Max: 6
+k1Max: 4	k2Max: 5
+k1Max: 3	k2Max: 4
+k1Max: 3	k2Max: 3
+
+Calling unigen: python2 UniGen2.py -runIndex=0 -threads=0 -samples=2200 errorFormula.cnf out > unigen_output.txt5
+exec: No such file or directory
+storedCEX.size() = 1947
+k1Max: 7	k2Max: 14
+k1Max: 7	k2Max: 13
+k1Max: 7	k2Max: 11
+k1Max: 7	k2Max: 10
+k1Max: 7	k2Max: 9
+k1Max: 7	k2Max: 8
+50
+(null)          : pi =    64  po =   115  and =   42402  lev = 935
+Compressing SAig...
+Removed 2574 nodes
+(null)          : pi =    64  po =   115  and =   31854  lev =  64
+k1Max: 7	k2Max: 7
+k1Max: 3	k2Max: 6
+k1Max: 3	k2Max: 5
+k1Max: 3	k2Max: 4
+k1Max: 3	k2Max: 3
+
+Calling unigen: python2 UniGen2.py -runIndex=0 -threads=0 -samples=2200 errorFormula.cnf out > unigen_output.txt6
+exec: No such file or directory
+storedCEX.size() = 1852
+k1Max: 7	k2Max: 14
+k1Max: 7	k2Max: 13
+k1Max: 7	k2Max: 11
+k1Max: 7	k2Max: 10
+k1Max: 7	k2Max: 9
+k1Max: 7	k2Max: 8
+k1Max: 7	k2Max: 7
+k1Max: 4	k2Max: 6
+k1Max: 4	k2Max: 5
+k1Max: 3	k2Max: 4
+k1Max: 3	k2Max: 3
+
+Calling unigen: python2 UniGen2.py -runIndex=0 -threads=0 -samples=2200 errorFormula.cnf out > unigen_output.txt7
+exec: No such file or directory
+storedCEX.size() = 1785
+k1Max: 7	k2Max: 14
+k1Max: 7	k2Max: 13
+k1Max: 7	k2Max: 11
+k1Max: 7	k2Max: 10
+k1Max: 7	k2Max: 9
+k1Max: 7	k2Max: 8
+k1Max: 7	k2Max: 7
+k1Max: 4	k2Max: 6
+k1Max: 3	k2Max: 5
+k1Max: 3	k2Max: 4
+k1Max: 3	k2Max: 3
+
+Calling unigen: python2 UniGen2.py -runIndex=0 -threads=0 -samples=2200 errorFormula.cnf out > unigen_output.txt8
+exec: No such file or directory
+storedCEX.size() = 1555
+k1Max: 7	k2Max: 14
+k1Max: 7	k2Max: 13
+k1Max: 7	k2Max: 11
+k1Max: 7	k2Max: 10
+k1Max: 7	k2Max: 9
+k1Max: 7	k2Max: 8
+k1Max: 7	k2Max: 7
+k1Max: 4	k2Max: 6
+k1Max: 4	k2Max: 5
+k1Max: 3	k2Max: 4
+k1Max: 3	k2Max: 3
+
+Calling unigen: python2 UniGen2.py -runIndex=0 -threads=0 -samples=2200 errorFormula.cnf out > unigen_output.txt9
+exec: No such file or directory
+storedCEX.size() = 1077
+k1Max: 7	k2Max: 14
+k1Max: 7	k2Max: 13
+k1Max: 7	k2Max: 11
+k1Max: 7	k2Max: 10
+k1Max: 7	k2Max: 9
+k1Max: 7	k2Max: 8
+k1Max: 7	k2Max: 7
+k1Max: 3	k2Max: 6
+k1Max: 4	k2Max: 5
+k1Max: 3	k2Max: 4
+k1Max: 3	k2Max: 3
+
+Calling unigen: python2 UniGen2.py -runIndex=0 -threads=0 -samples=2200 errorFormula.cnf out > unigen_output.txt10
+exec: No such file or directory
+storedCEX.size() = 265
+k1Max: 7	k2Max: 14
+100
+(null)          : pi =    64  po =   165  and =   59644  lev = 872
+Compressing SAig...
+Removed 26 nodes
+(null)          : pi =    64  po =   165  and =   51079  lev =  64
+k1Max: 7	k2Max: 13
+k1Max: 7	k2Max: 11
+k1Max: 7	k2Max: 10
+k1Max: 7	k2Max: 9
+k1Max: 7	k2Max: 8
+k1Max: 7	k2Max: 7
+k1Max: 3	k2Max: 6
+k1Max: 4	k2Max: 5
+k1Max: 3	k2Max: 4
+k1Max: 3	k2Max: 3
+
+Calling unigen: python2 UniGen2.py -runIndex=0 -threads=0 -samples=2200 errorFormula.cnf out > unigen_output.txt11
+exec: No such file or directory
+
+Found Skolem Functions
+Num Iterations: 110
+Num Fixes:      43938
+Num CEX:        16581
+Total Size: (null)          : pi =    64  po =   175  and =   52284  lev = 124
+
+k2Trend:
+	Y15	Y14	Y13	Y12	Y11	Y10	Y9	Y8	Y7	Y6	Y5	Y4	Y3	Y2	Y1	Y0	Sum
+Init	0	1449	4856	0	0	1790	2588	2333	703	1342	947	80	493	0	0	0	16581
+Y15	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0
+Y14	0	0	359	0	258	256	243	161	0	79	35	0	8	0	0	0	1399
+Y13	0	0	0	0	0	427	1211	1231	510	596	439	38	187	0	0	0	4639
+Y12	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0
+Y11	0	0	0	0	0	117	59	43	0	27	4	0	0	0	0	0	250
+Y10	0	0	0	0	0	0	1053	707	0	401	179	0	117	0	0	0	2457
+Y9	0	0	0	0	0	0	0	2406	0	1308	664	0	310	0	0	0	4688
+Y8	0	0	0	0	0	0	0	0	0	3230	1665	0	859	0	0	0	5754
+Y7	0	0	0	0	0	0	0	0	0	0	290	95	135	0	0	0	520
+Y6	0	0	0	0	0	0	0	0	0	0	3143	0	1553	0	0	0	4696
+Y5	0	0	0	0	0	0	0	0	0	0	0	0	2954	0	0	0	2954
+Y4	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0
+Y3	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0
+Y2	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0
+Y1	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0
+Y0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0
+Sum	0	1449	5215	0	258	2590	5154	6881	1213	6983	7366	213	6616	0	0	0	43938
+
+Verifying Result...
+Removed 0 nodes
+Removed 68107 nodes
+Verified!
+Total time:   861.004
+
+real	161m31.840s
+user	1025m35.092s
+sys	3m30.092s
