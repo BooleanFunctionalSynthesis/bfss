@@ -279,7 +279,7 @@ int main(int argc, char * argv[]) {
 
 	printK2Trend();
 
-	// assert(verifyResult(SAig, r0, r1, 0));
+	assert(verifyResult(SAig, r0, r1, 0));
 
 	clock_t main_end = clock();
 	cout<< "Total time:   " <<double( main_end-main_start)/CLOCKS_PER_SEC << endl;
