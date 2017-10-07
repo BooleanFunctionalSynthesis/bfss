@@ -14,6 +14,7 @@ int numFixes = 0;
 int numCEX   = 0;
 cxxopts::Options optParser("bfss", "bfss: Blazingly Fast Skolem Synthesis");
 optionStruct options;
+vector<vector<int> > k2Trend;
 
 ////////////////////////////////////////////////////////////////////////
 ///                      HELPER FUNCTIONS                            ///
@@ -30,6 +31,7 @@ void parseOptions(int argc, char * argv[]) {
 		("l, lazy", "Don't propagate r0/r1 proactively", cxxopts::value<bool>(lazy))
 		("h, help", "Print this help")
 		("s, samples", "Number of unigen samples requested per call (default: " STR(UNIGEN_SAMPLES_DEF) ")", cxxopts::value<int>(options.numSamples), "N")
+		("t, threads", "Number of unigen threads (default: " STR(UNIGEN_THREADS_DEF) ")", cxxopts::value<int>(options.numThreads), "N")
 		("positional",
 			"Positional arguments: these are the arguments that are entered "
 			"without an option", cxxopts::value<std::vector<string>>())
@@ -84,6 +86,7 @@ void parseOptions(int argc, char * argv[]) {
 	cout << "\t varsOrder:     " << options.varsOrder << endl;
 	cout << "\t skolemType:    " << options.skolemType << endl;
 	cout << "\t numSamples:    " << options.numSamples << endl;
+	cout << "\t numThreads:    " << options.numThreads << endl;
 	cout << "}" << endl;
 }
 
@@ -769,18 +772,17 @@ bool getNextCEX(Aig_Man_t*&SAig, int& M, vector<vector<int> > &r0, vector<vector
 	while(true) {
 		while(!storedCEX.empty()) {
 			int k1Max = filterAndPopulateK1Vec(SAig, r0, r1, M);
-			cout << "Found k1Max " << k1Max << endl;
 			if(storedCEX.empty())
 				break;
 			int k2Max = populateK2Vec(SAig, r0, r1, M);
-			cout << "K1 K2 Data:" << endl;
 			assert(storedCEX_k1.size() == storedCEX.size());
 			assert(storedCEX_k2.size() == storedCEX.size());
-			for (int i = 0; i < storedCEX.size(); ++i) {
-				cout << i << ":\tk1: " << storedCEX_k1[i] << "\tk2: " << storedCEX_k2[i] << endl;
-			}
+			// cout << "K1 K2 Data:" << endl;
+			// for (int i = 0; i < storedCEX.size(); ++i) {
+			// 	cout << i << ":\tk1: " << storedCEX_k1[i] << "\tk2: " << storedCEX_k2[i] << endl;
+			// }
+			cout << "k1Max: " << k1Max << "\tk2Max: " << k2Max << endl;
 			M = k2Max;
-			cout << "Found k2Max " << k2Max << endl;
 			return true;
 		}
 
@@ -839,7 +841,7 @@ bool populateStoredCEX(Aig_Man_t* SAig,
 			&assumptions[0], &assumptions[0] + numX, IS, RS);
 
 		// Call Unigen
-		status = unigen_call(UNIGEN_DIMAC_FPATH, options.numSamples);
+		status = unigen_call(UNIGEN_DIMAC_FPATH, options.numSamples, options.numThreads);
 	}
 	else {
 		status = -1; // Switch to ABC
@@ -1134,7 +1136,7 @@ void updateAbsRef(Aig_Man_t* pMan, vector<vector<int> > &r0, vector<vector<int> 
 	Aig_Obj_t *mu0, *mu1, *mu, *pi1_m, *pi0_m;
 	mu0 = mu1 = mu = pi1_m = pi0_m = NULL;
 
-	cout << "UpdateAbsRef m is " << m << endl;
+	// cout << "UpdateAbsRef m is " << m << endl;
 	k = m;
 	l = m + 1;
 	assert(k >= 0);
@@ -1151,7 +1153,7 @@ void updateAbsRef(Aig_Man_t* pMan, vector<vector<int> > &r0, vector<vector<int> 
 					pi1_m = Aig_OrAigs(pMan, pi1_m, projectPiSmall(pMan, storedCEX[i]));
 				fixR1 = true;
 				numFixes++;
-				cout << "Adding " << i << " to pi1_m" << endl;
+				// cout << "Adding " << i << " to pi1_m" << endl;
 			}
 			else {
 				if(!fixR0)
@@ -1160,7 +1162,7 @@ void updateAbsRef(Aig_Man_t* pMan, vector<vector<int> > &r0, vector<vector<int> 
 					pi0_m = Aig_OrAigs(pMan, pi0_m, projectPiSmall(pMan, storedCEX[i]));
 				fixR0 = true;
 				numFixes++;
-				cout << "Adding " << i << " to pi0_m" << endl;
+				// cout << "Adding " << i << " to pi0_m" << endl;
 			}
 		}
 	}
@@ -1634,11 +1636,11 @@ void Sat_SolverWriteDimacsAndIS(sat_solver * p, char * pFileName,
  * returns -1 when sat but number of solutions is too small
  * returns  1 when sat and models succesfully populated UNIGEN_MODEL_FPATH
  */
-int unigen_call(string fname, int nSamples) {
+int unigen_call(string fname, int nSamples, int nThreads) {
 	numUnigenCalls++;
 	assert(fname.find(' ') == string::npos);
 	system("rm -rf " UNIGEN_OUT_DIR "/");
-	string cmd = "python2 " UNIGEN_PY " -runIndex=0 -threads=4 -samples="+to_string(nSamples)+" "+fname+" " UNIGEN_OUT_DIR " > " UNIGEN_OUTPT_FPATH+to_string(numUnigenCalls) ;
+	string cmd = "python2 " UNIGEN_PY " -runIndex=0 -threads="+to_string(nThreads)+" -samples="+to_string(nSamples)+" "+fname+" " UNIGEN_OUT_DIR " > " UNIGEN_OUTPT_FPATH+to_string(numUnigenCalls) ;
 	cout << "\nCalling unigen: " << cmd << endl;
 	system(cmd.c_str());
 
@@ -1726,7 +1728,7 @@ int filterAndPopulateK1Vec(Aig_Man_t* SAig, vector<vector<int> >&r0, vector<vect
 	vector<bool> spurious(storedCEX.size());
 	int index = 0;
 
-	cout << "POPULATING K1 VECTOR" << endl;
+	// cout << "POPULATING K1 VECTOR" << endl;
 	assert(storedCEX_k1.size() == storedCEX.size());
 
 	int maxChange = (prevM==-1)? (numY-1) : (prevM+1);
@@ -1786,12 +1788,13 @@ int populateK2Vec(Aig_Man_t* SAig, vector<vector<int> >&r0, vector<vector<int> >
 	int i = 0;
 	int max = -1;
 
-	cout << "POPULATING K2 VECTOR" << endl;
+	// cout << "POPULATING K2 VECTOR" << endl;
 	assert(storedCEX_k2.size() == storedCEX.size());
 	for(auto cex:storedCEX) {
 		k2 = storedCEX_k2[i];
 		if(k2 == -1 or k2 == prevM) { // Change only if k2 == prevM
 			int clock1 = clock();
+			k2_prev = k2;
 			k1 = storedCEX_k1[i];
 			// cout << "Finding k2..." << endl;
 			// cout << "Search range from " << k1 << " to " << numY - 1 << endl;
@@ -1799,6 +1802,7 @@ int populateK2Vec(Aig_Man_t* SAig, vector<vector<int> >&r0, vector<vector<int> >
 			clock1 = clock() - clock1;
 			// printf ("Found k2 = %d, took (%f seconds)\n",k2,((float)clock1)/CLOCKS_PER_SEC);
 			storedCEX_k2[i] = k2;
+			k2Trend[(k2_prev==-1)?numY:k2_prev][k2]++;
 		}
 		max = (k2 > max) ? k2 : max;
 		i++;
@@ -2005,4 +2009,36 @@ void chooseR_(Aig_Man_t* pMan, vector<vector<int> >& r0, vector<vector<int> >& r
 		cout << "Choosing smaller of r0/r1 as Skolem" << endl;
 		chooseSmallerR_(pMan, r0, r1);
 	}
+}
+
+void printK2Trend() {
+	int totalSum = 0;
+	cout << "k2Trend:" << endl;
+	cout << "\t";
+	for (int j = numY-1; j >= 0; --j) {
+		cout << "Y" << j << "\t";
+	}
+	cout << "Sum" << endl;
+	for (int i = numY; i >= 0; --i) {
+		int rowSum = 0;
+		if(i == numY)
+			cout << "Init" << "\t";
+		else
+			cout << "Y" << i << "\t";
+		for (int j = numY-1; j >= 0; --j) {
+			cout << k2Trend[i][j] << "\t";
+			rowSum += k2Trend[i][j];
+		}
+		cout << rowSum << endl;
+		totalSum += rowSum;
+	}
+	cout << "Sum\t";
+	for (int i = numY-1; i >= 0; --i) {
+		int colSum = 0;
+		for (int j = numY; j >= 0; --j) {
+			colSum += k2Trend[j][i];
+		}
+		cout << colSum << "\t";
+	}
+	cout << totalSum << endl << endl;
 }

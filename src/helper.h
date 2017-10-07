@@ -44,6 +44,7 @@ Abc_Ntk_t * Abc_NtkFromAigPhase(Aig_Man_t * pMan);
 #define UNIGEN_DIMAC_FPATH 	UNIGEN_DIMAC_FNAME
 #define UNIGEN_PY 			"UniGen2.py"
 #define UNIGEN_SAMPLES_DEF	220
+#define UNIGEN_THREADS_DEF	4
 
 // #define DEBUG
 // #define DEBUG_CHUNK
@@ -66,6 +67,7 @@ struct optionStruct {
 	string 	varsOrder;
 	sType 	skolemType;
 	int 	numSamples;
+	int 	numThreads;
 };
 
 extern vector<int> varsSInv;
@@ -81,6 +83,7 @@ extern int numFixes;
 extern int numCEX;
 extern cxxopts::Options optParser;
 extern optionStruct options;
+extern vector<vector<int> > k2Trend;
 
 int 			CommandExecute(Abc_Frame_t* pAbc, string cmd);
 vector<string> 	tokenize( const string& p_pcstStr, char delim );
@@ -141,7 +144,7 @@ Aig_Obj_t*	 	Aig_ComposeVec( Aig_Man_t * p, Aig_Obj_t * pRoot, vector<Aig_Obj_t 
 					vector<int>& iVarVec );
 void 			Sat_SolverWriteDimacsAndIS( sat_solver * p, char * pFileName,
 					lit* assumpBegin, lit* assumpEnd, vector<int>&IS, vector<int>&retSet);
-int 			unigen_call(string fname, int nSamples);
+int 			unigen_call(string fname, int nSamples, int nThreads);
 bool 			unigen_fetchModels(Aig_Man_t* SAig, vector<vector<int> > &r0,
 							vector<vector<int> > &r1, map<int, int>& varNum2ID, map<int, int>& varNum2R0R1);
 vector<lit>		setAllNegX(Cnf_Dat_t* SCnf, Aig_Man_t* SAig, int val);
@@ -159,5 +162,6 @@ void			propagateR0R1Cofactors(Aig_Man_t* pMan, vector<vector<int> >& r0, vector<
 void			chooseSmallerR_(Aig_Man_t* pMan, vector<vector<int> >& r0, vector<vector<int> >& r1);
 void			chooseR_(Aig_Man_t* pMan, vector<vector<int> >& r0, vector<vector<int> >& r1);
 void			parseOptions(int argc, char * argv[]);
+void 			printK2Trend();
 
 #endif

@@ -199,6 +199,7 @@ int main(int argc, char * argv[]) {
 	cout << endl;
 
 	// Pre-process R0/R1
+	k2Trend = vector<vector<int> >(numY+1, vector<int>(numY,0));
 	useR1AsSkolem = vector<bool>(numY,true);
 	initializeAddR1R0toR();
 	if(options.proactiveProp)
@@ -274,6 +275,7 @@ int main(int argc, char * argv[]) {
 	Aig_ManPrintStats( SAig );
 	cout << endl;
 
+	printK2Trend();
 
 	assert(verifyResult(SAig, r0, r1, 0));
 
