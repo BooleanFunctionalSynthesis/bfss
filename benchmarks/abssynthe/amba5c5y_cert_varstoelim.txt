@@ -1,0 +1,14 @@
+controllable_nhgrant0
+controllable_hgrant1
+controllable_locked
+controllable_nstart
+controllable_hgrant2
+controllable_hgrant3
+controllable_hgrant4
+controllable_busreq
+controllable_ndecide
+controllable_hmaster2
+controllable_hmaster1
+controllable_hmaster0
+controllable_hmastlock
+

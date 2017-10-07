@@ -1,0 +1,37 @@
+// test verilog file
+module factorization6_simplified (x1[1],x1[2],x2[1],x2[2],y[1],y[2],y[3],y[4],o1);
+input x1[1];
+input x1[2];
+input x2[1];
+input x2[2];
+input y[1];
+input y[2];
+input y[3];
+input y[4];
+wire d1;
+wire d2;
+wire d3;
+wire d4;
+wire e1;
+wire e2;
+wire e3;
+wire e4;
+wire ee;
+wire x1;
+wire x2;
+wire err;
+output o1;
+assign d4 =  x1[1] & x1[2] & x2[1] & x2[2];
+assign d3 =  (x2[2] & x1[2]) ^ d4;
+assign d2 =  (x2[1] & x1[2]) ^ (x2[2] & x1[1]);
+assign d1 =  x2[1] & x1[1];
+assign e1 =  y[1] ^ d1;
+assign e2 =  y[2] ^ d2;
+assign e3 =  y[3] ^ d3;
+assign e4 =  y[4] ^ d4;
+assign ee  = e1 | e2 | e3 | e4;
+assign x1  = x1[1] & ~x1[2];
+assign x2  = x2[1] & ~x2[2];
+assign err = ee | x1 | x2;
+assign o1 = ~err;
+endmodule
