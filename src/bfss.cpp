@@ -218,7 +218,7 @@ int main(int argc, char * argv[]) {
 
 	Aig_ManPrintStats( SAig );
 	cout << "Compressing SAig..." << endl;
-	// SAig = compressAigByNtk(SAig);
+	SAig = compressAigByNtk(SAig);
 	assert(SAig != NULL);
 	Aig_ManPrintStats( SAig );
 	#ifdef DEBUG_CHUNK // Print SAig, checkSupportSanity
