@@ -97,10 +97,8 @@ void 			populateVars(Abc_Ntk_t* FNtk, AigToNNF& nnf, string varsFile,
 					map<string,int>& name2IdF, map<int,string>& id2NameF);
 Aig_Obj_t* 		Aig_SubstituteConst(Aig_Man_t* pMan, Aig_Obj_t* initAig, int varId, int one);
 Aig_Obj_t* 		Aig_Substitute(Aig_Man_t* pMan, Aig_Obj_t* initAig, int varId, Aig_Obj_t* func);
-void 			initializeR0(Aig_Man_t* SAig,vector<vector<int> >& r0);
-void 			initializeR1(Aig_Man_t* SAig,vector<vector<int> >& r1);
-Aig_Obj_t* 		buildF(Aig_Man_t* SAig);
-Aig_Obj_t* 		buildFPrime(Aig_Man_t* SAig, const Aig_Obj_t* F_SAig);
+void			initializeCompose(Aig_Man_t* SAig, vector<Aig_Obj_t* >& Fs,
+					vector<vector<int> >& r0, vector<vector<int> >& r1);
 void 			addVarToSolver(sat_solver* pSat, int varNum, int val);
 int 			getCnfCoVarNum(Cnf_Dat_t* cnf, Aig_Man_t* aig, int nthCo);
 lit 			addRlToSolver(sat_solver* pSat, Cnf_Dat_t* GCnf, Aig_Man_t* GAig, const vector<int>& r);
@@ -138,10 +136,14 @@ void 			checkCexSanity(Aig_Man_t* pMan, vector<int>& cex, vector<vector<int> >& 
 					vector<vector<int> >& r1);
 Aig_Obj_t* 		Aig_SubstituteVec(Aig_Man_t* pMan, Aig_Obj_t* initAig, vector<int>& varIdVec,
 					vector<Aig_Obj_t*>& funcVec);
+vector<Aig_Obj_t* >	Aig_SubstituteVecVec(Aig_Man_t* pMan, Aig_Obj_t* initAig, vector<vector<Aig_Obj_t*> >& funcVecs);
 void 			Aig_ComposeVec_rec( Aig_Man_t * p, Aig_Obj_t * pObj, vector<Aig_Obj_t *>& pFuncVec,
 					vector<Aig_Obj_t* >& iVarObjVec );
 Aig_Obj_t*	 	Aig_ComposeVec( Aig_Man_t * p, Aig_Obj_t * pRoot, vector<Aig_Obj_t *>& pFuncVec,
 					vector<int>& iVarVec );
+void 			Aig_VecVecConeUnmark_rec(Aig_Obj_t * pObj); 
+void 			Aig_ComposeVecVec_rec(Aig_Man_t* p, Aig_Obj_t* pObj, vector<vector<Aig_Obj_t*> >& pFuncVecs);
+vector<Aig_Obj_t* > Aig_ComposeVecVec(Aig_Man_t* p, Aig_Obj_t* pRoot, vector<vector<Aig_Obj_t*> >& pFuncVecs);
 void 			Sat_SolverWriteDimacsAndIS( sat_solver * p, char * pFileName,
 					lit* assumpBegin, lit* assumpEnd, vector<int>&IS, vector<int>&retSet);
 int 			unigen_call(string fname, int nSamples, int nThreads);

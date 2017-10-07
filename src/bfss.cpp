@@ -160,23 +160,25 @@ int main(int argc, char * argv[]) {
 	int removed = Aig_ManCleanup(SAig);
 	OUT("Removed "<<removed<<" nodes");
 
-	// F_SAig      will always be Aig_ManCo( ... , 1)
-	// FPrime_SAig will always be Aig_ManCo( ... , 2)
-	cout << "buildF(SAig)..."<<endl;
-	Aig_Obj_t* F_SAig = buildF(SAig);
+
+	// Fs[0] - F_SAig      will always be Aig_ManCo( ... , 1)
+	// Fs[1] - FPrime_SAig will always be Aig_ManCo( ... , 2)
+	vector<Aig_Obj_t* > Fs(2);
+	vector<vector<int> > r0(numY), r1(numY);
+	cout << "initializeCompose(SAig, Fs, r0, r1)..."<<endl;
+	clock_t compose_start = clock();
+	initializeCompose(SAig, Fs, r0, r1);
+	clock_t compose_end = clock();
+	cout<< "Mega compose time: " <<double(compose_end-compose_start)/CLOCKS_PER_SEC << endl;
+
 
 	m_pSat = sat_solver_new();
 	m_FCnf = Cnf_Derive(SAig, Aig_ManCoNum(SAig));
 	m_f = toLitCond(getCnfCoVarNum(m_FCnf, SAig, 1), 0);
 	addCnfToSolver(m_pSat, m_FCnf);
 
-	cout << "buildFPrime(SAig)..."<<endl;
-	Aig_Obj_t* FPrime_SAig = buildFPrime(SAig, F_SAig);
-	vector<vector<int> > r0(numY), r1(numY);
-	cout << "initializeRs(SAig, r0, r1)..."<<endl;
-	initializeR0(SAig, r0);
-	initializeR1(SAig, r1);
-
+	Aig_Obj_t* F_SAig = Fs[0];
+	Aig_Obj_t* FPrime_SAig = Fs[1];
 	// cout << "checkSupportSanity(SAig, r0, r1)..."<<endl;
 	// checkSupportSanity(SAig, r0, r1);
 
@@ -216,7 +218,7 @@ int main(int argc, char * argv[]) {
 
 	Aig_ManPrintStats( SAig );
 	cout << "Compressing SAig..." << endl;
-	SAig = compressAigByNtk(SAig);
+	// SAig = compressAigByNtk(SAig);
 	assert(SAig != NULL);
 	Aig_ManPrintStats( SAig );
 	#ifdef DEBUG_CHUNK // Print SAig, checkSupportSanity
@@ -277,7 +279,7 @@ int main(int argc, char * argv[]) {
 
 	printK2Trend();
 
-	assert(verifyResult(SAig, r0, r1, 0));
+	// assert(verifyResult(SAig, r0, r1, 0));
 
 	clock_t main_end = clock();
 	cout<< "Total time:   " <<double( main_end-main_start)/CLOCKS_PER_SEC << endl;
