@@ -1,3 +1,6 @@
+#ifndef HELPER_H
+#define HELPER_H
+
 #include <iostream>
 #include <vector>
 #include <map>
@@ -8,6 +11,7 @@
 #include <fstream>
 #include <sstream>
 #include <ctime>
+#include "cxxopts.hpp"
 
 using namespace std;
 
@@ -28,6 +32,8 @@ Aig_Man_t * Abc_NtkToDar(Abc_Ntk_t * pNtk, int fExors, int fRegisters);
 Abc_Ntk_t * Abc_NtkFromAigPhase(Aig_Man_t * pMan);
 }
 
+#define STR_HELPER(X)		#X
+#define STR(X)				STR_HELPER(X)
 #define UNIGEN_OUT_DIR		"out"
 #define UNIGEN_INPUT_FNAME 	"errorFormula"
 #define UNIGEN_OUTPT_FNAME	"unigen_output.txt"
@@ -37,7 +43,8 @@ Abc_Ntk_t * Abc_NtkFromAigPhase(Aig_Man_t * pMan);
 #define UNIGEN_MODEL_FPATH	UNIGEN_OUT_DIR "/" UNIGEN_MODEL_FNAME
 #define UNIGEN_DIMAC_FPATH 	UNIGEN_DIMAC_FNAME
 #define UNIGEN_PY 			"UniGen2.py"
-#define UNIGEN_SAMPLES		220
+#define UNIGEN_SAMPLES_DEF	220
+#define UNIGEN_THREADS_DEF	4
 
 // #define DEBUG
 // #define DEBUG_CHUNK
@@ -48,6 +55,22 @@ Abc_Ntk_t * Abc_NtkFromAigPhase(Aig_Man_t * pMan);
 	#define OUT( x )
 #endif
 
+class  edge;
+class  node;
+class  AigToNNF;
+
+enum sType {skolemR0, skolemR1, skolemRx};
+struct optionStruct {
+	bool 	proactiveProp;
+	bool 	useABCSolver;
+	bool 	evalAigAtNode;
+	string 	benchmark;
+	string 	varsOrder;
+	sType 	skolemType;
+	int 	numSamples;
+	int 	numThreads;
+};
+
 extern vector<int> varsSInv;
 extern vector<int> varsXF, varsXS;
 extern vector<int> varsYF, varsYS; // to be eliminated
@@ -56,10 +79,12 @@ extern Abc_Frame_t* pAbc;
 extern sat_solver* m_pSat;
 extern Cnf_Dat_t* m_FCnf;
 extern lit m_f;
-
-class edge;
-class node;
-class AigToNNF;
+extern vector<bool>  useR1AsSkolem;
+extern int numFixes;
+extern int numCEX;
+extern cxxopts::Options optParser;
+extern optionStruct options;
+extern vector<vector<int> > k2Trend;
 
 int 			CommandExecute(Abc_Frame_t* pAbc, string cmd);
 vector<string> 	tokenize( const string& p_pcstStr, char delim );
@@ -73,10 +98,8 @@ void 			populateVars(Abc_Ntk_t* FNtk, AigToNNF& nnf, string varsFile,
 					map<string,int>& name2IdF, map<int,string>& id2NameF);
 Aig_Obj_t* 		Aig_SubstituteConst(Aig_Man_t* pMan, Aig_Obj_t* initAig, int varId, int one);
 Aig_Obj_t* 		Aig_Substitute(Aig_Man_t* pMan, Aig_Obj_t* initAig, int varId, Aig_Obj_t* func);
-void 			initializeR0(Aig_Man_t* SAig,vector<vector<int> >& r0);
-void 			initializeR1(Aig_Man_t* SAig,vector<vector<int> >& r1);
-Aig_Obj_t* 		buildF(Aig_Man_t* SAig);
-Aig_Obj_t* 		buildFPrime(Aig_Man_t* SAig, const Aig_Obj_t* F_SAig);
+void			initializeCompose(Aig_Man_t* SAig, vector<Aig_Obj_t* >& Fs,
+					vector<vector<int> >& r0, vector<vector<int> >& r1);
 void 			addVarToSolver(sat_solver* pSat, int varNum, int val);
 int 			getCnfCoVarNum(Cnf_Dat_t* cnf, Aig_Man_t* aig, int nthCo);
 lit 			addRlToSolver(sat_solver* pSat, Cnf_Dat_t* GCnf, Aig_Man_t* GAig, const vector<int>& r);
@@ -114,13 +137,17 @@ void 			checkCexSanity(Aig_Man_t* pMan, vector<int>& cex, vector<vector<int> >& 
 					vector<vector<int> >& r1);
 Aig_Obj_t* 		Aig_SubstituteVec(Aig_Man_t* pMan, Aig_Obj_t* initAig, vector<int>& varIdVec,
 					vector<Aig_Obj_t*>& funcVec);
+vector<Aig_Obj_t* >	Aig_SubstituteVecVec(Aig_Man_t* pMan, Aig_Obj_t* initAig, vector<vector<Aig_Obj_t*> >& funcVecs);
 void 			Aig_ComposeVec_rec( Aig_Man_t * p, Aig_Obj_t * pObj, vector<Aig_Obj_t *>& pFuncVec,
 					vector<Aig_Obj_t* >& iVarObjVec );
 Aig_Obj_t*	 	Aig_ComposeVec( Aig_Man_t * p, Aig_Obj_t * pRoot, vector<Aig_Obj_t *>& pFuncVec,
 					vector<int>& iVarVec );
+void 			Aig_VecVecConeUnmark_rec(Aig_Obj_t * pObj); 
+void 			Aig_ComposeVecVec_rec(Aig_Man_t* p, Aig_Obj_t* pObj, vector<vector<Aig_Obj_t*> >& pFuncVecs);
+vector<Aig_Obj_t* > Aig_ComposeVecVec(Aig_Man_t* p, Aig_Obj_t* pRoot, vector<vector<Aig_Obj_t*> >& pFuncVecs);
 void 			Sat_SolverWriteDimacsAndIS( sat_solver * p, char * pFileName,
 					lit* assumpBegin, lit* assumpEnd, vector<int>&IS, vector<int>&retSet);
-int 			unigen_call(string fname, int nSamples);
+int 			unigen_call(string fname, int nSamples, int nThreads);
 bool 			unigen_fetchModels(Aig_Man_t* SAig, vector<vector<int> > &r0,
 							vector<vector<int> > &r1, map<int, int>& varNum2ID, map<int, int>& varNum2R0R1);
 vector<lit>		setAllNegX(Cnf_Dat_t* SCnf, Aig_Man_t* SAig, int val);
@@ -129,5 +156,16 @@ int 			findK2Max(Aig_Man_t* SAig, sat_solver* m_pSat, Cnf_Dat_t* m_FCnf, vector<
 int 			findK2Max_rec(sat_solver* pSat, Cnf_Dat_t* SCnf, vector<int>&cex, int k_start, int k_end, lit assump[]);
 bool 			checkIsFUnsat(sat_solver* pSat, Cnf_Dat_t* SCnf, vector<int>&cex, int k, lit assump[]);
 int 			filterAndPopulateK1Vec(Aig_Man_t* SAig, vector<vector<int> >&r0, vector<vector<int> >&r1, int prevM);
+int 			filterAndPopulateK1VecFast(Aig_Man_t* SAig, vector<vector<int> >&r0, vector<vector<int> >&r1, int prevM);
 int				populateK2Vec(Aig_Man_t* SAig, vector<vector<int> >&r0, vector<vector<int> >&r1, int prevM);
 void 			initializeAddR1R0toR();
+void			propagateR1Cofactors(Aig_Man_t* pMan, vector<vector<int> >& r0, vector<vector<int> >& r1);
+void			propagateR0Cofactors(Aig_Man_t* pMan, vector<vector<int> >& r0, vector<vector<int> >& r1);
+void			propagateR_Cofactors(Aig_Man_t* pMan, vector<vector<int> >& r0, vector<vector<int> >& r1);
+void			propagateR0R1Cofactors(Aig_Man_t* pMan, vector<vector<int> >& r0, vector<vector<int> >& r1);
+void			chooseSmallerR_(Aig_Man_t* pMan, vector<vector<int> >& r0, vector<vector<int> >& r1);
+void			chooseR_(Aig_Man_t* pMan, vector<vector<int> >& r0, vector<vector<int> >& r1);
+void			parseOptions(int argc, char * argv[]);
+void 			printK2Trend();
+
+#endif

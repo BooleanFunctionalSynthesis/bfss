@@ -23,7 +23,7 @@ lit m_f;
 ///                            MAIN                                  ///
 ////////////////////////////////////////////////////////////////////////
 int main(int argc, char * argv[]) {
-	string pFileName, varsFile, benchmarkName;
+	string varsFile, benchmarkName;
 	Abc_Obj_t* pAbcObj;
 	Aig_Obj_t* pAigObj;
 	map<string, int> name2IdF;
@@ -31,16 +31,15 @@ int main(int argc, char * argv[]) {
 	int i, j;
 	vector<int> cex;
 
-	assert(argc == 2);
-	benchmarkName = string(argv[1]);
-	pFileName     = benchmarkName;
-	varsFile      = benchmarkName.substr(0,benchmarkName.find_last_of('.')) +
-					((argc==2)?"_varstoelim.txt":string(argv[2]));
+	parseOptions(argc, argv);
+
+	benchmarkName = options.benchmark;
+	varsFile      = options.varsOrder;
 
 	clock_t main_start = clock();
 
 	OUT("get FNtk..." );
-	Abc_Ntk_t* FNtk = getNtk(pFileName,true);
+	Abc_Ntk_t* FNtk = getNtk(benchmarkName,true);
 	OUT("get FAig..." );
 	Aig_Man_t* FAig = Abc_NtkToDar(FNtk, 0, 0);
 
@@ -79,7 +78,7 @@ int main(int argc, char * argv[]) {
 	// #endif
 
 	#ifdef COMPARE_SAIGS // Compare SAig1 to old SAig
-		AigToNNF nnf2(pFileName);
+		AigToNNF nnf2(benchmarkName);
 		OUT("nnf2 parse..." );
 		nnf2.parse();
 		OUT("nnf2 process..." );
@@ -162,24 +161,24 @@ int main(int argc, char * argv[]) {
 	OUT("Removed "<<removed<<" nodes");
 
 
+	// Fs[0] - F_SAig      will always be Aig_ManCo( ... , 1)
+	// Fs[1] - FPrime_SAig will always be Aig_ManCo( ... , 2)
+	vector<Aig_Obj_t* > Fs(2);
+	vector<vector<int> > r0(numY), r1(numY);
+	cout << "initializeCompose(SAig, Fs, r0, r1)..."<<endl;
+	clock_t compose_start = clock();
+	initializeCompose(SAig, Fs, r0, r1);
+	clock_t compose_end = clock();
+	cout<< "Mega compose time: " <<double(compose_end-compose_start)/CLOCKS_PER_SEC << endl;
 
-	// F_SAig      will always be Aig_ManCo( ... , 1)
-	// FPrime_SAig will always be Aig_ManCo( ... , 2)
-	cout << "buildF(SAig)..."<<endl;
-	Aig_Obj_t* F_SAig = buildF(SAig);
 
 	m_pSat = sat_solver_new();
 	m_FCnf = Cnf_Derive(SAig, Aig_ManCoNum(SAig));
 	m_f = toLitCond(getCnfCoVarNum(m_FCnf, SAig, 1), 0);
 	addCnfToSolver(m_pSat, m_FCnf);
 
-	cout << "buildFPrime(SAig)..."<<endl;
-	Aig_Obj_t* FPrime_SAig = buildFPrime(SAig, F_SAig);
-	vector<vector<int> > r0(numY), r1(numY);
-	cout << "initializeRs(SAig, r0, r1)..."<<endl;
-	initializeR0(SAig, r0);
-	initializeR1(SAig, r1);
-
+	Aig_Obj_t* F_SAig = Fs[0];
+	Aig_Obj_t* FPrime_SAig = Fs[1];
 	// cout << "checkSupportSanity(SAig, r0, r1)..."<<endl;
 	// checkSupportSanity(SAig, r0, r1);
 
@@ -199,6 +198,24 @@ int main(int argc, char * argv[]) {
  //            Aig_ObjPrintVerbose( pAigObj, 1 ), printf( "\n" );
  //    #endif
 	cout << "Created SAig..." << endl;
+	cout << endl;
+
+	// Pre-process R0/R1
+	k2Trend = vector<vector<int> >(numY+1, vector<int>(numY,0));
+	useR1AsSkolem = vector<bool>(numY,true);
+	initializeAddR1R0toR();
+	if(options.proactiveProp)
+		switch(options.skolemType) {
+			case (sType::skolemR0): propagateR0Cofactors(SAig,r0,r1); break;
+			case (sType::skolemR1): propagateR1Cofactors(SAig,r0,r1); break;
+			case (sType::skolemRx): propagateR0R1Cofactors(SAig,r0,r1); break;
+		}
+	chooseR_(SAig,r0,r1);
+	cout << endl;
+
+	cout << "checkSupportSanity(SAig, r0, r1)..."<<endl;
+	checkSupportSanity(SAig, r0, r1);
+
 	Aig_ManPrintStats( SAig );
 	cout << "Compressing SAig..." << endl;
 	SAig = compressAigByNtk(SAig);
@@ -215,7 +232,6 @@ int main(int argc, char * argv[]) {
 
 	// cex = vector<int>(2*numOrigInputs, 0);
 	int M = -1;
-	initializeAddR1R0toR();
 
 	// CEGAR Loop
 	cout << "Starting CEGAR Loop..."<<endl;
@@ -231,7 +247,7 @@ int main(int argc, char * argv[]) {
 		updateAbsRef(SAig, r0, r1, M);
 		numloops++;
 
-		if(numloops % 50 == 0) {
+		if(numloops % 1000 == 0) {
 			cout << numloops;
 			cout << endl;
 			Aig_ManPrintStats( SAig );
@@ -255,6 +271,13 @@ int main(int argc, char * argv[]) {
 
 	cout << "Found Skolem Functions" << endl;
 	cout << "Num Iterations: " << numloops << endl;
+	cout << "Num Fixes:      " << numFixes << endl;
+	cout << "Num CEX:        " << numCEX << endl;
+	cout << "Total Size: ";
+	Aig_ManPrintStats( SAig );
+	cout << endl;
+
+	printK2Trend();
 
 	assert(verifyResult(SAig, r0, r1, 0));
 

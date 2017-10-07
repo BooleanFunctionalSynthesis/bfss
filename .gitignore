@@ -39,7 +39,7 @@ doalarm
 sharpSAT
 sharpSAT-bin
 unigen
-UniGen2.py
+UniGen2.py*
 
 errorFormula.cnf
 out*
