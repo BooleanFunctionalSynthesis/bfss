@@ -123,8 +123,6 @@ int main(int argc, char * argv[]) {
 					varsXF, varsXS,
 					varsYF, varsYS,
 					name2IdF, id2NameF);
-	numX = varsXS.size();
-	numY = varsYS.size();
 
 	cout << "numX " << numX << endl;
 	cout << "numY " << numY << endl;

@@ -263,6 +263,9 @@ void populateVars(Abc_Ntk_t* FNtk, AigToNNF& nnf, string varsFile,
 	for(auto it : varsYF)
 		varsYS.push_back(nnf.var_num2Id[it]);
 
+	numX = varsXS.size();
+	numY = varsYS.size();
+
 	// for (int i = 0; i < numX; ++i) {
 	// 	varsSInv[varsXS[i]] = i;
 	// 	varsSInv[numOrigInputs + varsXS[i]] = numOrigInputs + i;
