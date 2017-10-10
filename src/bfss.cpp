@@ -211,9 +211,6 @@ int main(int argc, char * argv[]) {
 	chooseR_(SAig,r0,r1);
 	cout << endl;
 
-	cout << "checkSupportSanity(SAig, r0, r1)..."<<endl;
-	checkSupportSanity(SAig, r0, r1);
-
 	Aig_ManPrintStats( SAig );
 	cout << "Compressing SAig..." << endl;
 	SAig = compressAigByNtk(SAig);
