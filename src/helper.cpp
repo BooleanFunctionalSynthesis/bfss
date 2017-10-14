@@ -1397,21 +1397,24 @@ Aig_Man_t* compressAigByNtk(Aig_Man_t* SAig) {
 	Aig_Man_t* temp;
 	string command;
 
-	// TODO: FIX
-	if(options.evalAigAtNode) {
-		cout << "WARNING: Not using Ntk for compression" << endl;
-		return compressAig(SAig);
-	}
-
 	OUT("Cleaning up...");
 	int removed = Aig_ManCleanup(SAig);
 	cout << "Removed " << removed <<" nodes" << endl;
 
 	Abc_Ntk_t * SNtk = Abc_NtkFromAigPhase(SAig);
 	Abc_FrameSetCurrentNetwork(pAbc, SNtk);
-	command = "fraig; balance; rewrite -l; rewrite -lz; balance; rewrite -lz; \
-				balance; rewrite -l; refactor -l; balance; rewrite -l; \
-				rewrite -lz; balance; refactor -lz; rewrite -lz; balance;";
+
+	// TODO: FIX
+	if(options.evalAigAtNode) {
+		command = "balance; rewrite -l; rewrite -lz; balance; rewrite -lz; \
+					balance; rewrite -l; refactor -l; balance; rewrite -l; \
+					rewrite -lz; balance; refactor -lz; rewrite -lz; balance;";
+	} else {
+		command = "fraig; balance; rewrite -l; rewrite -lz; balance; rewrite -lz; \
+					balance; rewrite -l; refactor -l; balance; rewrite -l; \
+					rewrite -lz; balance; refactor -lz; rewrite -lz; balance;";
+	}
+
 	if (Cmd_CommandExecute(pAbc, (char*)command.c_str())) {
 		cout << "Cannot preprocess SNtk" << endl;
 		return NULL;
