@@ -249,7 +249,7 @@ int main(int argc, char * argv[]) {
 		#ifdef DEBUG_CHUNK
 			checkCexSanity(SAig, cex, r0, r1);
 		#endif
-		updateAbsRef(SAig, r0, r1, k1Level, M);
+		updateAbsRef(SAig, r0, r1, k1Level, c2, M);
 		numloops++;
 
 		if(numloops % 50 == 0) {

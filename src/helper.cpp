@@ -839,9 +839,12 @@ bool getNextCEX(Aig_Man_t*&SAig, int& M, int& k1Level, vector<vector<int> > &r0,
 			for(auto it: storedCEX_k1)
 				kFreq[it]++;
 			int maxFreqk1 = -1;
-			for(auto it: kFreq)
-				maxFreqk1 = (it > maxFreqk1)? it : maxFreqk1;
-			k1Level = maxFreqk1;
+			for(int i = 0; i < kFreq.size(); i++) {
+				if(maxFreqk1 < kFreq[i]) {
+					k1Level = i;
+					maxFreqk1 = kFreq[i];
+				}
+			}
 			return true;
 		}
 
@@ -1243,7 +1246,7 @@ Aig_Obj_t* projectPiSmall(Aig_Man_t* pMan, const vector<int> &cex) {
  * @param cex       [in]        counter-example
  */
 void updateAbsRef(Aig_Man_t* pMan, vector<vector<int> > &r0, vector<vector<int> > &r1,
-	const int &k1Level, const int &m) {
+	const int &k1Level, const int &c2, const int &m) {
 
 	OUT("updateAbsRef...");
 	int k, l;
@@ -1251,6 +1254,28 @@ void updateAbsRef(Aig_Man_t* pMan, vector<vector<int> > &r0, vector<vector<int> 
 	mu0 = mu1 = mu = pi1_m = pi0_m = NULL;
 
 	// cout << "UpdateAbsRef m is " << m << endl;
+	assert(k1Level <= m);
+	int s_phase1 = (m - k1Level < c2)? m - k1Level : c2;
+	int s_phase2 = (s_phase1 < c2)? 0 : m - k1Level - c2;
+
+	for(int i = k1Level; i < k1Level + s_phase1; i++) {
+		mu0 = newOR(pMan, r0[i]);
+		mu1 = newOR(pMan, r1[i]);
+		mu = Aig_AndAigs(pMan, mu0, mu1);
+
+		mu1 = Aig_SubstituteConst(pMan, mu, varsYS[i+1], 1);
+		Aig_ObjCreateCo(pMan, mu1);
+		r1[i+1].push_back(Aig_ManCoNum(pMan) - 1);
+		addR1R0toR1[i] = false;
+
+		mu0 = Aig_SubstituteConst(pMan, mu, varsYS[i+1], 0);
+		Aig_ObjCreateCo(pMan, mu0);
+		r0[i+1].push_back(Aig_ManCoNum(pMan) - 1);
+		addR1R0toR0[i] = false;
+	}
+	addR1R0toR0[k1Level + s_phase1] = true;
+	addR1R0toR1[k1Level + s_phase1] = true;
+
 	k = m;
 	l = m + 1;
 	assert(k >= 0);
