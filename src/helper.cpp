@@ -2194,7 +2194,7 @@ void propagateR1Cofactors(Aig_Man_t* pMan, vector<vector<int> >& r0, vector<vect
 	cout << "propagateR1Cofactors" << endl;
 	Aig_Obj_t *mu0, *mu1, *mu;
 
-	for(int i = 0; i<numY-1; i++) {
+	for(int i = c1; i<numY-1; i++) {
 		mu0 = newOR(pMan, r0[i]);
 		mu1 = newOR(pMan, r1[i]);
 		mu = Aig_AndAigs(pMan, mu0, mu1);
@@ -2212,7 +2212,7 @@ void propagateR0Cofactors(Aig_Man_t* pMan, vector<vector<int> >& r0, vector<vect
 	cout << "propagateR0Cofactors" << endl;
 	Aig_Obj_t *mu0, *mu1, *mu;
 
-	for(int i = 0; i<numY-1; i++) {
+	for(int i = c1; i<numY-1; i++) {
 		mu0 = newOR(pMan, r0[i]);
 		mu1 = newOR(pMan, r1[i]);
 		mu = Aig_AndAigs(pMan, mu0, mu1);
@@ -2230,7 +2230,7 @@ void propagateR_Cofactors(Aig_Man_t* pMan, vector<vector<int> >& r0, vector<vect
 	cout << "propagateR_Cofactors" << endl;
 	Aig_Obj_t *mu0, *mu1, *mu;
 
-	for(int i = 0; i<numY-1; i++) {
+	for(int i = c1; i<numY-1; i++) {
 		mu0 = newOR(pMan, r0[i]);
 		mu1 = newOR(pMan, r1[i]);
 		mu = Aig_AndAigs(pMan, mu0, mu1);
