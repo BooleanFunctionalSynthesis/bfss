@@ -1256,7 +1256,7 @@ void updateAbsRef(Aig_Man_t* pMan, vector<vector<int> > &r0, vector<vector<int> 
 	// cout << "UpdateAbsRef m is " << m << endl;
 	assert(k1Level <= m);
 	int s_phase1 = (m - k1Level < c2)? m - k1Level : c2;
-	int s_phase2 = (s_phase1 < c2)? 0 : m - k1Level - c2;
+	// int s_phase2 = (s_phase1 < c2)? 0 : m - k1Level - c2;
 
 	for(int i = k1Level; i < k1Level + s_phase1; i++) {
 		mu0 = newOR(pMan, r0[i]);
