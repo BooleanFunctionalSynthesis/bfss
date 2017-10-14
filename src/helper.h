@@ -45,6 +45,8 @@ Abc_Ntk_t * Abc_NtkFromAigPhase(Aig_Man_t * pMan);
 #define UNIGEN_PY 			"UniGen2.py"
 #define UNIGEN_SAMPLES_DEF	220
 #define UNIGEN_THREADS_DEF	4
+#define INIT_COLLAPSE_PARAM	4
+#define REF_COLLAPSE_PARAM	3
 
 // #define DEBUG
 // #define DEBUG_CHUNK
@@ -69,6 +71,8 @@ struct optionStruct {
 	sType 	skolemType;
 	int 	numSamples;
 	int 	numThreads;
+	int 	initCollapseParam;
+	int 	refCollapseParam;
 };
 
 extern vector<int> varsSInv;
@@ -159,10 +163,11 @@ int 			filterAndPopulateK1Vec(Aig_Man_t* SAig, vector<vector<int> >&r0, vector<v
 int 			filterAndPopulateK1VecFast(Aig_Man_t* SAig, vector<vector<int> >&r0, vector<vector<int> >&r1, int prevM);
 int				populateK2Vec(Aig_Man_t* SAig, vector<vector<int> >&r0, vector<vector<int> >&r1, int prevM);
 void 			initializeAddR1R0toR();
-void			propagateR1Cofactors(Aig_Man_t* pMan, vector<vector<int> >& r0, vector<vector<int> >& r1);
-void			propagateR0Cofactors(Aig_Man_t* pMan, vector<vector<int> >& r0, vector<vector<int> >& r1);
-void			propagateR_Cofactors(Aig_Man_t* pMan, vector<vector<int> >& r0, vector<vector<int> >& r1);
-void			propagateR0R1Cofactors(Aig_Man_t* pMan, vector<vector<int> >& r0, vector<vector<int> >& r1);
+void			collapseInitialLevels(Aig_Man_t* pMan, vector<vector<int> >& r0, vector<vector<int> >& r1, int c1);
+void			propagateR1Cofactors(Aig_Man_t* pMan, vector<vector<int> >& r0, vector<vector<int> >& r1, int c1);
+void			propagateR0Cofactors(Aig_Man_t* pMan, vector<vector<int> >& r0, vector<vector<int> >& r1, int c1);
+void			propagateR_Cofactors(Aig_Man_t* pMan, vector<vector<int> >& r0, vector<vector<int> >& r1, int c1);
+void			propagateR0R1Cofactors(Aig_Man_t* pMan, vector<vector<int> >& r0, vector<vector<int> >& r1, int c1);
 void			chooseSmallerR_(Aig_Man_t* pMan, vector<vector<int> >& r0, vector<vector<int> >& r1);
 void			chooseR_(Aig_Man_t* pMan, vector<vector<int> >& r0, vector<vector<int> >& r1);
 void			parseOptions(int argc, char * argv[]);

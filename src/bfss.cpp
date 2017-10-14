@@ -201,18 +201,24 @@ int main(int argc, char * argv[]) {
 	// Pre-process R0/R1
 	k2Trend = vector<vector<int> >(numY+1, vector<int>(numY,0));
 	useR1AsSkolem = vector<bool>(numY,true);
+	int c1 = options.initCollapseParam;
+	c1 = (c1 >= numY)? numY - 1 : c1;
+	int c2 = options.refCollapseParam;
+	c2 = (c2 >= numY)? numY - 1 : c2;
+
 	initializeAddR1R0toR();
+	collapseInitialLevels(SAig, r0, r1, c1);
 	if(options.proactiveProp)
 		switch(options.skolemType) {
-			case (sType::skolemR0): propagateR0Cofactors(SAig,r0,r1); break;
-			case (sType::skolemR1): propagateR1Cofactors(SAig,r0,r1); break;
-			case (sType::skolemRx): propagateR0R1Cofactors(SAig,r0,r1); break;
+			case (sType::skolemR0): propagateR0Cofactors(SAig,r0,r1,c1); break;
+			case (sType::skolemR1): propagateR1Cofactors(SAig,r0,r1,c1); break;
+			case (sType::skolemRx): propagateR0R1Cofactors(SAig,r0,r1,c1); break;
 		}
 	chooseR_(SAig,r0,r1);
 	cout << endl;
 
-	cout << "checkSupportSanity(SAig, r0, r1)..."<<endl;
-	checkSupportSanity(SAig, r0, r1);
+	// cout << "checkSupportSanity(SAig, r0, r1)..."<<endl;
+	// checkSupportSanity(SAig, r0, r1);
 
 	Aig_ManPrintStats( SAig );
 	cout << "Compressing SAig..." << endl;

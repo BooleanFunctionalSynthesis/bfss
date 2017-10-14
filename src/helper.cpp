@@ -34,6 +34,8 @@ void parseOptions(int argc, char * argv[]) {
 		("h, help", "Print this help")
 		("s, samples", "Number of unigen samples requested per call (default: " STR(UNIGEN_SAMPLES_DEF) ")", cxxopts::value<int>(options.numSamples), "N")
 		("t, threads", "Number of unigen threads (default: " STR(UNIGEN_THREADS_DEF) ")", cxxopts::value<int>(options.numThreads), "N")
+		("i, initCollapseParam", "Number of initial levels to collapse (default: " STR(INIT_COLLAPSE_PARAM) ")", cxxopts::value<int>(options.initCollapseParam), "N")
+		("r, refCollapseParam", "Number of levels to collapse k1 onwards (default: " STR(REF_COLLAPSE_PARAM) ")", cxxopts::value<int>(options.refCollapseParam), "N")
 		("positional",
 			"Positional arguments: these are the arguments that are entered "
 			"without an option", cxxopts::value<std::vector<string>>())
@@ -88,6 +90,24 @@ void parseOptions(int argc, char * argv[]) {
 		exit(0);
 	}
 
+	if (!optParser.count("initCollapseParam")) {
+		options.initCollapseParam = INIT_COLLAPSE_PARAM;
+	}
+	else if(options.initCollapseParam < 0) {
+		cerr << endl << "Error: Initial collapse levels must be non-negative" << endl << endl;
+		cout << optParser.help({"", "Group"}) << std::endl;
+		exit(0);
+	}
+
+	if (!optParser.count("refCollapseParam")) {
+		options.refCollapseParam = REF_COLLAPSE_PARAM;
+	}
+	else if(options.refCollapseParam < 0) {
+		cerr << endl << "Error: Refinement collapse levels (after k1) must be non-negative" << endl << endl;
+		cout << optParser.help({"", "Group"}) << std::endl;
+		exit(0);
+	}
+
 	if(skolemType == "r0")
 		options.skolemType = sType::skolemR0;
 	else if(skolemType == "r1")
@@ -102,14 +122,16 @@ void parseOptions(int argc, char * argv[]) {
 
 	cout << "Configuration: " << endl;
 	cout << "{" << endl;
-	cout << "\t proactiveProp: " << options.proactiveProp << endl;
-	cout << "\t useABCSolver:  " << options.useABCSolver << endl;
-	cout << "\t evalAigAtNode: " << options.evalAigAtNode << endl;
-	cout << "\t benchmark:     " << options.benchmark << endl;
-	cout << "\t varsOrder:     " << options.varsOrder << endl;
-	cout << "\t skolemType:    " << options.skolemType << endl;
-	cout << "\t numSamples:    " << options.numSamples << endl;
-	cout << "\t numThreads:    " << options.numThreads << endl;
+	cout << "\t proactiveProp:        " << options.proactiveProp << endl;
+	cout << "\t useABCSolver:         " << options.useABCSolver << endl;
+	cout << "\t evalAigAtNode:        " << options.evalAigAtNode << endl;
+	cout << "\t benchmark:            " << options.benchmark << endl;
+	cout << "\t varsOrder:            " << options.varsOrder << endl;
+	cout << "\t skolemType:           " << options.skolemType << endl;
+	cout << "\t numSamples:           " << options.numSamples << endl;
+	cout << "\t numThreads:           " << options.numThreads << endl;
+	cout << "\t initCollapseParam:    " << options.initCollapseParam << endl;
+	cout << "\t refCollapseParam:     " << options.refCollapseParam << endl;
 	cout << "}" << endl;
 }
 
@@ -2146,7 +2168,29 @@ void initializeAddR1R0toR() {
 	addR1R0toR1 = vector<bool>(numY,true);
 }
 
-void propagateR1Cofactors(Aig_Man_t* pMan, vector<vector<int> >& r0, vector<vector<int> >& r1) {
+void collapseInitialLevels(Aig_Man_t* pMan, vector<vector<int> >& r0, vector<vector<int> >& r1,
+		int c1) {
+	cout << "collapseInitialLevels" << endl;
+	Aig_Obj_t *mu0, *mu1, *mu;
+	for(int i = 0; i<c1; i++) {
+		mu0 = newOR(pMan, r0[i]);
+		mu1 = newOR(pMan, r1[i]);
+		mu = Aig_AndAigs(pMan, mu0, mu1);
+
+		mu1 = Aig_SubstituteConst(pMan, mu, varsYS[i+1], 1);
+		Aig_ObjCreateCo(pMan, mu1);
+		r1[i+1].push_back(Aig_ManCoNum(pMan) - 1);
+		addR1R0toR1[i] = false;
+
+		mu0 = Aig_SubstituteConst(pMan, mu, varsYS[i+1], 0);
+		Aig_ObjCreateCo(pMan, mu0);
+		r0[i+1].push_back(Aig_ManCoNum(pMan) - 1);
+		addR1R0toR0[i] = false;
+	}
+}
+
+void propagateR1Cofactors(Aig_Man_t* pMan, vector<vector<int> >& r0, vector<vector<int> >& r1,
+		int c1) {
 	cout << "propagateR1Cofactors" << endl;
 	Aig_Obj_t *mu0, *mu1, *mu;
 
@@ -2163,7 +2207,8 @@ void propagateR1Cofactors(Aig_Man_t* pMan, vector<vector<int> >& r0, vector<vect
 	}
 }
 
-void propagateR0Cofactors(Aig_Man_t* pMan, vector<vector<int> >& r0, vector<vector<int> >& r1) {
+void propagateR0Cofactors(Aig_Man_t* pMan, vector<vector<int> >& r0, vector<vector<int> >& r1,
+		int c1) {
 	cout << "propagateR0Cofactors" << endl;
 	Aig_Obj_t *mu0, *mu1, *mu;
 
@@ -2180,7 +2225,8 @@ void propagateR0Cofactors(Aig_Man_t* pMan, vector<vector<int> >& r0, vector<vect
 	}
 }
 
-void propagateR_Cofactors(Aig_Man_t* pMan, vector<vector<int> >& r0, vector<vector<int> >& r1) {
+void propagateR_Cofactors(Aig_Man_t* pMan, vector<vector<int> >& r0, vector<vector<int> >& r1,
+		int c1) {
 	cout << "propagateR_Cofactors" << endl;
 	Aig_Obj_t *mu0, *mu1, *mu;
 
@@ -2204,12 +2250,13 @@ void propagateR_Cofactors(Aig_Man_t* pMan, vector<vector<int> >& r0, vector<vect
 	}
 }
 
-void propagateR0R1Cofactors(Aig_Man_t* pMan, vector<vector<int> >& r0, vector<vector<int> >& r1) {
+void propagateR0R1Cofactors(Aig_Man_t* pMan, vector<vector<int> >& r0, vector<vector<int> >& r1,
+		int c1) {
 	cout << "propagateR0R1Cofactors" << endl;
 	Aig_Obj_t *mu0, *mu1, *mu;
 	vector<int> r0Addn(numY);
 	vector<int> r1Addn(numY);
-	for(int i = 0; i<numY-1; i++) {
+	for(int i = c1; i<numY-1; i++) {
 		mu0 = newOR(pMan, r0[i]);
 		mu1 = newOR(pMan, r1[i]);
 		mu = Aig_AndAigs(pMan, mu0, mu1);
@@ -2224,7 +2271,7 @@ void propagateR0R1Cofactors(Aig_Man_t* pMan, vector<vector<int> >& r0, vector<ve
 		r0Addn[i+1] = Aig_ManCoNum(pMan) - 1;
 		addR1R0toR0[i] = false;
 	}
-	for(int i = 1; i<numY; i++) {
+	for(int i = c1+1; i<numY; i++) {
 		r1[i].push_back(r1Addn[i]);
 		r0[i].push_back(r0Addn[i]);
 	}
