@@ -36,6 +36,7 @@ void parseOptions(int argc, char * argv[]) {
 		("t, threads", "Number of unigen threads (default: " STR(UNIGEN_THREADS_DEF) ")", cxxopts::value<int>(options.numThreads), "N")
 		("i, initCollapseParam", "Number of initial levels to collapse (default: " STR(INIT_COLLAPSE_PARAM) ")", cxxopts::value<int>(options.initCollapseParam), "N")
 		("r, refCollapseParam", "Number of levels to collapse k1 onwards (default: " STR(REF_COLLAPSE_PARAM) ")", cxxopts::value<int>(options.refCollapseParam), "N")
+		("f, fmcad", "Use FMCAD phase in update abstraction refinement", cxxopts::value<bool>(options.useFmcadPhase))
 		("positional",
 			"Positional arguments: these are the arguments that are entered "
 			"without an option", cxxopts::value<std::vector<string>>())
@@ -132,6 +133,7 @@ void parseOptions(int argc, char * argv[]) {
 	cout << "\t numThreads:           " << options.numThreads << endl;
 	cout << "\t initCollapseParam:    " << options.initCollapseParam << endl;
 	cout << "\t refCollapseParam:     " << options.refCollapseParam << endl;
+	cout << "\t useFmcadPhase:        " << options.useFmcadPhase << endl;
 	cout << "}" << endl;
 }
 
@@ -2171,9 +2173,14 @@ bool checkIsFUnsat(sat_solver* pSat, Cnf_Dat_t* SCnf, vector<int>&cex,
 	}
 }
 
-void initializeAddR1R0toR() {
-	addR1R0toR0 = vector<bool>(numY,true);
-	addR1R0toR1 = vector<bool>(numY,true);
+void initializeAddR1R0toR(bool useFmcadPhase) {
+	if(!useFmcadPhase) {
+		addR1R0toR0 = vector<bool>(numY,true);
+		addR1R0toR1 = vector<bool>(numY,true);
+	} else {
+		addR1R0toR0 = vector<bool>(numY,false);
+		addR1R0toR1 = vector<bool>(numY,false);
+	}
 }
 
 void collapseInitialLevels(Aig_Man_t* pMan, vector<vector<int> >& r0, vector<vector<int> >& r1,

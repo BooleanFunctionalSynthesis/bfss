@@ -73,6 +73,7 @@ struct optionStruct {
 	int 	numThreads;
 	int 	initCollapseParam;
 	int 	refCollapseParam;
+	bool 	useFmcadPhase;
 };
 
 extern vector<int> varsSInv;
@@ -162,7 +163,7 @@ bool 			checkIsFUnsat(sat_solver* pSat, Cnf_Dat_t* SCnf, vector<int>&cex, int k,
 int 			filterAndPopulateK1Vec(Aig_Man_t* SAig, vector<vector<int> >&r0, vector<vector<int> >&r1, int prevM);
 int 			filterAndPopulateK1VecFast(Aig_Man_t* SAig, vector<vector<int> >&r0, vector<vector<int> >&r1, int prevM);
 int				populateK2Vec(Aig_Man_t* SAig, vector<vector<int> >&r0, vector<vector<int> >&r1, int prevM);
-void 			initializeAddR1R0toR();
+void 			initializeAddR1R0toR(bool useFmcadPhase);
 void			collapseInitialLevels(Aig_Man_t* pMan, vector<vector<int> >& r0, vector<vector<int> >& r1, int c1);
 void			propagateR1Cofactors(Aig_Man_t* pMan, vector<vector<int> >& r0, vector<vector<int> >& r1, int c1);
 void			propagateR0Cofactors(Aig_Man_t* pMan, vector<vector<int> >& r0, vector<vector<int> >& r1, int c1);

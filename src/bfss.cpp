@@ -206,7 +206,7 @@ int main(int argc, char * argv[]) {
 	int c2 = options.refCollapseParam;
 	c2 = (c2 >= numY)? numY - 1 : c2;
 
-	initializeAddR1R0toR();
+	initializeAddR1R0toR(options.useFmcadPhase);
 	collapseInitialLevels(SAig, r0, r1, c1);
 	if(options.proactiveProp)
 		switch(options.skolemType) {
