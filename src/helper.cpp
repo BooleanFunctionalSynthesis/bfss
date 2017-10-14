@@ -1246,7 +1246,7 @@ Aig_Obj_t* projectPiSmall(Aig_Man_t* pMan, const vector<int> &cex) {
  * @param cex       [in]        counter-example
  */
 void updateAbsRef(Aig_Man_t* pMan, vector<vector<int> > &r0, vector<vector<int> > &r1,
-	const int &k1Level, const int &c2, const int &m) {
+		bool useFmcadPhase, const int &k1Level, const int &c2, const int &m) {
 
 	OUT("updateAbsRef...");
 	int k, l;
@@ -1275,6 +1275,28 @@ void updateAbsRef(Aig_Man_t* pMan, vector<vector<int> > &r0, vector<vector<int> 
 	}
 	addR1R0toR0[k1Level + s_phase1] = true;
 	addR1R0toR1[k1Level + s_phase1] = true;
+
+	if(useFmcadPhase) {
+		for(int i = k1Level + s_phase1; i < m; i++) {
+			mu0 = newOR(pMan, r0[i]);
+			mu1 = newOR(pMan, r1[i]);
+			mu = Aig_AndAigs(pMan, mu0, mu1);
+
+			if(useR1AsSkolem[i+1]) {
+				mu1 = Aig_SubstituteConst(pMan, mu, varsYS[i+1], 1);
+				Aig_ObjCreateCo(pMan, mu1);
+				r1[i+1].push_back(Aig_ManCoNum(pMan) - 1);
+				addR1R0toR1[i] = false;
+			} else {
+				mu0 = Aig_SubstituteConst(pMan, mu, varsYS[i+1], 0);
+				Aig_ObjCreateCo(pMan, mu0);
+				r0[i+1].push_back(Aig_ManCoNum(pMan) - 1);
+				addR1R0toR0[i] = false;
+			}
+		}
+		addR1R0toR0[m] = true;
+		addR1R0toR1[m] = true;
+	}
 
 	k = m;
 	l = m + 1;
