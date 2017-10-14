@@ -1986,8 +1986,8 @@ int filterAndPopulateK1VecFast(Aig_Man_t* SAig, vector<vector<int> >&r0, vector<
 	for(auto& cex:storedCEX) {
 		assert(cex.size() == 2*numOrigInputs);
 
-		if((prevM != -1 and storedCEX_k2[index] == prevM) ||
-			(prevM == -1 and storedCEX_k1[index] == -1)) {
+		// if((prevM != -1 and storedCEX_k2[index] == prevM) ||
+		// 	(prevM == -1 and storedCEX_k1[index] == -1)) {
 
 			// New algo
 			evaluateXYLeaves(SAig,cex);
@@ -2028,7 +2028,7 @@ int filterAndPopulateK1VecFast(Aig_Man_t* SAig, vector<vector<int> >&r0, vector<
 				storedCEX_k1[index] = k1;
 			}
 			Aig_ManIncrementTravId(SAig);
-		}
+		// }
 
 		if(spurious[index])
 			max = (storedCEX_k1[index] > max) ? storedCEX_k1[index] : max;
@@ -2063,7 +2063,8 @@ int populateK2Vec(Aig_Man_t* SAig, vector<vector<int> >&r0, vector<vector<int> >
 	assert(storedCEX_k2.size() == storedCEX.size());
 	for(auto cex:storedCEX) {
 		k2 = storedCEX_k2[i];
-		if(k2 == -1 or k2 == prevM) { // Change only if k2 == prevM
+		// TODO the if statements
+		// if(k2 == -1 or k2 == prevM) { // Change only if k2 == prevM
 			int clock1 = clock();
 			k2_prev = k2;
 			k1 = storedCEX_k1[i];
@@ -2075,7 +2076,7 @@ int populateK2Vec(Aig_Man_t* SAig, vector<vector<int> >&r0, vector<vector<int> >
 			storedCEX_k2[i] = k2;
 			assert(k2>=k1);
 			k2Trend[(k2_prev==-1)?numY:k2_prev][k2]++;
-		}
+		// }
 		max = (k2 > max) ? k2 : max;
 		i++;
 	}
