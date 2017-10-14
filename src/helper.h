@@ -114,7 +114,7 @@ Cnf_Dat_t* 		buildErrorFormula(sat_solver* pSat, Aig_Man_t* SAig,
 					vector<vector<int> > &r0, vector<vector<int> > &r1);
 bool 			callSATfindCEX(Aig_Man_t* SAig,vector<int>& cex,
 					vector<vector<int> > &r0, vector<vector<int> > &r1);
-bool 			getNextCEX(Aig_Man_t*&SAig, int& m, vector<vector<int> > &r0,
+bool 			getNextCEX(Aig_Man_t*&SAig, int& k1Level, int& m, vector<vector<int> > &r0,
 					vector<vector<int> > &r1);
 bool 			populateStoredCEX(Aig_Man_t* SAig,
 					vector<vector<int> > &r0, vector<vector<int> > &r1);
@@ -129,7 +129,7 @@ Aig_Obj_t* 		AND_rec(Aig_Man_t* SAig, vector<Aig_Obj_t* >& nodes, int start, int
 Aig_Obj_t* 		newAND(Aig_Man_t* SAig, vector<Aig_Obj_t* >& nodes) ;
 Aig_Obj_t* 		projectPi(Aig_Man_t* pMan, const vector<int> &cex, const int m);
 void 			updateAbsRef(Aig_Man_t* pMan, vector<vector<int> > &r0, vector<vector<int> > &r1,
-					const int &m);
+					const int &k1Level, const int &m);
 Aig_Man_t* 		compressAig(Aig_Man_t* SAig);
 Aig_Man_t* 		compressAigByNtk(Aig_Man_t* SAig);
 void 			checkSupportSanity(Aig_Man_t*pMan, vector<vector<int> > &r0, vector<vector<int> > &r1);

@@ -814,7 +814,7 @@ bool callSATfindCEX(Aig_Man_t* SAig,vector<int>& cex,
  * @param r0        [in]        Underapproximations of cant-be-0 sets.
  * @param r1        [in]        Underapproximations of cant-be-1 sets.
  */
-bool getNextCEX(Aig_Man_t*&SAig, int& M, vector<vector<int> > &r0, vector<vector<int> > &r1) {
+bool getNextCEX(Aig_Man_t*&SAig, int& M, int& k1Level, vector<vector<int> > &r0, vector<vector<int> > &r1) {
 	OUT("getNextCEX...");
 
 	while(true) {
@@ -833,6 +833,13 @@ bool getNextCEX(Aig_Man_t*&SAig, int& M, vector<vector<int> > &r0, vector<vector
 			// }
 			cout << "k1Max: " << k1Max << "\tk2Max: " << k2Max << endl;
 			M = k2Max;
+			vector<int> kFreq(numY, 0);
+			for(auto it: storedCEX_k1)
+				kFreq[it]++;
+			int maxFreqk1 = -1;
+			for(auto it: kFreq)
+				maxFreqk1 = (it > maxFreqk1)? it : maxFreqk1;
+			k1Level = maxFreqk1;
 			return true;
 		}
 
@@ -1234,7 +1241,7 @@ Aig_Obj_t* projectPiSmall(Aig_Man_t* pMan, const vector<int> &cex) {
  * @param cex       [in]        counter-example
  */
 void updateAbsRef(Aig_Man_t* pMan, vector<vector<int> > &r0, vector<vector<int> > &r1,
-	const int &m) {
+	const int &k1Level, const int &m) {
 
 	OUT("updateAbsRef...");
 	int k, l;
