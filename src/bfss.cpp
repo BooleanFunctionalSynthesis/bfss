@@ -207,12 +207,13 @@ int main(int argc, char * argv[]) {
 	c2 = (c2 >= numY)? numY - 1 : c2;
 
 	initializeAddR1R0toR(options.useFmcadPhase);
-	collapseInitialLevels(SAig, r0, r1, c1);
+	// FIX THIS @sumith1896
+	collapseInitialLevels(SAig, r0, r1, 0);
 	if(options.proactiveProp)
 		switch(options.skolemType) {
-			case (sType::skolemR0): propagateR0Cofactors(SAig,r0,r1,c1); break;
-			case (sType::skolemR1): propagateR1Cofactors(SAig,r0,r1,c1); break;
-			case (sType::skolemRx): propagateR0R1Cofactors(SAig,r0,r1,c1); break;
+			case (sType::skolemR0): propagateR0Cofactors(SAig,r0,r1,0); break;
+			case (sType::skolemR1): propagateR1Cofactors(SAig,r0,r1,0); break;
+			case (sType::skolemRx): propagateR0R1Cofactors(SAig,r0,r1,0); break;
 		}
 	chooseR_(SAig,r0,r1);
 	cout << endl;
@@ -249,7 +250,7 @@ int main(int argc, char * argv[]) {
 		#ifdef DEBUG_CHUNK
 			checkCexSanity(SAig, cex, r0, r1);
 		#endif
-		updateAbsRef(SAig, r0, r1, options.useFmcadPhase, k1Level, c2, M);
+		updateAbsRef(SAig, r0, r1, options.useFmcadPhase, c1, c2, k1Level, M);
 		numloops++;
 
 		if(numloops % 50 == 0) {

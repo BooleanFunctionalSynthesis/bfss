@@ -13,6 +13,7 @@ vector<bool> addR1R0toR1;
 vector<bool> useR1AsSkolem;
 int numFixes = 0;
 int numCEX   = 0;
+bool initCollapseDone = false;
 cxxopts::Options optParser("bfss", "bfss: Blazingly Fast Skolem Synthesis");
 optionStruct options;
 vector<vector<int> > k2Trend;
@@ -1246,56 +1247,125 @@ Aig_Obj_t* projectPiSmall(Aig_Man_t* pMan, const vector<int> &cex) {
  * @param cex       [in]        counter-example
  */
 void updateAbsRef(Aig_Man_t* pMan, vector<vector<int> > &r0, vector<vector<int> > &r1,
-		bool useFmcadPhase, const int &k1Level, const int &c2, const int &m) {
+		bool useFmcadPhase, const int &c1, const int &c2, const int &k1Level, const int &m) {
 
 	OUT("updateAbsRef...");
 	int k, l;
 	Aig_Obj_t *mu0, *mu1, *mu, *pi1_m, *pi0_m;
 	mu0 = mu1 = mu = pi1_m = pi0_m = NULL;
 
-	// cout << "UpdateAbsRef m is " << m << endl;
+	// have a global init collapse level
+	int refCollapseStart, refCollapseEnd, fmcadPhaseStart, fmcadPhaseEnd;
+	// does it suffice for just the cofactors for refCollapse
 	assert(k1Level <= m);
-	int s_phase1 = (m - k1Level < c2)? m - k1Level : c2;
-	// int s_phase2 = (s_phase1 < c2)? 0 : m - k1Level - c2;
+	refCollapseStart = k1Level;
+	refCollapseEnd = (k1Level + c2 >= numY)? numY - 1 : k1Level + c2;
+	fmcadPhaseStart = refCollapseEnd;
+	fmcadPhaseEnd = m;
 
-	for(int i = k1Level; i < k1Level + s_phase1; i++) {
-		mu0 = newOR(pMan, r0[i]);
-		mu1 = newOR(pMan, r1[i]);
-		mu = Aig_AndAigs(pMan, mu0, mu1);
+	if(c1 >= m) {
+		if(!initCollapseDone) {
+			cout << "One time initial collapsing since c1=" << c1 << " >= m=" << m << endl;
+			for(int i = 0; i<c1; i++) {
+				mu0 = newOR(pMan, r0[i]);
+				mu1 = newOR(pMan, r1[i]);
+				mu = Aig_AndAigs(pMan, mu0, mu1);
 
-		mu1 = Aig_SubstituteConst(pMan, mu, varsYS[i+1], 1);
-		Aig_ObjCreateCo(pMan, mu1);
-		r1[i+1].push_back(Aig_ManCoNum(pMan) - 1);
-		addR1R0toR1[i] = false;
-
-		mu0 = Aig_SubstituteConst(pMan, mu, varsYS[i+1], 0);
-		Aig_ObjCreateCo(pMan, mu0);
-		r0[i+1].push_back(Aig_ManCoNum(pMan) - 1);
-		addR1R0toR0[i] = false;
-	}
-	addR1R0toR0[k1Level + s_phase1] = true;
-	addR1R0toR1[k1Level + s_phase1] = true;
-
-	if(useFmcadPhase) {
-		for(int i = k1Level + s_phase1; i < m; i++) {
-			mu0 = newOR(pMan, r0[i]);
-			mu1 = newOR(pMan, r1[i]);
-			mu = Aig_AndAigs(pMan, mu0, mu1);
-
-			if(useR1AsSkolem[i+1]) {
+				// kill other Cos and have only this in r1[i + 1]
 				mu1 = Aig_SubstituteConst(pMan, mu, varsYS[i+1], 1);
 				Aig_ObjCreateCo(pMan, mu1);
 				r1[i+1].push_back(Aig_ManCoNum(pMan) - 1);
 				addR1R0toR1[i] = false;
-			} else {
+
 				mu0 = Aig_SubstituteConst(pMan, mu, varsYS[i+1], 0);
 				Aig_ObjCreateCo(pMan, mu0);
 				r0[i+1].push_back(Aig_ManCoNum(pMan) - 1);
 				addR1R0toR0[i] = false;
 			}
+			initCollapseDone = true;
+			addR1R0toR0[c1] = true;
+			addR1R0toR1[c1] = true;
+			refCollapseStart = (k1Level < c1) ? c1 : k1Level;
 		}
-		addR1R0toR0[m] = true;
-		addR1R0toR1[m] = true;
+	}
+
+	if((refCollapseStart <= c1) && initCollapseDone) {
+		for(int i = refCollapseStart; i<refCollapseEnd; i++) {
+			mu0 = newOR(pMan, r0[i]);
+			mu1 = newOR(pMan, r1[i]);
+			mu = Aig_AndAigs(pMan, mu0, mu1);
+
+			// kill other Cos and have only this in r1[i + 1]
+			mu1 = Aig_SubstituteConst(pMan, mu, varsYS[i+1], 1);
+			Aig_ObjCreateCo(pMan, mu1);
+			r1[i+1].push_back(Aig_ManCoNum(pMan) - 1);
+			addR1R0toR1[i] = false;
+
+			mu0 = Aig_SubstituteConst(pMan, mu, varsYS[i+1], 0);
+			Aig_ObjCreateCo(pMan, mu0);
+			r0[i+1].push_back(Aig_ManCoNum(pMan) - 1);
+			addR1R0toR0[i] = false;
+		}
+	} else {
+		for(int i = refCollapseStart; i < refCollapseEnd; i++) {
+			mu0 = newOR(pMan, r0[i]);
+			mu1 = newOR(pMan, r1[i]);
+			mu = Aig_AndAigs(pMan, mu0, mu1);
+
+			mu1 = Aig_SubstituteConst(pMan, mu, varsYS[i+1], 1);
+			Aig_ObjCreateCo(pMan, mu1);
+			r1[i+1].push_back(Aig_ManCoNum(pMan) - 1);
+			addR1R0toR1[i] = false;
+
+			mu0 = Aig_SubstituteConst(pMan, mu, varsYS[i+1], 0);
+			Aig_ObjCreateCo(pMan, mu0);
+			r0[i+1].push_back(Aig_ManCoNum(pMan) - 1);
+			addR1R0toR0[i] = false;
+		}
+	}
+	addR1R0toR0[refCollapseEnd] = true;
+	addR1R0toR1[refCollapseEnd] = true;
+
+	bool continueFmcad = true;
+	bool addToR1 = false;
+	bool addToR0 = false;
+	if(useFmcadPhase) {
+		for(int i = fmcadPhaseStart; i < fmcadPhaseEnd; i++) {
+			for(int j = 0; j < storedCEX.size(); j++) {
+				if(storedCEX_k1[j] == k1Level) {
+					if(storedCEX[j][numX + i + 1] == 1)
+						addToR1 = true;
+					if(storedCEX[j][numX + i + 1] == 0)
+						addToR0 = true;
+					if((satisfiesVec(pMan, storedCEX[j], r0[i], true) == NULL) &&
+							(satisfiesVec(pMan, storedCEX[j], r1[i], true) == NULL))
+						continueFmcad = false;
+				}
+			}
+
+			if(!continueFmcad)
+				break;
+
+			mu0 = newOR(pMan, r0[i]);
+			mu1 = newOR(pMan, r1[i]);
+			mu = Aig_AndAigs(pMan, mu0, mu1);
+
+			if(addToR1) {
+				mu1 = Aig_SubstituteConst(pMan, mu, varsYS[i+1], 1);
+				Aig_ObjCreateCo(pMan, mu1);
+				r1[i+1].push_back(Aig_ManCoNum(pMan) - 1);
+				addR1R0toR1[i] = false;
+				addToR1 = false;
+			}
+
+			if(addToR0) {
+				mu0 = Aig_SubstituteConst(pMan, mu, varsYS[i+1], 0);
+				Aig_ObjCreateCo(pMan, mu0);
+				r0[i+1].push_back(Aig_ManCoNum(pMan) - 1);
+				addR1R0toR0[i] = false;
+				addToR0 = false;
+			}
+		}
 	}
 
 	k = m;
