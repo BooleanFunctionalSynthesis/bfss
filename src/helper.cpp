@@ -884,6 +884,12 @@ bool populateCEX(Aig_Man_t* SAig,
 	if(finSize < initSize*options.unigenThreshold) {
 		cout << "killing off unigen process" << endl;
 		pthread_kill(unigen_threadId, SIGKILL);
+		
+		pthread_mutex_lock(&CMSat::mu_lock);
+		CMSat::Main::unigenRunning = false;
+		pthread_cond_signal(&CMSat::lilCondVar);
+		pthread_mutex_unlock(&CMSat::mu_lock);
+		unigen_threadId = -1;
 	}
 
 	return true;
