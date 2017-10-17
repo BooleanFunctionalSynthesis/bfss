@@ -11,6 +11,7 @@
 #include <fstream>
 #include <sstream>
 #include <ctime>
+#include "cmsat/Main.h"
 #include "cxxopts.hpp"
 
 using namespace std;

@@ -1803,11 +1803,20 @@ void Sat_SolverWriteDimacsAndIS(sat_solver * p, char * pFileName,
 int unigen_call(string fname, int nSamples, int nThreads) {
 	numUnigenCalls++;
 	assert(fname.find(' ') == string::npos);
-	system("rm -rf " UNIGEN_OUT_DIR "/");
+	system("rm -rf " UNIGEN_OUT_DIR "/*");
+
 	string cmd = "python2 " UNIGEN_PY " -runIndex=0 -threads="+to_string(nThreads)+" -samples="+to_string(nSamples)+" "+fname+" " UNIGEN_OUT_DIR " > " UNIGEN_OUTPT_FPATH+to_string(numUnigenCalls) ;
 	cout << "\nCalling unigen: " << cmd << endl;
-	system(cmd.c_str());
-
+	// system(cmd.c_str());
+	char* argv[] = {"./unigen", "--samples=2200", "--kappa=0.638", \
+	 				"--pivotUniGen=27.0", "--maxTotalTime=72000", "--startIteration=0", \
+	 				"--maxLoopTime=3000", "--tApproxMC=1", "--pivotAC=60", "--gaussuntil=400", \
+	 				"--verbosity=0", "--multisample", "--threads=4", "errorFormula.cnf", "out/errorFormula_0.txt" };
+	int argc = 15;
+	CMSat::Main unigenCall(argc, argv);
+	unigenCall.parseCommandLine();
+	unigenCall.singleThreadSolve();
+	// exit(0);
 	// Check for SAT
 	ifstream infile(UNIGEN_OUTPT_FPATH + to_string(numUnigenCalls));
 	if(!infile.is_open()){
