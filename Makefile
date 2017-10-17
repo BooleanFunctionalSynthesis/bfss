@@ -19,7 +19,7 @@ CC       = g++
 CPP_FLAGS = -g -std=c++11
 
 # linking flags here
-LFLAGS   = -g -std=c++11 $(LIB_ABC) $(LIB_UNIGEN) -lm -ldl -rdynamic -lreadline -ltermcap -lpthread -fopenmp -lrt $(ABC_INCLUDES)
+LFLAGS   = -g -std=c++11 $(LIB_UNIGEN) $(LIB_ABC) -lm -ldl -rdynamic -lreadline -ltermcap -lpthread -fopenmp -lrt $(ABC_INCLUDES)
 
 SOURCES  := $(wildcard $(SRCDIR)/*.cpp)
 INCLUDES := $(wildcard $(SRCDIR)/*.h)

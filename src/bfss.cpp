@@ -31,6 +31,7 @@ int main(int argc, char * argv[]) {
 	int i, j;
 	vector<int> cex;
 
+	cout << pthread_self() << endl;
 	parseOptions(argc, argv);
 
 	benchmarkName = options.benchmark;
