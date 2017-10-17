@@ -11,17 +11,17 @@ int numUnigenCalls = 0;
 vector<bool> addR1R0toR0;
 vector<bool> addR1R0toR1;
 vector<bool> useR1AsSkolem;
-unordered_map<string, int> cexSeen; 
+unordered_map<string, int> cexSeen;
 int numFixes = 0;
 int numCEX   = 0;
 cxxopts::Options optParser("bfss", "bfss: Blazingly Fast Skolem Synthesis");
 optionStruct options;
 vector<vector<int> > k2Trend;
 int unigen_argc = 15;
-char* unigen_argv[] = {"./unigen", "--samples=2200", "--kappa=0.638", \
-	 					"--pivotUniGen=27.0", "--maxTotalTime=72000", "--startIteration=0", \
-	 					"--maxLoopTime=3000", "--tApproxMC=1", "--pivotAC=60", "--gaussuntil=400", \
-	 					"--verbosity=0", "--multisample", "--threads=4", UNIGEN_DIMAC_FNAME, UNIGEN_MODEL_FPATH};
+char* unigen_argv[] = {"./unigen", "--samples=2200", "--threads=4", "--kappa=0.638", \
+						"--pivotUniGen=27.0", "--maxTotalTime=72000", "--startIteration=0", \
+						"--maxLoopTime=3000", "--tApproxMC=1", "--pivotAC=60", "--gaussuntil=400", \
+						"--verbosity=0", "--multisample", UNIGEN_DIMAC_FNAME, UNIGEN_MODEL_FPATH};
 pthread_t unigen_threadId;
 map<int, int> varNum2ID;
 map<int, int> varNum2R0R1;
@@ -134,6 +134,9 @@ void parseOptions(int argc, char * argv[]) {
 		cout << optParser.help({"", "Group"}) << std::endl;
 		exit(0);
 	}
+
+	unigen_argv[1] = (char*)((new string("--samples="+to_string(options.numSamples)))->c_str());
+	unigen_argv[2] = (char*)((new string("--threads="+to_string(options.numThreads)))->c_str());
 
 	cout << "Configuration: " << endl;
 	cout << "{" << endl;
@@ -356,7 +359,7 @@ Aig_Obj_t* Aig_SubstituteVec(Aig_Man_t* pMan, Aig_Obj_t* initAig, vector<int>& v
 	return afterCompose;
 }
 
-vector<Aig_Obj_t* > Aig_SubstituteVecVec(Aig_Man_t* pMan, Aig_Obj_t* initAig, 
+vector<Aig_Obj_t* > Aig_SubstituteVecVec(Aig_Man_t* pMan, Aig_Obj_t* initAig,
 	vector<vector<Aig_Obj_t*> >& funcVecs) {
 	Aig_Obj_t* currFI;
 	currFI = Aig_ObjIsCo(Aig_Regular(initAig))? initAig->pFanin0: initAig;
@@ -832,8 +835,8 @@ bool getNextCEX(Aig_Man_t*&SAig, int& M, vector<vector<int> > &r0, vector<vector
 
 	while(true) {
 		while(!storedCEX.empty()) {
-			int k1Max = options.evalAigAtNode? 
-							filterAndPopulateK1VecFast(SAig, r0, r1, M) : 
+			int k1Max = options.evalAigAtNode?
+							filterAndPopulateK1VecFast(SAig, r0, r1, M) :
 							filterAndPopulateK1Vec(SAig, r0, r1, M);
 			if(storedCEX.empty())
 				break;
@@ -876,15 +879,15 @@ bool populateCEX(Aig_Man_t* SAig,
 	unigen_fetchModels(SAig, r0, r1, 1);
 	int initSize = storedCEX.size();
 	cout << "initSize: " << initSize << endl;
-	int k1Max = options.evalAigAtNode? 
-					filterAndPopulateK1VecFast(SAig, r0, r1, -1) : 
+	int k1Max = options.evalAigAtNode?
+					filterAndPopulateK1VecFast(SAig, r0, r1, -1) :
 					filterAndPopulateK1Vec(SAig, r0, r1, -1);
 	int finSize = storedCEX.size();
 	cout << "finSize: " << finSize << endl;
 	if(finSize < initSize*options.unigenThreshold) {
 		cout << "killing off unigen process" << endl;
 		pthread_kill(unigen_threadId, SIGKILL);
-		
+
 		pthread_mutex_lock(&CMSat::mu_lock);
 		CMSat::Main::unigenRunning = false;
 		pthread_cond_signal(&CMSat::lilCondVar);
@@ -1876,7 +1879,7 @@ void* unigenCallThread(void* i) {
 	CMSat::Main unigenCall(unigen_argc, unigen_argv);
 	unigenCall.parseCommandLine();
 	unigenCall.singleThreadSolve();
-	
+
 	pthread_mutex_lock(&CMSat::mu_lock);
 	CMSat::Main::unigenRunning = false;
 	pthread_cond_signal(&CMSat::lilCondVar);
@@ -1896,9 +1899,12 @@ int unigen_call(string fname, int nSamples, int nThreads) {
 	assert(fname.find(' ') == string::npos);
 	system("rm -rf " UNIGEN_OUT_DIR "/*");
 
-	string cmd = "python2 " UNIGEN_PY " -runIndex=0 -threads="+to_string(nThreads)+" -samples="+to_string(nSamples)+" "+fname+" " UNIGEN_OUT_DIR " > " UNIGEN_OUTPT_FPATH+to_string(numUnigenCalls) ;
+	string cmd;
+	for (int i = 0; i < unigen_argc; ++i) {
+		cmd = cmd + string(unigen_argv[i]) + " ";
+	}
 	cout << "\nCalling unigen: " << cmd << endl;
-	// system(cmd.c_str());
+
 	CMSat::Main::initStat = CMSat::initialStatus::udef;
 	cexSeen.clear();
 	pthread_create(&unigen_threadId, NULL, unigenCallThread, NULL);
@@ -1910,7 +1916,7 @@ int unigen_call(string fname, int nSamples, int nThreads) {
 	while(CMSat::Main::initStat == CMSat::initialStatus::udef)
 		pthread_cond_wait(&CMSat::statCondVar, &CMSat::stat_lock);
 	pthread_mutex_unlock(&CMSat::stat_lock);
-	
+
 	switch(CMSat::Main::initStat) {
 		case CMSat::initialStatus::unsat: return 0;
 		case CMSat::initialStatus::tooLittle: return -1;
@@ -1934,8 +1940,8 @@ bool unigen_fetchModels(Aig_Man_t* SAig, vector<vector<int> > &r0,
 		int startPoint = (line[0] == ' ') ? 2 : 1;
 		line = line.substr(startPoint, line.size() - 2 - startPoint);
 		if(cexSeen.find(line) != cexSeen.end())
-			continue; 
-		else 
+			continue;
+		else
 			cexSeen[line] = 1;
 
 		istringstream iss(line);
@@ -2106,7 +2112,7 @@ int filterAndPopulateK1VecFast(Aig_Man_t* SAig, vector<vector<int> >&r0, vector<
 
 		if(spurious[index])
 			max = (storedCEX_k1[index] > max) ? storedCEX_k1[index] : max;
-		
+
 		index++;
 	}
 
