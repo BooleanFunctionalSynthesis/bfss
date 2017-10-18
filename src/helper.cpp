@@ -950,6 +950,8 @@ bool populateCEX(Aig_Man_t* SAig,
 		pthread_mutex_unlock(&CMSat::mu_lock);
 		unigen_threadId = -1;
 	}
+	// Add to numCEX
+	numCEX += storedCEX.size();
 
 	return true;
 }
@@ -1348,8 +1350,8 @@ void updateAbsRef(Aig_Man_t*&pMan, vector<vector<int> > &r0, vector<vector<int> 
 
 	OUT("updateAbsRef...");
 	int k, l;
-	Aig_Obj_t *mu0, *mu1, *mu, *pi1_m, *pi0_m;
-	mu0 = mu1 = mu = pi1_m = pi0_m = NULL;
+	Aig_Obj_t *mu0, *mu1, *mu, *pi1_m, *pi0_m, *pAigObj, *mu0_temp, *mu1_temp;
+	mu0 = mu1 = mu = pi1_m = pi0_m = pAigObj = mu0_temp = mu1_temp = NULL;
 
 	// cout << "addR1R0toR0: ";
 	// for(auto it:addR1R0toR0)
@@ -1370,6 +1372,10 @@ void updateAbsRef(Aig_Man_t*&pMan, vector<vector<int> > &r0, vector<vector<int> 
 	fmcadPhaseStart = refCollapseEnd;
 	fmcadPhaseEnd = m;
 
+
+	// ####################################
+	//  SECTION A: 0 -> c1 ################
+	// ####################################
 	if(!initCollapseDone and options.c1>0) {
 
 		int minK2 = numY;
@@ -1391,11 +1397,18 @@ void updateAbsRef(Aig_Man_t*&pMan, vector<vector<int> > &r0, vector<vector<int> 
 				mu1 = newOR(pMan, r1[i]);
 				mu = Aig_AndAigs(pMan, mu0, mu1);
 
+
 				// kill other Cos and have only this in r1[i + 1]
 				if(addR1R0toR1[i]) {
 					mu1 = Aig_SubstituteConst(pMan, mu, varsYS[i+1], 1);
-					Aig_ObjCreateCo(pMan, mu1);
-					r1[i+1].push_back(Aig_ManCoNum(pMan) - 1);
+
+					// Aig_ObjCreateCo(pMan, mu1);
+					// r1[i+1].push_back(Aig_ManCoNum(pMan) - 1);
+					for(auto it:r1[i+1]) {
+						pAigObj = Aig_ManCo(pMan,it);
+						Aig_ObjPatchFanin0(pMan, pAigObj, mu1);
+					}
+
 					addR1R0toR1[i] = false;
 					addR1R0toR0[i+1] = true;
 					addR1R0toR1[i+1] = true;
@@ -1403,13 +1416,22 @@ void updateAbsRef(Aig_Man_t*&pMan, vector<vector<int> > &r0, vector<vector<int> 
 
 				if(addR1R0toR0[i]) {
 					mu0 = Aig_SubstituteConst(pMan, mu, varsYS[i+1], 0);
-					Aig_ObjCreateCo(pMan, mu0);
-					r0[i+1].push_back(Aig_ManCoNum(pMan) - 1);
+					// Aig_ObjCreateCo(pMan, mu0);
+					// r0[i+1].push_back(Aig_ManCoNum(pMan) - 1);
+					for(auto it:r0[i+1]) {
+						pAigObj = Aig_ManCo(pMan,it);
+						Aig_ObjPatchFanin0(pMan, pAigObj, mu0);
+					}
 					addR1R0toR0[i] = false;
 					addR1R0toR0[i+1] = true;
 					addR1R0toR1[i+1] = true;
 				}
+				
+				int removed = Aig_ManCleanup(pMan);
+				cout << "Removed " << removed <<" nodes" << endl;
 			}
+			cout << "compressAigByNtk" << endl;
+			Aig_ManPrintStats(pMan);
 			pMan = compressAigByNtk(pMan);
 			Aig_ManPrintStats(pMan);
 			initCollapseDone = true;
@@ -1432,15 +1454,21 @@ void updateAbsRef(Aig_Man_t*&pMan, vector<vector<int> > &r0, vector<vector<int> 
 			releventCEX.push_back(i);
 	}
 
+
+	// ########################################
+	//  SECTION B: k1 -> k1+c2 ################
+	// ########################################
 	if(refCollapseStart <= exhaustiveCollapsedTill) {
 		refCollapseStart = exhaustiveCollapsedTill;
 	}
 	// cout << "refcollapse " << refCollapseStart <<" to " << refCollapseEnd << endl;
+	bool flag = false;
 	for(int i = refCollapseStart; i<refCollapseEnd; i++) {
 
 		if(exhaustiveCollapsedTill == i) {
 			cout << "#2exhaustiveCollapsedTill = " << i+1 << endl;
 			exhaustiveCollapsedTill = i+1;
+			flag = true;
 		}
 
 		if(!addR1R0toR1[i] and !addR1R0toR0[i])
@@ -1452,8 +1480,17 @@ void updateAbsRef(Aig_Man_t*&pMan, vector<vector<int> > &r0, vector<vector<int> 
 
 		if(addR1R0toR1[i]) {
 			mu1 = Aig_SubstituteConst(pMan, mu, varsYS[i+1], 1);
-			Aig_ObjCreateCo(pMan, mu1);
-			r1[i+1].push_back(Aig_ManCoNum(pMan) - 1);
+			
+			if(exhaustiveCollapsedTill == i+1) {		
+				for(auto it:r1[i+1]) {
+					pAigObj = Aig_ManCo(pMan,it);
+					Aig_ObjPatchFanin0(pMan, pAigObj, mu1);
+				}
+			}
+			else {
+				Aig_ObjCreateCo(pMan, mu1);
+				r1[i+1].push_back(Aig_ManCoNum(pMan) - 1);
+			}
 			addR1R0toR1[i] = false;
 			addR1R0toR0[i+1] = true;
 			addR1R0toR1[i+1] = true;
@@ -1461,18 +1498,33 @@ void updateAbsRef(Aig_Man_t*&pMan, vector<vector<int> > &r0, vector<vector<int> 
 
 		if(addR1R0toR0[i]) {
 			mu0 = Aig_SubstituteConst(pMan, mu, varsYS[i+1], 0);
-			Aig_ObjCreateCo(pMan, mu0);
-			r0[i+1].push_back(Aig_ManCoNum(pMan) - 1);
+			
+			if(exhaustiveCollapsedTill == i+1) {		
+				for(auto it:r0[i+1]) {
+					pAigObj = Aig_ManCo(pMan,it);
+					Aig_ObjPatchFanin0(pMan, pAigObj, mu0);
+				}
+			}
+			else {
+				Aig_ObjCreateCo(pMan, mu0);
+				r0[i+1].push_back(Aig_ManCoNum(pMan) - 1);
+			}
+
 			addR1R0toR0[i] = false;
 			addR1R0toR0[i+1] = true;
 			addR1R0toR1[i+1] = true;
 		}
 
-		for(auto it = releventCEX.begin(); it != releventCEX.end();) {
-			if(!storedCEX_r0Sat[*it][i+1] && !storedCEX_r1Sat[*it][i+1])
-				releventCEX.erase(it++);
-			else
-				it++;
+		// for(auto it = releventCEX.begin(); it != releventCEX.end();) {
+		// 	if(!storedCEX_r0Sat[*it][i+1] && !storedCEX_r1Sat[*it][i+1])
+		// 		releventCEX.erase(it++);
+		// 	else
+		// 		it++;
+		// }
+
+		if(flag) {
+			int removed = Aig_ManCleanup(pMan);
+			cout << "Removed " << removed <<" nodes" << endl;
 		}
 	}
 	if(refCollapseStart <refCollapseEnd) {
@@ -1488,63 +1540,78 @@ void updateAbsRef(Aig_Man_t*&pMan, vector<vector<int> > &r0, vector<vector<int> 
 		}
 	}
 
+
+	// ######################################### 
+	// SECTION C: k1+c -> fmcad ################
+	// ######################################### 
 	if(options.useFmcadPhase and !releventCEX.empty()) {
 		bool continueFmcad = true;
 		fmcadPhaseStart = max(fmcadPhaseStart, exhaustiveCollapsedTill);
 		cout << "fmcad from  " << fmcadPhaseStart << endl;
 
+		mu0 = mu1 = NULL;
 		int cexIndex = -1;
 		int corrK2 = -1;
-		for(auto it: releventCEX) {
-			if(corrK2 < storedCEX_k2[it]) {
-				corrK2 = storedCEX_k2[it];
-				cexIndex = it;
+		int k = fmcadPhaseStart;
+		// for(int i = 0; i< storedCEX.size(); i++) {
+		for(auto i:releventCEX) {
+			if(((mu0_temp = generalize(pMan, storedCEX[i], r0[k])) !=NULL) and
+			   ((mu1_temp = generalize(pMan, storedCEX[i], r1[k])) !=NULL))
+
+				if(corrK2 < storedCEX_k2[i]) {
+					corrK2 = storedCEX_k2[i];
+					cexIndex = i;
+					mu0 = mu0_temp;		
+					mu1 = mu1_temp;
+				}
+		}
+		auto &cex = storedCEX[cexIndex];
+
+		if(mu0 and mu1) {
+			mu = Aig_AndAigs(pMan, mu0, mu1);
+			int l = k+1;
+			while(true) {
+				assert(l<numY);
+				if(Aig_Support(pMan, mu, varsYS[l])) {
+					if(cex[numX + l] == 1) {
+						mu1 = Aig_SubstituteConst(pMan, mu, varsYS[l], 1);
+						Aig_ObjCreateCo(pMan, mu1);
+						r1[l].push_back(Aig_ManCoNum(pMan)-1);
+						if(storedCEX_r0Sat[cexIndex][l]) {
+							mu0 = generalize(pMan,cex,r0[l]);
+							mu = Aig_AndAigs(pMan, mu0, mu1);
+						}
+						else if(!storedCEX_r1Sat[cexIndex][l]) {
+							cout << "fmcad break " << l << endl;
+							break;
+						}
+					}
+					else {
+						mu0 = Aig_SubstituteConst(pMan, mu, varsYS[l], 0);
+						Aig_ObjCreateCo(pMan, mu0);
+						r0[l].push_back(Aig_ManCoNum(pMan)-1);
+						if(storedCEX_r1Sat[cexIndex][l]) {
+							mu1 = generalize(pMan,cex,r1[l]);
+							mu = Aig_AndAigs(pMan, mu0, mu1);
+						}
+						else if(!storedCEX_r0Sat[cexIndex][l]) {
+							cout << "fmcad break " << l << endl;
+							break;
+						}
+					}
+				}
+				l = l+1;
 			}
 		}
-
-		int k = fmcadPhaseStart;
-		auto &cex = storedCEX[cexIndex];
-		mu0 = generalize(pMan, cex, r0[k]);
-		mu1 = generalize(pMan, cex, r1[k]);
-		assert(mu0 and mu1);
-
-		mu = Aig_AndAigs(pMan, mu0, mu1);
-
-		int l = k+1;
-		while(true) {
-			assert(l<numY);
-			if(Aig_Support(pMan, mu, varsYS[l])) {
-				if(cex[numX + l] == 1) {
-					mu1 = Aig_SubstituteConst(pMan, mu, varsYS[l], 1);
-					Aig_ObjCreateCo(pMan, mu1);
-					r1[l].push_back(Aig_ManCoNum(pMan)-1);
-					if(storedCEX_r0Sat[cexIndex][l]) {
-						mu0 = generalize(pMan,cex,r0[l]);
-						mu = Aig_AndAigs(pMan, mu0, mu1);
-					}
-					else if(!storedCEX_r1Sat[cexIndex][l]) {
-						cout << "fmcad break " << l << endl;
-						break;
-					}
-				}
-				else {
-					mu0 = Aig_SubstituteConst(pMan, mu, varsYS[l], 0);
-					Aig_ObjCreateCo(pMan, mu0);
-					r0[l].push_back(Aig_ManCoNum(pMan)-1);
-					if(storedCEX_r1Sat[cexIndex][l]) {
-						mu1 = generalize(pMan,cex,r1[l]);
-						mu = Aig_AndAigs(pMan, mu0, mu1);
-					}
-					else if(!storedCEX_r0Sat[cexIndex][l]) {
-						cout << "fmcad break " << l << endl;
-						break;
-					}
-				}
-			}
-			l = l+1;
+		else {
+			cout << "No cex available" << endl;
 		}
 	}
 
+
+	// ################################# 
+	// SECTION D: k2Fix ################
+	// ################################# 
 	k = m;
 	l = m + 1;
 	assert(k >= 0);
