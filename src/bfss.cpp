@@ -251,7 +251,7 @@ int main(int argc, char * argv[]) {
 		updateAbsRef(SAig, r0, r1, k1Level, M);
 		numloops++;
 
-		if(numloops % 5 == 0) {
+		if(numloops % 50 == 0) {
 			cout << numloops;
 			cout << endl;
 			Aig_ManPrintStats( SAig );

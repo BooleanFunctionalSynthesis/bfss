@@ -1276,7 +1276,7 @@ void updateAbsRef(Aig_Man_t*&pMan, vector<vector<int> > &r0, vector<vector<int> 
 	fmcadPhaseStart = refCollapseEnd;
 	fmcadPhaseEnd = m;
 
-	if(!initCollapseDone) {
+	if(!initCollapseDone and options.c1>0) {
 
 		int minK2 = numY;
 		for(auto it:storedCEX_k2)
@@ -1483,8 +1483,8 @@ void updateAbsRef(Aig_Man_t*&pMan, vector<vector<int> > &r0, vector<vector<int> 
 			}
 		}
 
-		bool addR1R0toR0_m = addR1R0toR0[m] and !options.useFmcadPhase;
-		bool addR1R0toR1_m = addR1R0toR1[m] and !options.useFmcadPhase;
+		bool addR1R0toR0_m = addR1R0toR0[m];// and !options.useFmcadPhase;
+		bool addR1R0toR1_m = addR1R0toR1[m];// and !options.useFmcadPhase;
 
 		if((fixR0 and addR1R0toR0_m) or (fixR1 and addR1R0toR1_m)) {
 			mu0 = newOR(pMan, r0[m]);
