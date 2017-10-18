@@ -45,6 +45,7 @@ void parseOptions(int argc, char * argv[]) {
 		("t, threads", "Number of unigen threads (default: " STR(UNIGEN_THREADS_DEF) ")", cxxopts::value<int>(options.numThreads), "N")
 		("u, unigenBackground", "Run UniGen in background (faster)", cxxopts::value<bool>(options.unigenBackground))
 		("unigenThreshold", "Threshold fraction of cex below which to switch error formula (default: " STR(UNIGEN_THRESHOLD) ")", cxxopts::value<double>(options.unigenThreshold), "N")
+		("w, waitSamples", "Number of solutions to wait for when Unigen runs in parallel (default: " STR(WAIT_SAMPLES_DEF) ")", cxxopts::value<int>(options.waitSamples), "N")
 		("positional",
 			"Positional arguments: these are the arguments that are entered "
 			"without an option", cxxopts::value<std::vector<string>>())
@@ -80,6 +81,25 @@ void parseOptions(int argc, char * argv[]) {
 	}
 	else if(options.numSamples <= 0) {
 		cerr << endl << "Error: Sample count must be positive" << endl << endl;
+		cout << optParser.help({"", "Group"}) << std::endl;
+		exit(0);
+	}
+
+	if (!optParser.count("waitSamples")) {
+		options.waitSamples = WAIT_SAMPLES_DEF;
+	}
+	else if(options.useABCSolver) {
+		cerr << endl << "Error: waitSamples and ABC's solver are exclusive" << endl << endl;
+		cout << optParser.help({"", "Group"}) << std::endl;
+		exit(0);
+	}
+	else if(options.numSamples < 0) {
+		cerr << endl << "Error: waitSamples must be non-negative" << endl << endl;
+		cout << optParser.help({"", "Group"}) << std::endl;
+		exit(0);
+	}
+	else if(options.numSamples < 0) {
+		cerr << endl << "Error: waitSamples must be non-negative" << endl << endl;
 		cout << optParser.help({"", "Group"}) << std::endl;
 		exit(0);
 	}
@@ -148,6 +168,7 @@ void parseOptions(int argc, char * argv[]) {
 	cout << "\t skolemType:    " << options.skolemType << endl;
 	cout << "\t numSamples:    " << options.numSamples << endl;
 	cout << "\t numThreads:    " << options.numThreads << endl;
+	cout << "\t waitSamples:   " << options.waitSamples << endl;
 	cout << "}" << endl;
 }
 
@@ -1932,7 +1953,7 @@ bool unigen_fetchModels(Aig_Man_t* SAig, vector<vector<int> > &r0,
 
 	bool flag = false;
 	string line;
-	auto storedSolutionMap = CMSat::Main::fetchSolutionMap(110);
+	auto storedSolutionMap = CMSat::Main::fetchSolutionMap(options.waitSamples);
 	for(auto it:storedSolutionMap) {
 		line = it.first;
 		if(line == " " || line == "")

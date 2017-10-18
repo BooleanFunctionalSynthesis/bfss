@@ -48,6 +48,7 @@ Abc_Ntk_t * Abc_NtkFromAigPhase(Aig_Man_t * pMan);
 #define UNIGEN_SAMPLES_DEF	220
 #define UNIGEN_THREADS_DEF	4
 #define UNIGEN_THRESHOLD 	0.9
+#define WAIT_SAMPLES_DEF 	110
 
 // #define DEBUG
 // #define DEBUG_CHUNK
@@ -74,6 +75,7 @@ struct optionStruct {
 	int 	numThreads;
 	bool	unigenBackground;
 	double 	unigenThreshold;
+	int 	waitSamples;
 };
 
 extern vector<int> varsSInv;
@@ -149,7 +151,7 @@ void 			Aig_ComposeVec_rec( Aig_Man_t * p, Aig_Obj_t * pObj, vector<Aig_Obj_t *>
 					vector<Aig_Obj_t* >& iVarObjVec );
 Aig_Obj_t*	 	Aig_ComposeVec( Aig_Man_t * p, Aig_Obj_t * pRoot, vector<Aig_Obj_t *>& pFuncVec,
 					vector<int>& iVarVec );
-void 			Aig_VecVecConeUnmark_rec(Aig_Obj_t * pObj); 
+void 			Aig_VecVecConeUnmark_rec(Aig_Obj_t * pObj);
 void 			Aig_ComposeVecVec_rec(Aig_Man_t* p, Aig_Obj_t* pObj, vector<vector<Aig_Obj_t*> >& pFuncVecs);
 vector<Aig_Obj_t* > Aig_ComposeVecVec(Aig_Man_t* p, Aig_Obj_t* pRoot, vector<vector<Aig_Obj_t*> >& pFuncVecs);
 void 			Sat_SolverWriteDimacsAndIS( sat_solver * p, char * pFileName,
