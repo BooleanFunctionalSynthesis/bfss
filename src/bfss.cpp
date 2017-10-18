@@ -201,19 +201,17 @@ int main(int argc, char * argv[]) {
 	// Pre-process R0/R1
 	k2Trend = vector<vector<int> >(numY+1, vector<int>(numY,0));
 	useR1AsSkolem = vector<bool>(numY,true);
-	int c1 = options.initCollapseParam;
-	c1 = (c1 >= numY)? numY - 1 : c1;
-	int c2 = options.refCollapseParam;
-	c2 = (c2 >= numY)? numY - 1 : c2;
 
-	initializeAddR1R0toR(options.useFmcadPhase);
-	// FIX THIS @sumith1896
-	collapseInitialLevels(SAig, r0, r1, 0);
+	options.c1 = (options.c1 >= numY)? numY - 1 : options.c1;
+	options.c2 = (options.c2 >= numY)? numY - 1 : options.c2;
+
+	initializeAddR1R0toR();
+
 	if(options.proactiveProp)
 		switch(options.skolemType) {
-			case (sType::skolemR0): propagateR0Cofactors(SAig,r0,r1,0); break;
-			case (sType::skolemR1): propagateR1Cofactors(SAig,r0,r1,0); break;
-			case (sType::skolemRx): propagateR0R1Cofactors(SAig,r0,r1,0); break;
+			case (sType::skolemR0): propagateR0Cofactors(SAig,r0,r1); break;
+			case (sType::skolemR1): propagateR1Cofactors(SAig,r0,r1); break;
+			case (sType::skolemRx): propagateR0R1Cofactors(SAig,r0,r1); break;
 		}
 	chooseR_(SAig,r0,r1);
 	cout << endl;
@@ -250,10 +248,10 @@ int main(int argc, char * argv[]) {
 		#ifdef DEBUG_CHUNK
 			checkCexSanity(SAig, cex, r0, r1);
 		#endif
-		updateAbsRef(SAig, r0, r1, options.useFmcadPhase, c1, c2, k1Level, M);
+		updateAbsRef(SAig, r0, r1, k1Level, M);
 		numloops++;
 
-		if(numloops % 50 == 0) {
+		if(numloops % 5 == 0) {
 			cout << numloops;
 			cout << endl;
 			Aig_ManPrintStats( SAig );
