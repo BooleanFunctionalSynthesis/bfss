@@ -5,6 +5,8 @@ ifndef ABC_PATH
 export ABC_PATH = ${HOME}/abc
 endif
 export ABC_INCLUDES = -I$(ABC_PATH) -I$(ABC_PATH)/src
+export LIB_UNIGEN = /usr/local/lib/libunigen.a
+export LIB_ABC = lib/libabc.a
 
 SRCDIR   = src
 OBJDIR   = obj
@@ -17,7 +19,7 @@ CC       = g++
 CPP_FLAGS = -g -std=c++11
 
 # linking flags here
-LFLAGS   = -g -std=c++11 $(LIBDIR)/libabc.a -lm -ldl -rdynamic -lreadline -ltermcap -lpthread -lrt -I $(ABC_INCLUDES)
+LFLAGS   = -g -std=c++11 $(LIB_UNIGEN) $(LIB_ABC) -lm -ldl -rdynamic -lreadline -ltermcap -lpthread -fopenmp -lrt $(ABC_INCLUDES)
 
 SOURCES  := $(wildcard $(SRCDIR)/*.cpp)
 INCLUDES := $(wildcard $(SRCDIR)/*.h)
@@ -28,11 +30,11 @@ rm       = rm -f
 
 
 $(BINDIR)/$(TARGET): $(OBJECTS)
-	$(CC) $(CPP_FLAGS) -o $@ $^ $(LFLAGS) -I $(ABC_INCLUDES)
+	$(CC) $(CPP_FLAGS) -o $@ $^ $(LFLAGS) $(ABC_INCLUDES)
 	@echo "Linking complete!"
 
 $(OBJECTS): $(OBJDIR)/%.o : $(SRCDIR)/%.cpp
-	$(CC) $(CPP_FLAGS) -c $^ -o $@ -I $(ABC_INCLUDES)
+	$(CC) $(CPP_FLAGS) -c $^ -o $@ $(ABC_INCLUDES)
 	@echo "Compiled "$<" successfully!"
 
 .PHONY: all
@@ -47,9 +49,3 @@ clean:
 remove: clean
 	@$(rm) $(BINDIR)/$(TARGET)
 	@echo "Executable removed!"
-
-# %.o: %.cpp
-# 	$(CC) $(CPP_FLAGS) -c $^ -o $@ -I $(ABC_INCLUDES)
-
-
-# g++ -g -std=c++11  -c formula.cpp -o formula.o -I${HOME}/Github/abc -I${HOME}/Github/abc/src

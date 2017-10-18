@@ -11,6 +11,8 @@
 #include <fstream>
 #include <sstream>
 #include <ctime>
+#include <signal.h>
+#include "cmsat/Main.h"
 #include "cxxopts.hpp"
 
 using namespace std;
@@ -47,6 +49,8 @@ Abc_Ntk_t * Abc_NtkFromAigPhase(Aig_Man_t * pMan);
 #define UNIGEN_THREADS_DEF	4
 #define INIT_COLLAPSE_PARAM	4
 #define REF_COLLAPSE_PARAM	3
+#define UNIGEN_THRESHOLD 	0.9
+#define WAIT_SAMPLES_DEF 	110
 
 // #define DEBUG
 // #define DEBUG_CHUNK
@@ -74,6 +78,9 @@ struct optionStruct {
 	int 	c1;
 	int 	c2;
 	bool 	useFmcadPhase;
+	bool	unigenBackground;
+	double 	unigenThreshold;
+	int 	waitSamples;
 };
 
 extern vector<int> varsSInv;
@@ -117,6 +124,8 @@ bool 			callSATfindCEX(Aig_Man_t* SAig,vector<int>& cex,
 					vector<vector<int> > &r0, vector<vector<int> > &r1);
 bool 			getNextCEX(Aig_Man_t*&SAig, int& k1Level, int& m, vector<vector<int> > &r0,
 					vector<vector<int> > &r1);
+bool 			populateCEX(Aig_Man_t* SAig,
+					vector<vector<int> > &r0, vector<vector<int> > &r1);
 bool 			populateStoredCEX(Aig_Man_t* SAig,
 					vector<vector<int> > &r0, vector<vector<int> > &r1);
 void 			evaluateAig(Aig_Man_t* formula, const vector<int> &cex);
@@ -146,14 +155,14 @@ void 			Aig_ComposeVec_rec( Aig_Man_t * p, Aig_Obj_t * pObj, vector<Aig_Obj_t *>
 					vector<Aig_Obj_t* >& iVarObjVec );
 Aig_Obj_t*	 	Aig_ComposeVec( Aig_Man_t * p, Aig_Obj_t * pRoot, vector<Aig_Obj_t *>& pFuncVec,
 					vector<int>& iVarVec );
-void 			Aig_VecVecConeUnmark_rec(Aig_Obj_t * pObj); 
+void 			Aig_VecVecConeUnmark_rec(Aig_Obj_t * pObj);
 void 			Aig_ComposeVecVec_rec(Aig_Man_t* p, Aig_Obj_t* pObj, vector<vector<Aig_Obj_t*> >& pFuncVecs);
 vector<Aig_Obj_t* > Aig_ComposeVecVec(Aig_Man_t* p, Aig_Obj_t* pRoot, vector<vector<Aig_Obj_t*> >& pFuncVecs);
 void 			Sat_SolverWriteDimacsAndIS( sat_solver * p, char * pFileName,
 					lit* assumpBegin, lit* assumpEnd, vector<int>&IS, vector<int>&retSet);
 int 			unigen_call(string fname, int nSamples, int nThreads);
 bool 			unigen_fetchModels(Aig_Man_t* SAig, vector<vector<int> > &r0,
-							vector<vector<int> > &r1, map<int, int>& varNum2ID, map<int, int>& varNum2R0R1);
+							vector<vector<int> > &r1, bool more);
 vector<lit>		setAllNegX(Cnf_Dat_t* SCnf, Aig_Man_t* SAig, int val);
 int 			findK2Max(Aig_Man_t* SAig, sat_solver* m_pSat, Cnf_Dat_t* m_FCnf, vector<int>&cex,
 							vector<vector<int> >&r0, vector<vector<int> >&r1, int k1Max, int prevM);
