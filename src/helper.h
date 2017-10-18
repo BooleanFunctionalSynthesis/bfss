@@ -45,6 +45,8 @@ Abc_Ntk_t * Abc_NtkFromAigPhase(Aig_Man_t * pMan);
 #define UNIGEN_PY 			"UniGen2.py"
 #define UNIGEN_SAMPLES_DEF	220
 #define UNIGEN_THREADS_DEF	4
+#define INIT_COLLAPSE_PARAM	4
+#define REF_COLLAPSE_PARAM	3
 
 // #define DEBUG
 // #define DEBUG_CHUNK
@@ -69,6 +71,9 @@ struct optionStruct {
 	sType 	skolemType;
 	int 	numSamples;
 	int 	numThreads;
+	int 	c1;
+	int 	c2;
+	bool 	useFmcadPhase;
 };
 
 extern vector<int> varsSInv;
@@ -110,7 +115,7 @@ Cnf_Dat_t* 		buildErrorFormula(sat_solver* pSat, Aig_Man_t* SAig,
 					vector<vector<int> > &r0, vector<vector<int> > &r1);
 bool 			callSATfindCEX(Aig_Man_t* SAig,vector<int>& cex,
 					vector<vector<int> > &r0, vector<vector<int> > &r1);
-bool 			getNextCEX(Aig_Man_t*&SAig, int& m, vector<vector<int> > &r0,
+bool 			getNextCEX(Aig_Man_t*&SAig, int& k1Level, int& m, vector<vector<int> > &r0,
 					vector<vector<int> > &r1);
 bool 			populateStoredCEX(Aig_Man_t* SAig,
 					vector<vector<int> > &r0, vector<vector<int> > &r1);
@@ -124,14 +129,13 @@ Aig_Obj_t* 		Aig_OrAigs(Aig_Man_t* pMan, Aig_Obj_t* Aig1, Aig_Obj_t* Aig2) ;
 Aig_Obj_t* 		AND_rec(Aig_Man_t* SAig, vector<Aig_Obj_t* >& nodes, int start, int end);
 Aig_Obj_t* 		newAND(Aig_Man_t* SAig, vector<Aig_Obj_t* >& nodes) ;
 Aig_Obj_t* 		projectPi(Aig_Man_t* pMan, const vector<int> &cex, const int m);
-void 			updateAbsRef(Aig_Man_t* pMan, vector<vector<int> > &r0, vector<vector<int> > &r1,
-					const int &m);
+void 			updateAbsRef(Aig_Man_t*&pMan, vector<vector<int> > &r0, vector<vector<int> > &r1, int k1Level, int m);
 Aig_Man_t* 		compressAig(Aig_Man_t* SAig);
 Aig_Man_t* 		compressAigByNtk(Aig_Man_t* SAig);
 void 			checkSupportSanity(Aig_Man_t*pMan, vector<vector<int> > &r0, vector<vector<int> > &r1);
 Aig_Obj_t* 		OR_rec(Aig_Man_t* SAig, vector<int>& nodes, int start, int end);
 Aig_Obj_t* 		newOR(Aig_Man_t* SAig, vector<int>& nodes);
-bool 			verifyResult(Aig_Man_t* SAig, vector<vector<int> >& r0,
+bool 			verifyResult(Aig_Man_t*&SAig, vector<vector<int> >& r0,
 					vector<vector<int> >& r1, bool deleteCos);
 void 			checkCexSanity(Aig_Man_t* pMan, vector<int>& cex, vector<vector<int> >& r0,
 					vector<vector<int> >& r1);
@@ -159,6 +163,7 @@ int 			filterAndPopulateK1Vec(Aig_Man_t* SAig, vector<vector<int> >&r0, vector<v
 int 			filterAndPopulateK1VecFast(Aig_Man_t* SAig, vector<vector<int> >&r0, vector<vector<int> >&r1, int prevM);
 int				populateK2Vec(Aig_Man_t* SAig, vector<vector<int> >&r0, vector<vector<int> >&r1, int prevM);
 void 			initializeAddR1R0toR();
+void			collapseInitialLevels(Aig_Man_t* pMan, vector<vector<int> >& r0, vector<vector<int> >& r1);
 void			propagateR1Cofactors(Aig_Man_t* pMan, vector<vector<int> >& r0, vector<vector<int> >& r1);
 void			propagateR0Cofactors(Aig_Man_t* pMan, vector<vector<int> >& r0, vector<vector<int> >& r1);
 void			propagateR_Cofactors(Aig_Man_t* pMan, vector<vector<int> >& r0, vector<vector<int> >& r1);

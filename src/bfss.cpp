@@ -201,7 +201,12 @@ int main(int argc, char * argv[]) {
 	// Pre-process R0/R1
 	k2Trend = vector<vector<int> >(numY+1, vector<int>(numY,0));
 	useR1AsSkolem = vector<bool>(numY,true);
+
+	options.c1 = (options.c1 >= numY)? numY - 1 : options.c1;
+	options.c2 = (options.c2 >= numY)? numY - 1 : options.c2;
+
 	initializeAddR1R0toR();
+
 	if(options.proactiveProp)
 		switch(options.skolemType) {
 			case (sType::skolemR0): propagateR0Cofactors(SAig,r0,r1); break;
@@ -210,6 +215,9 @@ int main(int argc, char * argv[]) {
 		}
 	chooseR_(SAig,r0,r1);
 	cout << endl;
+
+	// cout << "checkSupportSanity(SAig, r0, r1)..."<<endl;
+	// checkSupportSanity(SAig, r0, r1);
 
 	Aig_ManPrintStats( SAig );
 	cout << "Compressing SAig..." << endl;
@@ -227,19 +235,20 @@ int main(int argc, char * argv[]) {
 
 	// cex = vector<int>(2*numOrigInputs, 0);
 	int M = -1;
+	int k1Level = -1;
 
 	// CEGAR Loop
 	cout << "Starting CEGAR Loop..."<<endl;
 	int numloops = 0;
 	// while(callSATfindCEX(SAig, cex, r0, r1)) {
-	while(getNextCEX(SAig, M, r0, r1)) {
+	while(getNextCEX(SAig, M, k1Level, r0, r1)) {
 		OUT("Iter " << numloops << ":\tFound CEX!");
 		// cout<<'.'<<flush;
 		// evaluateAig(SAig, cex);
 		#ifdef DEBUG_CHUNK
 			checkCexSanity(SAig, cex, r0, r1);
 		#endif
-		updateAbsRef(SAig, r0, r1, M);
+		updateAbsRef(SAig, r0, r1, k1Level, M);
 		numloops++;
 
 		if(numloops % 50 == 0) {
