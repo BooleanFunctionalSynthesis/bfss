@@ -11,6 +11,7 @@ int numUnigenCalls = 0;
 vector<bool> addR1R0toR0;
 vector<bool> addR1R0toR1;
 vector<bool> useR1AsSkolem;
+unordered_map<string, int> cexSeen;
 int numFixes = 0;
 int numCEX   = 0;
 bool initCollapseDone = false;
@@ -20,6 +21,14 @@ vector<vector<int> > k2Trend;
 vector<vector<bool> > storedCEX_r0Sat;
 vector<vector<bool> > storedCEX_r1Sat;
 int exhaustiveCollapsedTill = 0;
+int unigen_argc = 15;
+char* unigen_argv[] = {"./unigen", "--samples=2200", "--threads=4", "--kappa=0.638", \
+						"--pivotUniGen=27.0", "--maxTotalTime=72000", "--startIteration=0", \
+						"--maxLoopTime=3000", "--tApproxMC=1", "--pivotAC=60", "--gaussuntil=400", \
+						"--verbosity=0", "--multisample", UNIGEN_DIMAC_FNAME, UNIGEN_MODEL_FPATH};
+pthread_t unigen_threadId = -1;
+map<int, int> varNum2ID;
+map<int, int> varNum2R0R1;
 
 ////////////////////////////////////////////////////////////////////////
 ///                      HELPER FUNCTIONS                            ///
@@ -41,6 +50,9 @@ void parseOptions(int argc, char * argv[]) {
 		("i, initCollapseParam", "Number of initial levels to collapse (default: " STR(INIT_COLLAPSE_PARAM) ")", cxxopts::value<int>(options.c1), "N")
 		("r, refCollapseParam", "Number of levels to collapse k1 onwards (default: " STR(REF_COLLAPSE_PARAM) ")", cxxopts::value<int>(options.c2), "N")
 		("f, fmcad", "Use FMCAD phase in update abstraction refinement", cxxopts::value<bool>(options.useFmcadPhase))
+		("u, unigenBackground", "Run UniGen in background (faster)", cxxopts::value<bool>(options.unigenBackground))
+		("unigenThreshold", "Threshold fraction of cex below which to switch error formula (default: " STR(UNIGEN_THRESHOLD) ")", cxxopts::value<double>(options.unigenThreshold), "N")
+		("w, waitSamples", "Number of solutions to wait for when Unigen runs in parallel (default: " STR(WAIT_SAMPLES_DEF) ")", cxxopts::value<int>(options.waitSamples), "N")
 		("positional",
 			"Positional arguments: these are the arguments that are entered "
 			"without an option", cxxopts::value<std::vector<string>>())
@@ -80,6 +92,24 @@ void parseOptions(int argc, char * argv[]) {
 		exit(0);
 	}
 
+	if (!optParser.count("waitSamples")) {
+		options.waitSamples = WAIT_SAMPLES_DEF;
+	}
+	else if(options.useABCSolver) {
+		cerr << endl << "Error: waitSamples and ABC's solver are exclusive" << endl << endl;
+		cout << optParser.help({"", "Group"}) << std::endl;
+		exit(0);
+	}
+	else if(options.numSamples < 0) {
+		cerr << endl << "Error: waitSamples must be non-negative" << endl << endl;
+		cout << optParser.help({"", "Group"}) << std::endl;
+		exit(0);
+	}
+	else if(options.numSamples < 0) {
+		cerr << endl << "Error: waitSamples must be non-negative" << endl << endl;
+		cout << optParser.help({"", "Group"}) << std::endl;
+		exit(0);
+	}
 
 	if (!optParser.count("threads")) {
 		options.numThreads = UNIGEN_THREADS_DEF;
@@ -104,11 +134,36 @@ void parseOptions(int argc, char * argv[]) {
 		exit(0);
 	}
 
+	if (options.unigenBackground && options.useABCSolver) {
+		cerr << endl << "Error: unigenBackground and ABC's solver are exclusive" << endl << endl;
+		cout << optParser.help({"", "Group"}) << std::endl;
+		exit(0);
+	}
+
 	if (!optParser.count("refCollapseParam")) {
 		options.c2 = REF_COLLAPSE_PARAM;
 	}
 	else if(options.c2 < 0) {
 		cerr << endl << "Error: Refinement collapse levels (after k1) must be non-negative" << endl << endl;
+		cout << optParser.help({"", "Group"}) << std::endl;
+		exit(0);
+	}
+
+	if (!optParser.count("unigenThreshold")) {
+		options.unigenThreshold = UNIGEN_THRESHOLD;
+	}
+	else if(options.useABCSolver) {
+		cerr << endl << "Error: unigenThreshold and ABC's solver are exclusive" << endl << endl;
+		cout << optParser.help({"", "Group"}) << std::endl;
+		exit(0);
+	}
+	else if(!options.unigenBackground) {
+		cerr << endl << "Error: unigenThreshold works only with unigenBackground (-u)" << endl << endl;
+		cout << optParser.help({"", "Group"}) << std::endl;
+		exit(0);
+	}
+	else if(options.unigenThreshold < 0) {
+		cerr << endl << "Error: unigenThreshold must be non-negative" << endl << endl;
 		cout << optParser.help({"", "Group"}) << std::endl;
 		exit(0);
 	}
@@ -125,6 +180,9 @@ void parseOptions(int argc, char * argv[]) {
 		exit(0);
 	}
 
+	unigen_argv[1] = (char*)((new string("--samples="+to_string(options.numSamples)))->c_str());
+	unigen_argv[2] = (char*)((new string("--threads="+to_string(options.numThreads)))->c_str());
+
 	cout << "Configuration: " << endl;
 	cout << "{" << endl;
 	cout << "\t proactiveProp:        " << options.proactiveProp << endl;
@@ -138,6 +196,9 @@ void parseOptions(int argc, char * argv[]) {
 	cout << "\t initCollapseParam:    " << options.c1 << endl;
 	cout << "\t refCollapseParam:     " << options.c2 << endl;
 	cout << "\t useFmcadPhase:        " << options.useFmcadPhase << endl;
+	cout << "\t unigenBackground:     " << options.unigenBackground << endl;
+	cout << "\t unigenThreshold:      " << options.unigenThreshold << endl;
+	cout << "\t waitSamples:          " << options.waitSamples << endl;
 	cout << "}" << endl;
 }
 
@@ -856,9 +917,39 @@ bool getNextCEX(Aig_Man_t*&SAig, int& M, int& k1Level, vector<vector<int> > &r0,
 		M = -1;
 
 		// Ran out of CEX, fetch new
-		if (populateStoredCEX(SAig, r0, r1) == false)
+		if (populateCEX(SAig, r0, r1) == false)
 			return false;
 	}
+}
+
+bool populateCEX(Aig_Man_t* SAig,
+	vector<vector<int> > &r0, vector<vector<int> > &r1) {
+	if(!CMSat::Main::unigenRunning && CMSat::Main::getSolutionMapSize() == 0) {
+		return populateStoredCEX(SAig, r0, r1);
+	}
+	cout << "Called more models " << endl;
+	bool more = !(options.c1==0 and options.c2==0 and !options.useFmcadPhase and options.proactiveProp);
+	unigen_fetchModels(SAig, r0, r1, more);
+	int initSize = storedCEX.size();
+	cout << "initSize: " << initSize << endl;
+	int k1Max = options.evalAigAtNode?
+					filterAndPopulateK1VecFast(SAig, r0, r1, -1) :
+					filterAndPopulateK1Vec(SAig, r0, r1, -1);
+	int finSize = storedCEX.size();
+	cout << "finSize: " << finSize << endl;
+	if(finSize < initSize*options.unigenThreshold and CMSat::Main::unigenRunning) {
+		cout << "Terminating Unigen prematurely" << endl;
+		CMSat::Main::prematureKill = true;
+		pthread_join(unigen_threadId, NULL);
+
+		pthread_mutex_lock(&CMSat::mu_lock);
+		CMSat::Main::unigenRunning = false;
+		pthread_cond_signal(&CMSat::lilCondVar);
+		pthread_mutex_unlock(&CMSat::mu_lock);
+		unigen_threadId = -1;
+	}
+
+	return true;
 }
 
 /** Function
@@ -919,7 +1010,7 @@ bool populateStoredCEX(Aig_Man_t* SAig,
 	}
 	else if(status == 1) { // Successful
 		// Read CEX
-		map<int, int> varNum2ID;
+		varNum2ID.clear();
 		for(int i=0; i<numX; ++i)
 			varNum2ID[SCnf->pVarNums[varsXS[i]]] = i;
 		for(int i=0; i<numY; ++i)
@@ -930,12 +1021,12 @@ bool populateStoredCEX(Aig_Man_t* SAig,
 			varNum2ID[SCnf->pVarNums[numOrigInputs + varsYS[i]]] = numOrigInputs + numX + i;
 
 		// For fetching r0[m] and r1[m] from solver
-		map<int, int> varNum2R0R1;
+		varNum2R0R1.clear();
 		for(int i=0; i<r0Andr1Vars.size(); i++) {
 			varNum2R0R1[r0Andr1Vars[i]] = i;
 		}
 
-		if(unigen_fetchModels(SAig, r0, r1, varNum2ID, varNum2R0R1)) {
+		if(unigen_fetchModels(SAig, r0, r1, 0)) {
 			OUT("Formula is SAT, stored CEXs");
 			return_val = true;
 		}
@@ -2040,6 +2131,24 @@ void Sat_SolverWriteDimacsAndIS(sat_solver * p, char * pFileName,
 	if (pFileName) fclose(pFile);
 }
 
+void* unigenCallThread(void* i) {
+	pthread_mutex_lock(&CMSat::mu_lock);
+	CMSat::Main::unigenRunning = true;
+	pthread_mutex_unlock(&CMSat::mu_lock);
+
+	CMSat::Main unigenCall(unigen_argc, unigen_argv);
+	unigenCall.parseCommandLine();
+	unigenCall.singleThreadSolve();
+
+	pthread_mutex_lock(&CMSat::mu_lock);
+	CMSat::Main::unigenRunning = false;
+	pthread_cond_signal(&CMSat::lilCondVar);
+	pthread_mutex_unlock(&CMSat::mu_lock);
+	unigen_threadId = -1;
+	pthread_exit(NULL);
+}
+
+
 /**Function
  * returns 0  when unsat
  * returns -1 when sat but number of solutions is too small
@@ -2048,45 +2157,56 @@ void Sat_SolverWriteDimacsAndIS(sat_solver * p, char * pFileName,
 int unigen_call(string fname, int nSamples, int nThreads) {
 	numUnigenCalls++;
 	assert(fname.find(' ') == string::npos);
-	system("rm -rf " UNIGEN_OUT_DIR "/");
-	string cmd = "python2 " UNIGEN_PY " -runIndex=0 -threads="+to_string(nThreads)+" -samples="+to_string(nSamples)+" "+fname+" " UNIGEN_OUT_DIR " > " UNIGEN_OUTPT_FPATH+to_string(numUnigenCalls) ;
-	cout << "\nCalling unigen: " << cmd << endl;
-	system(cmd.c_str());
+	system("rm -rf " UNIGEN_OUT_DIR "/*");
 
-	// Check for SAT
-	ifstream infile(UNIGEN_OUTPT_FPATH + to_string(numUnigenCalls));
-	if(!infile.is_open()){
-		cout << "Failed to open file : " UNIGEN_OUTPT_FPATH <<endl;
-		assert(false);
+	string cmd;
+	for (int i = 0; i < unigen_argc; ++i) {
+		cmd = cmd + string(unigen_argv[i]) + " ";
 	}
-	string line;
-	while(getline(infile, line)) {
-		if(line.find("enumerate")!=string::npos)
-			return -1;
-		else if(line.find("nsatisfiable")!=string::npos)
-			return 0;
+	cout << "\nCalling unigen: " << cmd << endl;
+
+	// Initializations
+	CMSat::Main::prematureKill = false;
+	CMSat::Main::initStat = CMSat::initialStatus::udef;
+	cexSeen.clear();
+
+	// Thread Creation
+	assert(!pthread_create(&unigen_threadId, NULL, unigenCallThread, NULL));
+	if(!options.unigenBackground)
+		pthread_join(unigen_threadId, NULL);
+
+	pthread_mutex_lock(&CMSat::stat_lock);
+	while(CMSat::Main::initStat == CMSat::initialStatus::udef)
+		pthread_cond_wait(&CMSat::statCondVar, &CMSat::stat_lock);
+	pthread_mutex_unlock(&CMSat::stat_lock);
+
+	switch(CMSat::Main::initStat) {
+		case CMSat::initialStatus::unsat: return 0;
+		case CMSat::initialStatus::tooLittle: return -1;
+		case CMSat::initialStatus::sat: return 1;
 	}
-	return 1;
+
+	// control cannot reach here
+	assert(false);
 }
 
 bool unigen_fetchModels(Aig_Man_t* SAig, vector<vector<int> > &r0,
-	vector<vector<int> > &r1, map<int, int>& varNum2ID, map<int, int>& varNum2R0R1) {
-
-	ifstream infile(UNIGEN_MODEL_FPATH);
-	if(!infile.is_open()) {
-		cout << "File : " UNIGEN_MODEL_FPATH " not found" << endl;
-		assert(false);
-		return false;
-	}
+	vector<vector<int> > &r1, bool more) {
 
 	bool flag = false;
 	string line;
-	vector<unordered_map<int, int> > models;
-	while(getline(infile, line)) {
+	auto storedSolutionMap = CMSat::Main::fetchSolutionMap(options.waitSamples);
+	for(auto it:storedSolutionMap) {
+		line = it.first;
 		if(line == " " || line == "")
 			continue;
 		int startPoint = (line[0] == ' ') ? 2 : 1;
-		line = line.substr(startPoint, line.size() - 4 - startPoint);
+		line = line.substr(startPoint, line.size() - 2 - startPoint);
+		if(cexSeen.find(line) != cexSeen.end())
+			continue;
+		else
+			cexSeen[line] = 1;
+
 		istringstream iss(line);
 
 		vector<int> cex(2*numOrigInputs,-1);
@@ -2113,7 +2233,7 @@ bool unigen_fetchModels(Aig_Man_t* SAig, vector<vector<int> > &r0,
 		assert(k1 >= 0);
 
 		storedCEX.push_back(cex);
-		storedCEX_k1.push_back(k1);
+		storedCEX_k1.push_back(more?-1:k1);
 		storedCEX_k2.push_back(-1);
 		storedCEX_r0Sat.push_back(vector<bool>(numY, false));
 		storedCEX_r1Sat.push_back(vector<bool>(numY, false));
@@ -2148,7 +2268,7 @@ int filterAndPopulateK1Vec(Aig_Man_t* SAig, vector<vector<int> >&r0, vector<vect
 		assert(cex.size() == 2*numOrigInputs);
 		if( options.useFmcadPhase or
 			((prevM != -1 and storedCEX_k2[index] == prevM) ||
-			(prevM == -1 and storedCEX_k1[index] == -1))) {
+			(storedCEX_k1[index] == -1))) {
 			for (int i = maxChange; i >= 0; --i) {
 				evaluateAig(SAig,cex);
 				vector<int>& r_ = useR1AsSkolem[i]?r1[i]:r0[i];
@@ -2219,7 +2339,7 @@ int filterAndPopulateK1VecFast(Aig_Man_t* SAig, vector<vector<int> >&r0, vector<
 
 		if(options.useFmcadPhase or
 			((prevM != -1 and storedCEX_k2[index] == prevM) ||
-			(prevM == -1 and storedCEX_k1[index] == -1))) {
+			(storedCEX_k1[index] == -1))) {
 
 			// New algo
 			evaluateXYLeaves(SAig,cex);
