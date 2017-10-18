@@ -26,7 +26,7 @@ char* unigen_argv[] = {"./unigen", "--samples=2200", "--threads=4", "--kappa=0.6
 						"--pivotUniGen=27.0", "--maxTotalTime=72000", "--startIteration=0", \
 						"--maxLoopTime=3000", "--tApproxMC=1", "--pivotAC=60", "--gaussuntil=400", \
 						"--verbosity=0", "--multisample", UNIGEN_DIMAC_FNAME, UNIGEN_MODEL_FPATH};
-pthread_t unigen_threadId;
+pthread_t unigen_threadId = -1;
 map<int, int> varNum2ID;
 map<int, int> varNum2R0R1;
 
@@ -937,7 +937,7 @@ bool populateCEX(Aig_Man_t* SAig,
 					filterAndPopulateK1Vec(SAig, r0, r1, -1);
 	int finSize = storedCEX.size();
 	cout << "finSize: " << finSize << endl;
-	if(finSize < initSize*options.unigenThreshold) {
+	if(finSize < initSize*options.unigenThreshold and CMSat::Main::unigenRunning) {
 		cout << "killing off unigen process" << endl;
 		pthread_kill(unigen_threadId, SIGKILL);
 
