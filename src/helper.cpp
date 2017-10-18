@@ -926,7 +926,7 @@ bool getNextCEX(Aig_Man_t*&SAig, int& M, int& k1Level, vector<vector<int> > &r0,
 bool populateCEX(Aig_Man_t* SAig,
 	vector<vector<int> > &r0, vector<vector<int> > &r1) {
 	if(!CMSat::Main::unigenRunning && CMSat::Main::getSolutionMapSize() == 0) {
-		if(populateStoredCEX(SAig, r0, r1)) {
+		if(populateStoredCEX(SAig, r0, r1, true)) {
 			// Add to numCEX
 			numCEX += storedCEX.size();
 			return true;
@@ -959,7 +959,7 @@ bool populateCEX(Aig_Man_t* SAig,
 	}
 
 	if(!CMSat::Main::unigenRunning && CMSat::Main::getSolutionMapSize() == 0) {
-		if(populateStoredCEX(SAig, r0, r1)) {
+		if(populateStoredCEX(SAig, r0, r1, false)) {
 			// Add to numCEX
 			numCEX += storedCEX.size();
 			return true;
@@ -978,7 +978,7 @@ bool populateCEX(Aig_Man_t* SAig,
  * @param r1        [in]        Underapproximations of cant-be-1 sets.
  */
 bool populateStoredCEX(Aig_Man_t* SAig,
-	vector<vector<int> > &r0, vector<vector<int> > &r1) {
+	vector<vector<int> > &r0, vector<vector<int> > &r1, bool fetch) {
 	OUT("populating Stored CEX...");
 	bool return_val;
 	int status;
@@ -1046,14 +1046,18 @@ bool populateStoredCEX(Aig_Man_t* SAig,
 			varNum2R0R1[r0Andr1Vars[i]] = i;
 		}
 
-		if(unigen_fetchModels(SAig, r0, r1, 0)) {
-			OUT("Formula is SAT, stored CEXs");
+		if(fetch) {
+			if(unigen_fetchModels(SAig, r0, r1, 0)) {
+				OUT("Formula is SAT, stored CEXs");
+				return_val = true;
+			}
+			else {
+				OUT("Formula is UNSAT");
+				return_val = false;
+			}
+		}
+		else
 			return_val = true;
-		}
-		else {
-			OUT("Formula is UNSAT");
-			return_val = false;
-		}
 	}
 	else { // Too little solutions
 		assert(status == -1);

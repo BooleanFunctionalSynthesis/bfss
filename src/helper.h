@@ -128,7 +128,7 @@ bool 			getNextCEX(Aig_Man_t*&SAig, int& k1Level, int& m, vector<vector<int> > &
 bool 			populateCEX(Aig_Man_t* SAig,
 					vector<vector<int> > &r0, vector<vector<int> > &r1);
 bool 			populateStoredCEX(Aig_Man_t* SAig,
-					vector<vector<int> > &r0, vector<vector<int> > &r1);
+					vector<vector<int> > &r0, vector<vector<int> > &r1, bool fetch);
 void 			evaluateAig(Aig_Man_t* formula, const vector<int> &cex);
 Aig_Obj_t* 		satisfiesVec(Aig_Man_t* formula, const vector<int>& cex, const vector<int>& coObjs, bool reEvaluate);
 Aig_Obj_t* 		generalize(Aig_Man_t*pMan, vector<int> cex, const vector<int>& rl);
