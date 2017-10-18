@@ -1329,7 +1329,7 @@ void updateAbsRef(Aig_Man_t*&pMan, vector<vector<int> > &r0, vector<vector<int> 
 
 	if(refCollapseStart <= exhaustiveCollapsedTill) {
 		refCollapseStart = exhaustiveCollapsedTill;
-		cout << "refcollapse " << refCollapseStart <<" to " << refCollapseEnd << endl;
+		// cout << "refcollapse " << refCollapseStart <<" to " << refCollapseEnd << endl;
 		for(int i = refCollapseStart; i<refCollapseEnd; i++) {
 
 			cout << "#2exhaustiveCollapsedTill = " << i+1 << endl;
@@ -1370,7 +1370,7 @@ void updateAbsRef(Aig_Man_t*&pMan, vector<vector<int> > &r0, vector<vector<int> 
 		}
 	}
 	else {
-		cout << "refcollapse " << refCollapseStart <<" to " << refCollapseEnd << endl;
+		// cout << "refcollapse " << refCollapseStart <<" to " << refCollapseEnd << endl;
 		for(int i = refCollapseStart; i < refCollapseEnd; i++) {
 
 			if(!addR1R0toR1[i] and !addR1R0toR0[i])
