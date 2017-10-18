@@ -926,7 +926,14 @@ bool getNextCEX(Aig_Man_t*&SAig, int& M, int& k1Level, vector<vector<int> > &r0,
 bool populateCEX(Aig_Man_t* SAig,
 	vector<vector<int> > &r0, vector<vector<int> > &r1) {
 	if(!CMSat::Main::unigenRunning && CMSat::Main::getSolutionMapSize() == 0) {
-		return populateStoredCEX(SAig, r0, r1);
+		if(populateStoredCEX(SAig, r0, r1)) {
+			// Add to numCEX
+			numCEX += storedCEX.size();
+			return true;
+		}
+		else {
+			return false;
+		}
 	}
 	cout << "Called more models " << endl;
 	bool more = !(options.c1==0 and options.c2==0 and !options.useFmcadPhase and options.proactiveProp);
@@ -950,9 +957,17 @@ bool populateCEX(Aig_Man_t* SAig,
 		pthread_mutex_unlock(&CMSat::mu_lock);
 		unigen_threadId = -1;
 	}
-	// Add to numCEX
-	numCEX += storedCEX.size();
 
+	if(!CMSat::Main::unigenRunning && CMSat::Main::getSolutionMapSize() == 0) {
+		if(populateStoredCEX(SAig, r0, r1)) {
+			// Add to numCEX
+			numCEX += storedCEX.size();
+			return true;
+		}
+		else {
+			return false;
+		}
+	}
 	return true;
 }
 
@@ -1001,6 +1016,7 @@ bool populateStoredCEX(Aig_Man_t* SAig,
 		Sat_SolverWriteDimacsAndIS(pSat, UNIGEN_DIMAC_FPATH,
 			&assumptions[0], &assumptions[0] + numX, IS, RS);
 
+		Aig_ManPrintStats(SAig);
 		// Call Unigen
 		status = unigen_call(UNIGEN_DIMAC_FPATH, options.numSamples, options.numThreads);
 	}
@@ -1091,8 +1107,6 @@ bool populateStoredCEX(Aig_Man_t* SAig,
 			return_val = true;
 		}
 	}
-	// Add to numCEX
-	numCEX += storedCEX.size();
 
 	sat_solver_delete(pSat);
 	Cnf_DataFree(SCnf);
@@ -1553,21 +1567,35 @@ void updateAbsRef(Aig_Man_t*&pMan, vector<vector<int> > &r0, vector<vector<int> 
 		int cexIndex = -1;
 		int corrK2 = -1;
 		int k = fmcadPhaseStart;
-		// for(int i = 0; i< storedCEX.size(); i++) {
-		for(auto i:releventCEX) {
-			if(((mu0_temp = generalize(pMan, storedCEX[i], r0[k])) !=NULL) and
-			   ((mu1_temp = generalize(pMan, storedCEX[i], r1[k])) !=NULL))
-
+		for(int i = 0; i< storedCEX.size(); i++) {
+			if(storedCEX_k1[i] == k) {
 				if(corrK2 < storedCEX_k2[i]) {
 					corrK2 = storedCEX_k2[i];
 					cexIndex = i;
-					mu0 = mu0_temp;		
-					mu1 = mu1_temp;
 				}
+			}
 		}
-		auto &cex = storedCEX[cexIndex];
+		if(cexIndex == -1) {
+			for(auto i:releventCEX) {
+				if(((mu0_temp = generalize(pMan, storedCEX[i], r0[k])) !=NULL) and
+				   ((mu1_temp = generalize(pMan, storedCEX[i], r1[k])) !=NULL))
 
-		if(mu0 and mu1) {
+					if(corrK2 < storedCEX_k2[i]) {
+						corrK2 = storedCEX_k2[i];
+						cexIndex = i;
+						mu0 = mu0_temp;		
+						mu1 = mu1_temp;
+					}
+			}
+		}
+		else {
+			mu0 = generalize(pMan, storedCEX[cexIndex], r0[k]);
+			mu1 = generalize(pMan, storedCEX[cexIndex], r1[k]);
+		}
+
+		if(cexIndex != -1) {
+			assert(mu0 and mu1);
+			auto &cex = storedCEX[cexIndex];
 			mu = Aig_AndAigs(pMan, mu0, mu1);
 			int l = k+1;
 			while(true) {
