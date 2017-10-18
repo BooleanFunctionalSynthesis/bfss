@@ -7,6 +7,7 @@
 #include <unordered_map>
 #include <set>
 #include <queue>
+#include <list>
 #include <algorithm>
 #include <fstream>
 #include <sstream>
