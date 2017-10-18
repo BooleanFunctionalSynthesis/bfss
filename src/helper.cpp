@@ -938,8 +938,9 @@ bool populateCEX(Aig_Man_t* SAig,
 	int finSize = storedCEX.size();
 	cout << "finSize: " << finSize << endl;
 	if(finSize < initSize*options.unigenThreshold and CMSat::Main::unigenRunning) {
-		cout << "killing off unigen process" << endl;
-		pthread_kill(unigen_threadId, SIGKILL);
+		cout << "Terminating Unigen prematurely" << endl;
+		CMSat::Main::prematureKill = true;
+		pthread_join(unigen_threadId, NULL);
 
 		pthread_mutex_lock(&CMSat::mu_lock);
 		CMSat::Main::unigenRunning = false;
@@ -2164,10 +2165,13 @@ int unigen_call(string fname, int nSamples, int nThreads) {
 	}
 	cout << "\nCalling unigen: " << cmd << endl;
 
+	// Initializations
+	CMSat::Main::prematureKill = false;
 	CMSat::Main::initStat = CMSat::initialStatus::udef;
 	cexSeen.clear();
-	pthread_create(&unigen_threadId, NULL, unigenCallThread, NULL);
 
+	// Thread Creation
+	assert(!pthread_create(&unigen_threadId, NULL, unigenCallThread, NULL));
 	if(!options.unigenBackground)
 		pthread_join(unigen_threadId, NULL);
 
