@@ -1981,9 +1981,9 @@ bool verifyResult(Aig_Man_t*&SAig, vector<vector<int> >& r0,
 		iter++;
 		Aig_Obj_t * curr = Aig_ManCo(SAig, r_Aigs[i]);
 		for(int j = i + 1; j < numY; ++j) {
-			Aig_ManForEachObj(SAig,pAigObj,i_temp) {
-				assert(Aig_ObjIsConst1(pAigObj) || Aig_ObjIsCi(pAigObj) || Aig_ObjIsCo(pAigObj) || (Aig_ObjFanin0(pAigObj) && Aig_ObjFanin1(pAigObj)));
-			}
+			// Aig_ManForEachObj(SAig,pAigObj,i_temp) {
+			// 	assert(Aig_ObjIsConst1(pAigObj) || Aig_ObjIsCi(pAigObj) || Aig_ObjIsCo(pAigObj) || (Aig_ObjFanin0(pAigObj) && Aig_ObjFanin1(pAigObj)));
+			// }
 
 			Aig_Obj_t* skolem_j = useR1AsSkolem[j]?Aig_Not(Aig_ObjChild0(Aig_ManCo(SAig,r_Aigs[j]))):Aig_ObjChild0(Aig_ManCo(SAig,r_Aigs[j]));
 			curr = Aig_Substitute(SAig, curr, varsYS[j], skolem_j);
@@ -2003,6 +2003,9 @@ bool verifyResult(Aig_Man_t*&SAig, vector<vector<int> >& r0,
 	cout << "Final reverse-substituted AigSize:     " << numAND << endl;
 	cout << "Final reverse-substituted num outputs: " << r_Aigs.size() << endl;
 	cout << "Final reverse-substituted AVG Size:    " << ((double)numAND)/r_Aigs.size() << endl;
+
+	// For experimental purposes
+	return true;
 
 	OUT("Final F Resubstitution...");
 	Aig_Obj_t* F = Aig_ManCo(SAig, (deleteCos?0:1));
