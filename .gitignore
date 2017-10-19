@@ -48,3 +48,4 @@ sat_solver.dimacs*
 tempout
 unigen_output*
 *.zip
+benchmarks/*
