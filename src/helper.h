@@ -46,11 +46,11 @@ Abc_Ntk_t * Abc_NtkFromAigPhase(Aig_Man_t * pMan);
 #define UNIGEN_MODEL_FPATH	UNIGEN_OUT_DIR "/" UNIGEN_MODEL_FNAME
 #define UNIGEN_DIMAC_FPATH 	UNIGEN_DIMAC_FNAME
 #define UNIGEN_PY 			"UniGen2.py"
-#define UNIGEN_SAMPLES_DEF	220
-#define UNIGEN_THREADS_DEF	4
+#define UNIGEN_SAMPLES_DEF	110000
+#define UNIGEN_THREADS_DEF	19
 #define INIT_COLLAPSE_PARAM	4
 #define REF_COLLAPSE_PARAM	3
-#define UNIGEN_THRESHOLD 	0.9
+#define UNIGEN_THRESHOLD 	0.3
 #define WAIT_SAMPLES_DEF 	110
 
 // #define DEBUG
@@ -98,6 +98,7 @@ extern int numCEX;
 extern cxxopts::Options optParser;
 extern optionStruct options;
 extern vector<vector<int> > k2Trend;
+extern double sat_solving_time;
 
 int 			CommandExecute(Abc_Frame_t* pAbc, string cmd);
 vector<string> 	tokenize( const string& p_pcstStr, char delim );

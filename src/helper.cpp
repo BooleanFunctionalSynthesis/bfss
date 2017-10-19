@@ -959,16 +959,16 @@ bool populateCEX(Aig_Man_t* SAig,
 		unigen_threadId = -1;
 	}
 
-	if(!CMSat::Main::unigenRunning && CMSat::Main::getSolutionMapSize() == 0) {
-		if(populateStoredCEX(SAig, r0, r1, false)) {
-			// Add to numCEX
-			numCEX += storedCEX.size();
-			return true;
-		}
-		else {
-			return false;
-		}
-	}
+	// if(!CMSat::Main::unigenRunning && CMSat::Main::getSolutionMapSize() == 0) {
+	// 	if(populateStoredCEX(SAig, r0, r1, false)) {
+	// 		// Add to numCEX
+	// 		numCEX += storedCEX.size();
+	// 		return true;
+	// 	}
+	// 	else {
+	// 		return false;
+	// 	}
+	// }
 	return true;
 }
 
@@ -1069,10 +1069,14 @@ bool populateStoredCEX(Aig_Man_t* SAig,
 		SwitchToABCSolver = true;
 
 		vector<lit> assumptions = setAllNegX(SCnf, SAig, false);
+
+		auto start = std::chrono::steady_clock::now();
 		status = sat_solver_solve(pSat,
 						&assumptions[0], &assumptions[0] + numX,
 						(ABC_INT64_T)0, (ABC_INT64_T)0,
 						(ABC_INT64_T)0, (ABC_INT64_T)0);
+		auto end = std::chrono::steady_clock::now();
+		sat_solving_time += std::chrono::duration_cast<std::chrono::microseconds>(end - start).count()/1000000.0;
 
 		if (status == l_False) {
 			OUT("Formula is unsat");
@@ -2245,6 +2249,7 @@ void Sat_SolverWriteDimacsAndIS(sat_solver * p, char * pFileName,
 }
 
 void* unigenCallThread(void* i) {
+	auto start = std::chrono::steady_clock::now();
 	pthread_mutex_lock(&CMSat::mu_lock);
 	CMSat::Main::unigenRunning = true;
 	pthread_mutex_unlock(&CMSat::mu_lock);
@@ -2258,6 +2263,8 @@ void* unigenCallThread(void* i) {
 	pthread_cond_signal(&CMSat::lilCondVar);
 	pthread_mutex_unlock(&CMSat::mu_lock);
 	unigen_threadId = -1;
+	auto end = std::chrono::steady_clock::now();
+	sat_solving_time += std::chrono::duration_cast<std::chrono::microseconds>(end - start).count()/1000000.0;
 	pthread_exit(NULL);
 }
 

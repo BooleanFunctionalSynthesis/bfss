@@ -18,6 +18,7 @@ Abc_Frame_t* pAbc;
 sat_solver* m_pSat;
 Cnf_Dat_t* m_FCnf;
 lit m_f;
+double sat_solving_time = 0;
 
 ////////////////////////////////////////////////////////////////////////
 ///                            MAIN                                  ///
@@ -286,7 +287,8 @@ int main(int argc, char * argv[]) {
 	assert(verifyResult(SAig, r0, r1, 0));
 
 	clock_t main_end = clock();
-	cout<< "Total time:   " <<double( main_end-main_start)/CLOCKS_PER_SEC << endl;
+	// cout<< "Total time:   " <<double( main_end-main_start)/CLOCKS_PER_SEC << endl;
+	cout<< "Total SAT solving time: " << sat_solving_time << endl;
 
 	sat_solver_delete(m_pSat);
 	Cnf_DataFree(m_FCnf);
