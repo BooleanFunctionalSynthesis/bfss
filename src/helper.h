@@ -99,6 +99,7 @@ extern cxxopts::Options optParser;
 extern optionStruct options;
 extern vector<vector<int> > k2Trend;
 extern double sat_solving_time;
+extern double reverse_sub_time;
 
 int 			CommandExecute(Abc_Frame_t* pAbc, string cmd);
 vector<string> 	tokenize( const string& p_pcstStr, char delim );

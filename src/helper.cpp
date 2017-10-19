@@ -1452,7 +1452,7 @@ void updateAbsRef(Aig_Man_t*&pMan, vector<vector<int> > &r0, vector<vector<int> 
 					addR1R0toR0[i+1] = true;
 					addR1R0toR1[i+1] = true;
 				}
-				
+
 				int removed = Aig_ManCleanup(pMan);
 				cout << "Removed " << removed <<" nodes" << endl;
 			}
@@ -1509,8 +1509,8 @@ void updateAbsRef(Aig_Man_t*&pMan, vector<vector<int> > &r0, vector<vector<int> 
 
 		if(addR1R0toR1[i]) {
 			mu1 = Aig_SubstituteConst(pMan, mu, varsYS[i+1], 1);
-			
-			if(exhaustiveCollapsedTill == i+1) {		
+
+			if(exhaustiveCollapsedTill == i+1) {
 				for(auto it:r1[i+1]) {
 					pAigObj = Aig_ManCo(pMan,it);
 					Aig_ObjPatchFanin0(pMan, pAigObj, mu1);
@@ -1527,8 +1527,8 @@ void updateAbsRef(Aig_Man_t*&pMan, vector<vector<int> > &r0, vector<vector<int> 
 
 		if(addR1R0toR0[i]) {
 			mu0 = Aig_SubstituteConst(pMan, mu, varsYS[i+1], 0);
-			
-			if(exhaustiveCollapsedTill == i+1) {		
+
+			if(exhaustiveCollapsedTill == i+1) {
 				for(auto it:r0[i+1]) {
 					pAigObj = Aig_ManCo(pMan,it);
 					Aig_ObjPatchFanin0(pMan, pAigObj, mu0);
@@ -1558,11 +1558,11 @@ void updateAbsRef(Aig_Man_t*&pMan, vector<vector<int> > &r0, vector<vector<int> 
 	}
 	if(refCollapseStart <refCollapseEnd) {
 		for (int i = 0; i < storedCEX.size(); ++i) {
-			if(storedCEX_k1[i] < refCollapseEnd and 
+			if(storedCEX_k1[i] < refCollapseEnd and
 				storedCEX_k1[i] >= refCollapseStart) {
 				storedCEX_k1[i] = -1;
 			}
-			if(storedCEX_k2[i] < refCollapseEnd and 
+			if(storedCEX_k2[i] < refCollapseEnd and
 				storedCEX_k2[i] >= refCollapseStart) {
 				storedCEX_k2[i] = -1;
 			}
@@ -1570,9 +1570,9 @@ void updateAbsRef(Aig_Man_t*&pMan, vector<vector<int> > &r0, vector<vector<int> 
 	}
 
 
-	// ######################################### 
+	// #########################################
 	// SECTION C: k1+c -> fmcad ################
-	// ######################################### 
+	// #########################################
 	if(options.useFmcadPhase and !releventCEX.empty()) {
 		bool continueFmcad = true;
 		fmcadPhaseStart = max(fmcadPhaseStart, exhaustiveCollapsedTill);
@@ -1598,7 +1598,7 @@ void updateAbsRef(Aig_Man_t*&pMan, vector<vector<int> > &r0, vector<vector<int> 
 					if(corrK2 < storedCEX_k2[i]) {
 						corrK2 = storedCEX_k2[i];
 						cexIndex = i;
-						mu0 = mu0_temp;		
+						mu0 = mu0_temp;
 						mu1 = mu1_temp;
 					}
 			}
@@ -1652,9 +1652,9 @@ void updateAbsRef(Aig_Man_t*&pMan, vector<vector<int> > &r0, vector<vector<int> 
 	}
 
 
-	// ################################# 
+	// #################################
 	// SECTION D: k2Fix ################
-	// ################################# 
+	// #################################
 	k = m;
 	l = m + 1;
 	assert(k >= 0);
@@ -1951,6 +1951,7 @@ bool verifyResult(Aig_Man_t*&SAig, vector<vector<int> >& r0,
 		assert(Aig_ObjIsConst1(pAigObj) || Aig_ObjIsCi(pAigObj) || Aig_ObjIsCo(pAigObj) || (Aig_ObjFanin0(pAigObj) && Aig_ObjFanin1(pAigObj)));
 	}
 
+	auto start = std::chrono::steady_clock::now();
 	OUT("Reverse Substitution...");
 	int iter = 0;
 	for(int i = numY-2; i >= 0; --i) {
@@ -1979,6 +1980,10 @@ bool verifyResult(Aig_Man_t*&SAig, vector<vector<int> >& r0,
 		Aig_Obj_t* skolem_i = useR1AsSkolem[i]?Aig_Not(Aig_ObjChild0(Aig_ManCo(SAig,r_Aigs[i]))):Aig_ObjChild0(Aig_ManCo(SAig,r_Aigs[i]));
 		F = Aig_Substitute(SAig, F, varsYS[i], skolem_i);
 	}
+	auto end = std::chrono::steady_clock::now();
+	reverse_sub_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count()/1000000.0;
+	cout<< "Reverse substitute time: " << reverse_sub_time << endl;
+
 	OUT("F Id:     "<<Aig_Regular(F)->Id);
 	OUT("F compl:  "<<Aig_IsComplement(F));
 	OUT("Aig_ObjChild0(Aig_ManCo(SAig, (deleteCos?0:1))) Id:     "<<Aig_Regular(Aig_ObjChild0(Aig_ManCo(SAig, (deleteCos?0:1))))->Id);
@@ -2012,7 +2017,11 @@ bool verifyResult(Aig_Man_t*&SAig, vector<vector<int> >& r0,
 	LA[1] = toLitCond(getCnfCoVarNum(FCnf, SAig, (deleteCos?0:1)),0);
 
 	bool return_val;
+	start = std::chrono::steady_clock::now();
 	int status = sat_solver_solve(pSat, LA, LA+2, (ABC_INT64_T)0, (ABC_INT64_T)0, (ABC_INT64_T)0, (ABC_INT64_T)0);
+	end = std::chrono::steady_clock::now();
+	sat_solving_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count()/1000000.0;
+
 	if (status == l_False) {
 		cout << "Verified!" << endl;
 		return_val = true;
