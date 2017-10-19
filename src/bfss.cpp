@@ -275,6 +275,8 @@ int main(int argc, char * argv[]) {
 
 
 
+	printK2Trend();
+
 	cout << "Found Skolem Functions" << endl;
 	cout << "Num Iterations: " << numloops << endl;
 	cout << "Num Fixes:      " << numFixes << endl;
@@ -283,7 +285,6 @@ int main(int argc, char * argv[]) {
 	Aig_ManPrintStats( SAig );
 	cout << endl;
 
-	printK2Trend();
 
 	auto main_end = std::chrono::steady_clock::now();
 	double total_main_time = std::chrono::duration_cast<std::chrono::microseconds>(main_end - main_start).count()/1000000.0;

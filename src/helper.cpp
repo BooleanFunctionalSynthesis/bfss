@@ -947,6 +947,12 @@ bool populateCEX(Aig_Man_t* SAig,
 					filterAndPopulateK1Vec(SAig, r0, r1, -1);
 	int finSize = storedCEX.size();
 	cout << "finSize:         " << finSize << endl;
+	if(solsJustFetched>0) {
+		cout << "ratio:           " << (((double)finSize)/solsJustFetched) << endl;
+	}
+	else {
+		cout << "ratio:           " << 0 << endl;
+	}
 	if(finSize < solsJustFetched*options.unigenThreshold and CMSat::Main::unigenRunning) {
 		cout << "Terminating Unigen prematurely" << endl;
 		CMSat::Main::prematureKill = true;
@@ -1878,7 +1884,7 @@ Aig_Obj_t* Aig_XOR(Aig_Man_t*p, Aig_Obj_t*p0, Aig_Obj_t*p1) {
 
 bool verifyResult(Aig_Man_t*&SAig, vector<vector<int> >& r0,
 	vector<vector<int> >& r1, bool deleteCos) {
-	int i; Aig_Obj_t*pAigObj;
+	int i; Aig_Obj_t*pAigObj; int numAND;
 	vector<int> r_Aigs(numY);
 	cout << "Verifying Result..." << endl;
 
@@ -1894,6 +1900,12 @@ bool verifyResult(Aig_Man_t*&SAig, vector<vector<int> >& r0,
 			assert(pAigObj!=NULL);
 		}
 	}
+
+	// Calculating Total un-substituted Size
+	pAigObj = newOR(SAig, r_Aigs);
+	numAND = Aig_DagSize(pAigObj);
+	cout << "Final un-substituted AigSize:     " << numAND << endl;
+	cout << "Final un-substituted num outputs: " << r_Aigs.size() << endl;
 
 	if(deleteCos) {
 		// Delete extra stuff
@@ -1973,6 +1985,12 @@ bool verifyResult(Aig_Man_t*&SAig, vector<vector<int> >& r0,
 		if(iter%30 == 0)
 			SAig = compressAigByNtk(SAig);
 	}
+	SAig = compressAigByNtk(SAig);
+	// Calculating Total reverse-substituted Size
+	pAigObj = newOR(SAig, r_Aigs);
+	numAND = Aig_DagSize(pAigObj);
+	cout << "Final reverse-substituted AigSize:     " << numAND << endl;
+	cout << "Final reverse-substituted num outputs: " << r_Aigs.size() << endl;
 
 	OUT("Final F Resubstitution...");
 	Aig_Obj_t* F = Aig_ManCo(SAig, (deleteCos?0:1));
