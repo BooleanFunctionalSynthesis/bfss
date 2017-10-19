@@ -1906,6 +1906,7 @@ bool verifyResult(Aig_Man_t*&SAig, vector<vector<int> >& r0,
 	numAND = Aig_DagSize(pAigObj);
 	cout << "Final un-substituted AigSize:     " << numAND << endl;
 	cout << "Final un-substituted num outputs: " << r_Aigs.size() << endl;
+	cout << "Final un-substituted AVG Size:    " << ((double)numAND)/r_Aigs.size() << endl;
 
 	if(deleteCos) {
 		// Delete extra stuff
@@ -1991,6 +1992,7 @@ bool verifyResult(Aig_Man_t*&SAig, vector<vector<int> >& r0,
 	numAND = Aig_DagSize(pAigObj);
 	cout << "Final reverse-substituted AigSize:     " << numAND << endl;
 	cout << "Final reverse-substituted num outputs: " << r_Aigs.size() << endl;
+	cout << "Final reverse-substituted AVG Size:    " << ((double)numAND)/r_Aigs.size() << endl;
 
 	OUT("Final F Resubstitution...");
 	Aig_Obj_t* F = Aig_ManCo(SAig, (deleteCos?0:1));
