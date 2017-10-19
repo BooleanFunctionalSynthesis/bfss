@@ -883,7 +883,7 @@ bool callSATfindCEX(Aig_Man_t* SAig,vector<int>& cex,
  * @param r0        [in]        Underapproximations of cant-be-0 sets.
  * @param r1        [in]        Underapproximations of cant-be-1 sets.
  */
-bool getNextCEX(Aig_Man_t*&SAig, int& M, int& k1Level, vector<vector<int> > &r0, vector<vector<int> > &r1) {
+bool getNextCEX(Aig_Man_t*&SAig, int& M, int& k1Level, int& k1MaxLevel, vector<vector<int> > &r0, vector<vector<int> > &r1) {
 	OUT("getNextCEX...");
 
 	while(true) {
@@ -902,6 +902,7 @@ bool getNextCEX(Aig_Man_t*&SAig, int& M, int& k1Level, vector<vector<int> > &r0,
 			// }
 			cout << "k1Max: " << k1Max << "\tk2Max: " << k2Max << endl;
 			M = k2Max;
+			k1MaxLevel = k1Max;
 			vector<int> kFreq(numY, 0);
 			for(auto it: storedCEX_k1)
 				kFreq[it]++;
@@ -1375,8 +1376,7 @@ Aig_Obj_t* projectPiSmall(Aig_Man_t* pMan, const vector<int> &cex) {
  * @param r1        [in out]    Underaproximations of Cant-be-1 sets
  * @param cex       [in]        counter-example
  */
-void updateAbsRef(Aig_Man_t*&pMan, vector<vector<int> > &r0, vector<vector<int> > &r1, int k1Level, int m) {
-
+void updateAbsRef(Aig_Man_t*&pMan, int M, int k1Level, int k1MaxLevel, vector<vector<int> > &r0, vector<vector<int> > &r1) {
 	OUT("updateAbsRef...");
 	int k, l;
 	Aig_Obj_t *mu0, *mu1, *mu, *pi1_m, *pi0_m, *pAigObj, *mu0_temp, *mu1_temp;
@@ -1394,13 +1394,18 @@ void updateAbsRef(Aig_Man_t*&pMan, vector<vector<int> > &r0, vector<vector<int> 
 	// have a global init collapse level
 	int refCollapseStart, refCollapseEnd, fmcadPhaseStart, fmcadPhaseEnd;
 	// does it suffice for just the cofactors for refCollapse
-	assert(k1Level <= m);
+	assert(k1Level <= M);
 	assert(k1Level >= exhaustiveCollapsedTill);
+
+	// Calculate refCollapse Levels
 	refCollapseStart = k1Level;
-	while(collapsedInto[refCollapseStart] and refCollapseStart<numY-1) {refCollapseStart++;}
-	refCollapseEnd = min(m, min(numY - 1, refCollapseStart + options.c2));
+	while(collapsedInto[refCollapseStart] and refCollapseStart<k1MaxLevel) {refCollapseStart++;}
+	if(refCollapseStart==k1MaxLevel)
+		refCollapseStart = numY-1;
+	refCollapseEnd = min(M, min(numY - 1, refCollapseStart + options.c2));
+
 	fmcadPhaseStart = refCollapseEnd;
-	fmcadPhaseEnd = m;
+	fmcadPhaseEnd = M;
 
 
 	// ####################################
@@ -1661,19 +1666,19 @@ void updateAbsRef(Aig_Man_t*&pMan, vector<vector<int> > &r0, vector<vector<int> 
 	// #################################
 	// SECTION D: k2Fix ################
 	// #################################
-	k = m;
-	l = m + 1;
+	k = M;
+	l = M + 1;
 	assert(k >= 0);
 	assert(l < numY);
 
-	if(exhaustiveCollapsedTill <= m) {
+	if(exhaustiveCollapsedTill <= M) {
 		bool fixR0 = false;
 		bool fixR1 = false;
 		for(int i = 0; i < storedCEX.size(); i++) {
-			if(storedCEX_k2[i] == m) {
+			if(storedCEX_k2[i] == M) {
 				if(storedCEX[i][numX + l] == 1) {
 					if(!fixR1)
-						pi1_m = projectPi(pMan, storedCEX[i], m);
+						pi1_m = projectPi(pMan, storedCEX[i], M);
 					else
 						pi1_m = Aig_OrAigs(pMan, pi1_m, projectPiSmall(pMan, storedCEX[i]));
 					fixR1 = true;
@@ -1682,7 +1687,7 @@ void updateAbsRef(Aig_Man_t*&pMan, vector<vector<int> > &r0, vector<vector<int> 
 				}
 				else {
 					if(!fixR0)
-						pi0_m = projectPi(pMan, storedCEX[i], m);
+						pi0_m = projectPi(pMan, storedCEX[i], M);
 					else
 						pi0_m = Aig_OrAigs(pMan, pi0_m, projectPiSmall(pMan, storedCEX[i]));
 					fixR0 = true;
@@ -1692,23 +1697,23 @@ void updateAbsRef(Aig_Man_t*&pMan, vector<vector<int> > &r0, vector<vector<int> 
 			}
 		}
 
-		// bool addR1R0toR0_m = addR1R0toR0[m] and !options.proactiveProp and !options.useFmcadPhase;
-		// bool addR1R0toR1_m = addR1R0toR1[m] and !options.proactiveProp and !options.useFmcadPhase;
+		// bool addR1R0toR0_m = addR1R0toR0[M] and !options.proactiveProp and !options.useFmcadPhase;
+		// bool addR1R0toR1_m = addR1R0toR1[M] and !options.proactiveProp and !options.useFmcadPhase;
 		bool addR1R0toR0_m = false;
 		bool addR1R0toR1_m = false;
 
 		if((fixR0 and addR1R0toR0_m) or (fixR1 and addR1R0toR1_m)) {
-			mu0 = newOR(pMan, r0[m]);
-			mu1 = newOR(pMan, r1[m]);
+			mu0 = newOR(pMan, r0[M]);
+			mu1 = newOR(pMan, r1[M]);
 			mu = Aig_AndAigs(pMan, mu0, mu1);
 		}
 
 		if(fixR0) {
 			if(addR1R0toR0_m) {
 				mu0 = Aig_OrAigs(pMan, mu, pi0_m);
-				addR1R0toR0[m]   = false;
-				addR1R0toR0[m+1] = true;
-				addR1R0toR1[m+1] = true;
+				addR1R0toR0[M]   = false;
+				addR1R0toR0[M+1] = true;
+				addR1R0toR1[M+1] = true;
 			}
 			else {
 				mu0 = pi0_m;
@@ -1721,9 +1726,9 @@ void updateAbsRef(Aig_Man_t*&pMan, vector<vector<int> > &r0, vector<vector<int> 
 		if(fixR1) {
 			if(addR1R0toR1_m) {
 				mu1 = Aig_OrAigs(pMan, mu, pi1_m);
-				addR1R0toR1[m]   = false;
-				addR1R0toR0[m+1] = true;
-				addR1R0toR1[m+1] = true;
+				addR1R0toR1[M]   = false;
+				addR1R0toR0[M+1] = true;
+				addR1R0toR1[M+1] = true;
 			}
 			else {
 				mu1 = pi1_m;
@@ -1733,9 +1738,9 @@ void updateAbsRef(Aig_Man_t*&pMan, vector<vector<int> > &r0, vector<vector<int> 
 			r1[l].push_back(Aig_ManCoNum(pMan) - 1);
 		}
 
-		if(exhaustiveCollapsedTill==m and !addR1R0toR0[m] and !addR1R0toR1[m]) {
-			cout << "#4exhaustiveCollapsedTill = " << m+1 << endl;
-			exhaustiveCollapsedTill = m+1;
+		if(exhaustiveCollapsedTill==M and !addR1R0toR0[M] and !addR1R0toR1[M]) {
+			cout << "#4exhaustiveCollapsedTill = " << M+1 << endl;
+			exhaustiveCollapsedTill = M+1;
 		}
 	}
 	else {
@@ -1778,6 +1783,8 @@ Aig_Man_t* compressAigByNtk(Aig_Man_t* SAig) {
 	OUT("Cleaning up...");
 	int removed = Aig_ManCleanup(SAig);
 	cout << "Removed " << removed <<" nodes" << endl;
+
+	SAig = compressAig(SAig);
 
 	Abc_Ntk_t * SNtk = Abc_NtkFromAigPhase(SAig);
 	Abc_FrameSetCurrentNetwork(pAbc, SNtk);
