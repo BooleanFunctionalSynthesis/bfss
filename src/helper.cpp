@@ -30,6 +30,7 @@ pthread_t unigen_threadId = -1;
 map<int, int> varNum2ID;
 map<int, int> varNum2R0R1;
 int solsJustFetched = 0;
+vector<bool> collapsedInto;
 
 ////////////////////////////////////////////////////////////////////////
 ///                      HELPER FUNCTIONS                            ///
@@ -1386,7 +1387,8 @@ void updateAbsRef(Aig_Man_t*&pMan, vector<vector<int> > &r0, vector<vector<int> 
 	assert(k1Level <= m);
 	assert(k1Level >= exhaustiveCollapsedTill);
 	refCollapseStart = k1Level;
-	refCollapseEnd = (k1Level + options.c2 >= numY)? numY - 1 : k1Level + options.c2;
+	while(collapsedInto[refCollapseStart] and refCollapseStart<numY-1) {refCollapseStart++;}
+	refCollapseEnd = min(m, min(numY - 1, refCollapseStart + options.c2));
 	fmcadPhaseStart = refCollapseEnd;
 	fmcadPhaseEnd = m;
 
@@ -1407,6 +1409,8 @@ void updateAbsRef(Aig_Man_t*&pMan, vector<vector<int> > &r0, vector<vector<int> 
 
 				cout << "#1exhaustiveCollapsedTill = " << i+1 << endl;
 				exhaustiveCollapsedTill = i+1;
+				collapsedInto[i] = true;
+				collapsedInto[i+1] = true;
 
 				if(!addR1R0toR1[i] and !addR1R0toR0[i])
 					continue;
@@ -1479,7 +1483,8 @@ void updateAbsRef(Aig_Man_t*&pMan, vector<vector<int> > &r0, vector<vector<int> 
 	if(refCollapseStart <= exhaustiveCollapsedTill) {
 		refCollapseStart = exhaustiveCollapsedTill;
 	}
-	// cout << "refcollapse " << refCollapseStart <<" to " << refCollapseEnd << endl;
+	if(refCollapseStart < refCollapseEnd)
+		cout << "refcollapse " << refCollapseStart <<" to " << refCollapseEnd << endl;
 	bool flag = false;
 	for(int i = refCollapseStart; i<refCollapseEnd; i++) {
 
@@ -1488,6 +1493,8 @@ void updateAbsRef(Aig_Man_t*&pMan, vector<vector<int> > &r0, vector<vector<int> 
 			exhaustiveCollapsedTill = i+1;
 			flag = true;
 		}
+		collapsedInto[i] = true;
+		collapsedInto[i+1] = true;
 
 		if(!addR1R0toR1[i] and !addR1R0toR0[i])
 			continue;
@@ -2642,6 +2649,7 @@ bool checkIsFUnsat(sat_solver* pSat, Cnf_Dat_t* SCnf, vector<int>&cex,
 void initializeAddR1R0toR() {
 	addR1R0toR0 = vector<bool>(numY,true);
 	addR1R0toR1 = vector<bool>(numY,true);
+	collapsedInto = vector<bool>(numY,false);
 }
 
 void collapseInitialLevels(Aig_Man_t* pMan, vector<vector<int> >& r0, vector<vector<int> >& r1) {
