@@ -56,6 +56,7 @@ void parseOptions(int argc, char * argv[]) {
 		("unigenThreshold", "Threshold fraction of cex below which to switch error formula (default: " STR(UNIGEN_THRESHOLD) ")", cxxopts::value<double>(options.unigenThreshold), "N")
 		("w, waitSamples", "Number of solutions to wait for when Unigen runs in parallel (default: " STR(WAIT_SAMPLES_DEF) ")", cxxopts::value<int>(options.waitSamples), "N")
 		("m, monoSkolem", "Run MonoSkolem algorithm", cxxopts::value<bool>(options.monoSkolem))
+		("reverseOrder", "Use reversed variable orderings", cxxopts::value<bool>(options.reverseOrder))
 		("positional",
 			"Positional arguments: these are the arguments that are entered "
 			"without an option", cxxopts::value<std::vector<string>>())
@@ -203,6 +204,7 @@ void parseOptions(int argc, char * argv[]) {
 	cout << "\t unigenThreshold:      " << options.unigenThreshold << endl;
 	cout << "\t waitSamples:          " << options.waitSamples << endl;
 	cout << "\t monoSkolem:           " << options.monoSkolem << endl;
+	cout << "\t reverseOrder:         " << options.reverseOrder << endl;
 	cout << "}" << endl;
 }
 
@@ -356,8 +358,18 @@ void populateVars(Abc_Ntk_t* FNtk, AigToNNF& nnf, string varsFile,
 	for(auto it : varsYF)
 		varsYS.push_back(nnf.var_num2Id[it]);
 
+	if(options.reverseOrder)
+		reverse(varsYS.begin(),varsYS.end());
+
 	numX = varsXS.size();
 	numY = varsYS.size();
+
+	if(numY <= 0) {
+		cout << "Var File " + varsFile + " is empty!" << endl;
+		cerr << "Var File " + varsFile + " is empty!" << endl;
+		assert(numY > 0);
+	}
+
 
 	// for (int i = 0; i < numX; ++i) {
 	// 	varsSInv[varsXS[i]] = i;

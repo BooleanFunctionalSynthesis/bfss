@@ -83,6 +83,7 @@ struct optionStruct {
 	double 	unigenThreshold;
 	int 	waitSamples;
 	bool 	monoSkolem;
+	bool 	reverseOrder;
 };
 
 extern vector<int> varsSInv;
