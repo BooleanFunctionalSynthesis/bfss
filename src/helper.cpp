@@ -1784,7 +1784,8 @@ Aig_Man_t* compressAigByNtk(Aig_Man_t* SAig) {
 	int removed = Aig_ManCleanup(SAig);
 	cout << "Removed " << removed <<" nodes" << endl;
 
-	SAig = compressAig(SAig);
+	SAig =  Dar_ManCompress2(temp = SAig, 1, 1, 26, 1, 0);
+	Aig_ManStop(temp);
 
 	Abc_Ntk_t * SNtk = Abc_NtkFromAigPhase(SAig);
 	Abc_FrameSetCurrentNetwork(pAbc, SNtk);
