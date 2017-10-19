@@ -29,6 +29,8 @@ char* unigen_argv[] = {"./unigen", "--samples=2200", "--threads=4", "--kappa=0.6
 pthread_t unigen_threadId = -1;
 map<int, int> varNum2ID;
 map<int, int> varNum2R0R1;
+int solsJustFetched = 0;
+vector<bool> collapsedInto;
 
 ////////////////////////////////////////////////////////////////////////
 ///                      HELPER FUNCTIONS                            ///
@@ -925,19 +927,27 @@ bool getNextCEX(Aig_Man_t*&SAig, int& M, int& k1Level, vector<vector<int> > &r0,
 bool populateCEX(Aig_Man_t* SAig,
 	vector<vector<int> > &r0, vector<vector<int> > &r1) {
 	if(!CMSat::Main::unigenRunning && CMSat::Main::getSolutionMapSize() == 0) {
-		return populateStoredCEX(SAig, r0, r1);
+		if(populateStoredCEX(SAig, r0, r1, true)) {
+			// Add to numCEX
+			numCEX += storedCEX.size();
+			return true;
+		}
+		else {
+			return false;
+		}
 	}
 	cout << "Called more models " << endl;
 	bool more = !(options.c1==0 and options.c2==0 and !options.useFmcadPhase and options.proactiveProp);
 	unigen_fetchModels(SAig, r0, r1, more);
 	int initSize = storedCEX.size();
-	cout << "initSize: " << initSize << endl;
+	cout << "solsJustFetched: " << solsJustFetched << endl;
+	cout << "initSize:        " << initSize << endl;
 	int k1Max = options.evalAigAtNode?
 					filterAndPopulateK1VecFast(SAig, r0, r1, -1) :
 					filterAndPopulateK1Vec(SAig, r0, r1, -1);
 	int finSize = storedCEX.size();
-	cout << "finSize: " << finSize << endl;
-	if(finSize < initSize*options.unigenThreshold and CMSat::Main::unigenRunning) {
+	cout << "finSize:         " << finSize << endl;
+	if(finSize < solsJustFetched*options.unigenThreshold and CMSat::Main::unigenRunning) {
 		cout << "Terminating Unigen prematurely" << endl;
 		CMSat::Main::prematureKill = true;
 		pthread_join(unigen_threadId, NULL);
@@ -949,6 +959,16 @@ bool populateCEX(Aig_Man_t* SAig,
 		unigen_threadId = -1;
 	}
 
+	// if(!CMSat::Main::unigenRunning && CMSat::Main::getSolutionMapSize() == 0) {
+	// 	if(populateStoredCEX(SAig, r0, r1, false)) {
+	// 		// Add to numCEX
+	// 		numCEX += storedCEX.size();
+	// 		return true;
+	// 	}
+	// 	else {
+	// 		return false;
+	// 	}
+	// }
 	return true;
 }
 
@@ -959,7 +979,7 @@ bool populateCEX(Aig_Man_t* SAig,
  * @param r1        [in]        Underapproximations of cant-be-1 sets.
  */
 bool populateStoredCEX(Aig_Man_t* SAig,
-	vector<vector<int> > &r0, vector<vector<int> > &r1) {
+	vector<vector<int> > &r0, vector<vector<int> > &r1, bool fetch) {
 	OUT("populating Stored CEX...");
 	bool return_val;
 	int status;
@@ -997,6 +1017,7 @@ bool populateStoredCEX(Aig_Man_t* SAig,
 		Sat_SolverWriteDimacsAndIS(pSat, UNIGEN_DIMAC_FPATH,
 			&assumptions[0], &assumptions[0] + numX, IS, RS);
 
+		Aig_ManPrintStats(SAig);
 		// Call Unigen
 		status = unigen_call(UNIGEN_DIMAC_FPATH, options.numSamples, options.numThreads);
 	}
@@ -1026,14 +1047,18 @@ bool populateStoredCEX(Aig_Man_t* SAig,
 			varNum2R0R1[r0Andr1Vars[i]] = i;
 		}
 
-		if(unigen_fetchModels(SAig, r0, r1, 0)) {
-			OUT("Formula is SAT, stored CEXs");
+		if(fetch) {
+			if(unigen_fetchModels(SAig, r0, r1, 0)) {
+				OUT("Formula is SAT, stored CEXs");
+				return_val = true;
+			}
+			else {
+				OUT("Formula is UNSAT");
+				return_val = false;
+			}
+		}
+		else
 			return_val = true;
-		}
-		else {
-			OUT("Formula is UNSAT");
-			return_val = false;
-		}
 	}
 	else { // Too little solutions
 		assert(status == -1);
@@ -1044,10 +1069,14 @@ bool populateStoredCEX(Aig_Man_t* SAig,
 		SwitchToABCSolver = true;
 
 		vector<lit> assumptions = setAllNegX(SCnf, SAig, false);
+
+		auto start = std::chrono::steady_clock::now();
 		status = sat_solver_solve(pSat,
 						&assumptions[0], &assumptions[0] + numX,
 						(ABC_INT64_T)0, (ABC_INT64_T)0,
 						(ABC_INT64_T)0, (ABC_INT64_T)0);
+		auto end = std::chrono::steady_clock::now();
+		sat_solving_time += std::chrono::duration_cast<std::chrono::microseconds>(end - start).count()/1000000.0;
 
 		if (status == l_False) {
 			OUT("Formula is unsat");
@@ -1087,8 +1116,6 @@ bool populateStoredCEX(Aig_Man_t* SAig,
 			return_val = true;
 		}
 	}
-	// Add to numCEX
-	numCEX += storedCEX.size();
 
 	sat_solver_delete(pSat);
 	Cnf_DataFree(SCnf);
@@ -1346,8 +1373,8 @@ void updateAbsRef(Aig_Man_t*&pMan, vector<vector<int> > &r0, vector<vector<int> 
 
 	OUT("updateAbsRef...");
 	int k, l;
-	Aig_Obj_t *mu0, *mu1, *mu, *pi1_m, *pi0_m;
-	mu0 = mu1 = mu = pi1_m = pi0_m = NULL;
+	Aig_Obj_t *mu0, *mu1, *mu, *pi1_m, *pi0_m, *pAigObj, *mu0_temp, *mu1_temp;
+	mu0 = mu1 = mu = pi1_m = pi0_m = pAigObj = mu0_temp = mu1_temp = NULL;
 
 	// cout << "addR1R0toR0: ";
 	// for(auto it:addR1R0toR0)
@@ -1362,11 +1389,17 @@ void updateAbsRef(Aig_Man_t*&pMan, vector<vector<int> > &r0, vector<vector<int> 
 	int refCollapseStart, refCollapseEnd, fmcadPhaseStart, fmcadPhaseEnd;
 	// does it suffice for just the cofactors for refCollapse
 	assert(k1Level <= m);
+	assert(k1Level >= exhaustiveCollapsedTill);
 	refCollapseStart = k1Level;
-	refCollapseEnd = (k1Level + options.c2 >= numY)? numY - 1 : k1Level + options.c2;
+	while(collapsedInto[refCollapseStart] and refCollapseStart<numY-1) {refCollapseStart++;}
+	refCollapseEnd = min(m, min(numY - 1, refCollapseStart + options.c2));
 	fmcadPhaseStart = refCollapseEnd;
 	fmcadPhaseEnd = m;
 
+
+	// ####################################
+	//  SECTION A: 0 -> c1 ################
+	// ####################################
 	if(!initCollapseDone and options.c1>0) {
 
 		int minK2 = numY;
@@ -1380,6 +1413,8 @@ void updateAbsRef(Aig_Man_t*&pMan, vector<vector<int> > &r0, vector<vector<int> 
 
 				cout << "#1exhaustiveCollapsedTill = " << i+1 << endl;
 				exhaustiveCollapsedTill = i+1;
+				collapsedInto[i] = true;
+				collapsedInto[i+1] = true;
 
 				if(!addR1R0toR1[i] and !addR1R0toR0[i])
 					continue;
@@ -1388,11 +1423,18 @@ void updateAbsRef(Aig_Man_t*&pMan, vector<vector<int> > &r0, vector<vector<int> 
 				mu1 = newOR(pMan, r1[i]);
 				mu = Aig_AndAigs(pMan, mu0, mu1);
 
+
 				// kill other Cos and have only this in r1[i + 1]
 				if(addR1R0toR1[i]) {
 					mu1 = Aig_SubstituteConst(pMan, mu, varsYS[i+1], 1);
-					Aig_ObjCreateCo(pMan, mu1);
-					r1[i+1].push_back(Aig_ManCoNum(pMan) - 1);
+
+					// Aig_ObjCreateCo(pMan, mu1);
+					// r1[i+1].push_back(Aig_ManCoNum(pMan) - 1);
+					for(auto it:r1[i+1]) {
+						pAigObj = Aig_ManCo(pMan,it);
+						Aig_ObjPatchFanin0(pMan, pAigObj, mu1);
+					}
+
 					addR1R0toR1[i] = false;
 					addR1R0toR0[i+1] = true;
 					addR1R0toR1[i+1] = true;
@@ -1400,149 +1442,219 @@ void updateAbsRef(Aig_Man_t*&pMan, vector<vector<int> > &r0, vector<vector<int> 
 
 				if(addR1R0toR0[i]) {
 					mu0 = Aig_SubstituteConst(pMan, mu, varsYS[i+1], 0);
-					Aig_ObjCreateCo(pMan, mu0);
-					r0[i+1].push_back(Aig_ManCoNum(pMan) - 1);
+					// Aig_ObjCreateCo(pMan, mu0);
+					// r0[i+1].push_back(Aig_ManCoNum(pMan) - 1);
+					for(auto it:r0[i+1]) {
+						pAigObj = Aig_ManCo(pMan,it);
+						Aig_ObjPatchFanin0(pMan, pAigObj, mu0);
+					}
 					addR1R0toR0[i] = false;
 					addR1R0toR0[i+1] = true;
 					addR1R0toR1[i+1] = true;
 				}
+				
+				int removed = Aig_ManCleanup(pMan);
+				cout << "Removed " << removed <<" nodes" << endl;
 			}
+			cout << "compressAigByNtk" << endl;
+			Aig_ManPrintStats(pMan);
+			pMan = compressAigByNtk(pMan);
+			Aig_ManPrintStats(pMan);
 			initCollapseDone = true;
 			// reset stored k1/k2 for cex known to have been fixed
 			for (int i = 0; i < storedCEX.size(); ++i) {
-				if(storedCEX_k2[i] < options.c1) {
+				if(storedCEX_k1[i] < exhaustiveCollapsedTill) {
 					storedCEX_k1[i] = -1;
+				}
+				if(storedCEX_k2[i] < exhaustiveCollapsedTill) {
 					storedCEX_k2[i] = -1;
 				}
 			}
+			return;
 		}
 	}
 
+	list<int> releventCEX;
+	for (int i = 0; i < storedCEX.size(); ++i) {
+		if(storedCEX_k1[i] == k1Level)
+			releventCEX.push_back(i);
+	}
+
+
+	// ########################################
+	//  SECTION B: k1 -> k1+c2 ################
+	// ########################################
 	if(refCollapseStart <= exhaustiveCollapsedTill) {
 		refCollapseStart = exhaustiveCollapsedTill;
-		// cout << "refcollapse " << refCollapseStart <<" to " << refCollapseEnd << endl;
-		for(int i = refCollapseStart; i<refCollapseEnd; i++) {
+	}
+	if(refCollapseStart < refCollapseEnd)
+		cout << "refcollapse " << refCollapseStart <<" to " << refCollapseEnd << endl;
+	bool flag = false;
+	for(int i = refCollapseStart; i<refCollapseEnd; i++) {
 
+		if(exhaustiveCollapsedTill == i) {
 			cout << "#2exhaustiveCollapsedTill = " << i+1 << endl;
 			exhaustiveCollapsedTill = i+1;
+			flag = true;
+		}
+		collapsedInto[i] = true;
+		collapsedInto[i+1] = true;
 
-			if(!addR1R0toR1[i] and !addR1R0toR0[i])
-				continue;
+		if(!addR1R0toR1[i] and !addR1R0toR0[i])
+			continue;
 
-			mu0 = newOR(pMan, r0[i]);
-			mu1 = newOR(pMan, r1[i]);
-			mu = Aig_AndAigs(pMan, mu0, mu1);
+		mu0 = newOR(pMan, r0[i]);
+		mu1 = newOR(pMan, r1[i]);
+		mu = Aig_AndAigs(pMan, mu0, mu1);
 
-			// kill other Cos and have only this in r1[i + 1]
-			if(addR1R0toR1[i]) {
-				mu1 = Aig_SubstituteConst(pMan, mu, varsYS[i+1], 1);
+		if(addR1R0toR1[i]) {
+			mu1 = Aig_SubstituteConst(pMan, mu, varsYS[i+1], 1);
+			
+			if(exhaustiveCollapsedTill == i+1) {		
+				for(auto it:r1[i+1]) {
+					pAigObj = Aig_ManCo(pMan,it);
+					Aig_ObjPatchFanin0(pMan, pAigObj, mu1);
+				}
+			}
+			else {
 				Aig_ObjCreateCo(pMan, mu1);
 				r1[i+1].push_back(Aig_ManCoNum(pMan) - 1);
-				addR1R0toR1[i] = false;
-				addR1R0toR0[i+1] = true;
-				addR1R0toR1[i+1] = true;
 			}
+			addR1R0toR1[i] = false;
+			addR1R0toR0[i+1] = true;
+			addR1R0toR1[i+1] = true;
+		}
 
-			if(addR1R0toR0[i]) {
-				mu0 = Aig_SubstituteConst(pMan, mu, varsYS[i+1], 0);
+		if(addR1R0toR0[i]) {
+			mu0 = Aig_SubstituteConst(pMan, mu, varsYS[i+1], 0);
+			
+			if(exhaustiveCollapsedTill == i+1) {		
+				for(auto it:r0[i+1]) {
+					pAigObj = Aig_ManCo(pMan,it);
+					Aig_ObjPatchFanin0(pMan, pAigObj, mu0);
+				}
+			}
+			else {
 				Aig_ObjCreateCo(pMan, mu0);
 				r0[i+1].push_back(Aig_ManCoNum(pMan) - 1);
-				addR1R0toR0[i] = false;
-				addR1R0toR0[i+1] = true;
-				addR1R0toR1[i+1] = true;
 			}
+
+			addR1R0toR0[i] = false;
+			addR1R0toR0[i+1] = true;
+			addR1R0toR1[i+1] = true;
 		}
-		// reset stored k1/k2 for cex known to have been fixed
+
+		// for(auto it = releventCEX.begin(); it != releventCEX.end();) {
+		// 	if(!storedCEX_r0Sat[*it][i+1] && !storedCEX_r1Sat[*it][i+1])
+		// 		releventCEX.erase(it++);
+		// 	else
+		// 		it++;
+		// }
+
+		if(flag) {
+			int removed = Aig_ManCleanup(pMan);
+			cout << "Removed " << removed <<" nodes" << endl;
+		}
+	}
+	if(refCollapseStart <refCollapseEnd) {
 		for (int i = 0; i < storedCEX.size(); ++i) {
-			if(storedCEX_k2[i] < refCollapseEnd) {
+			if(storedCEX_k1[i] < refCollapseEnd and 
+				storedCEX_k1[i] >= refCollapseStart) {
 				storedCEX_k1[i] = -1;
+			}
+			if(storedCEX_k2[i] < refCollapseEnd and 
+				storedCEX_k2[i] >= refCollapseStart) {
 				storedCEX_k2[i] = -1;
 			}
 		}
 	}
-	else {
-		// cout << "refcollapse " << refCollapseStart <<" to " << refCollapseEnd << endl;
-		for(int i = refCollapseStart; i < refCollapseEnd; i++) {
 
-			if(!addR1R0toR1[i] and !addR1R0toR0[i])
-				continue;
 
-			mu0 = newOR(pMan, r0[i]);
-			mu1 = newOR(pMan, r1[i]);
-			mu = Aig_AndAigs(pMan, mu0, mu1);
-
-			if(addR1R0toR1[i]) {
-				mu1 = Aig_SubstituteConst(pMan, mu, varsYS[i+1], 1);
-				Aig_ObjCreateCo(pMan, mu1);
-				r1[i+1].push_back(Aig_ManCoNum(pMan) - 1);
-				addR1R0toR1[i] = false;
-				addR1R0toR0[i+1] = true;
-				addR1R0toR1[i+1] = true;
-			}
-
-			if(addR1R0toR0[i]) {
-				mu0 = Aig_SubstituteConst(pMan, mu, varsYS[i+1], 0);
-				Aig_ObjCreateCo(pMan, mu0);
-				r0[i+1].push_back(Aig_ManCoNum(pMan) - 1);
-				addR1R0toR0[i] = false;
-				addR1R0toR0[i+1] = true;
-				addR1R0toR1[i+1] = true;
-			}
-		}
-	}
-
-	if(options.useFmcadPhase) {
+	// ######################################### 
+	// SECTION C: k1+c -> fmcad ################
+	// ######################################### 
+	if(options.useFmcadPhase and !releventCEX.empty()) {
 		bool continueFmcad = true;
 		fmcadPhaseStart = max(fmcadPhaseStart, exhaustiveCollapsedTill);
-		cout << "fmcad       " << fmcadPhaseStart <<" to " << fmcadPhaseEnd << endl;
-		for(int i = fmcadPhaseStart; i < fmcadPhaseEnd; i++) {
-			bool addToR1 = false;
-			bool addToR0 = false;
-			for(int j = 0; j < storedCEX.size(); j++) {
-				if(storedCEX_k1[j] == k1Level) {
-					if(storedCEX[j][numX + i + 1] == 1)
-						addToR1 = true;
-					if(storedCEX[j][numX + i + 1] == 0)
-						addToR0 = true;
-					if(!storedCEX_r0Sat[j][i+1] && !storedCEX_r1Sat[j][i+1])
-						continueFmcad = false;
+		cout << "fmcad from  " << fmcadPhaseStart << endl;
+
+		mu0 = mu1 = NULL;
+		int cexIndex = -1;
+		int corrK2 = -1;
+		int k = fmcadPhaseStart;
+		for(int i = 0; i< storedCEX.size(); i++) {
+			if(storedCEX_k1[i] == k) {
+				if(corrK2 < storedCEX_k2[i]) {
+					corrK2 = storedCEX_k2[i];
+					cexIndex = i;
 				}
 			}
+		}
+		if(cexIndex == -1) {
+			for(auto i:releventCEX) {
+				if(((mu0_temp = generalize(pMan, storedCEX[i], r0[k])) !=NULL) and
+				   ((mu1_temp = generalize(pMan, storedCEX[i], r1[k])) !=NULL))
 
-			mu0 = newOR(pMan, r0[i]);
-			mu1 = newOR(pMan, r1[i]);
+					if(corrK2 < storedCEX_k2[i]) {
+						corrK2 = storedCEX_k2[i];
+						cexIndex = i;
+						mu0 = mu0_temp;		
+						mu1 = mu1_temp;
+					}
+			}
+		}
+		else {
+			mu0 = generalize(pMan, storedCEX[cexIndex], r0[k]);
+			mu1 = generalize(pMan, storedCEX[cexIndex], r1[k]);
+		}
+
+		if(cexIndex != -1) {
+			assert(mu0 and mu1);
+			auto &cex = storedCEX[cexIndex];
 			mu = Aig_AndAigs(pMan, mu0, mu1);
-
-			if(addToR1 and addR1R0toR1[i]) {
-				mu1 = Aig_SubstituteConst(pMan, mu, varsYS[i+1], 1);
-				Aig_ObjCreateCo(pMan, mu1);
-				r1[i+1].push_back(Aig_ManCoNum(pMan) - 1);
-				addR1R0toR1[i] = false;
-				addR1R0toR0[i+1] = true;
-				addR1R0toR1[i+1] = true;
+			int l = k+1;
+			while(true) {
+				assert(l<numY);
+				if(Aig_Support(pMan, mu, varsYS[l])) {
+					if(cex[numX + l] == 1) {
+						mu1 = Aig_SubstituteConst(pMan, mu, varsYS[l], 1);
+						Aig_ObjCreateCo(pMan, mu1);
+						r1[l].push_back(Aig_ManCoNum(pMan)-1);
+						if(storedCEX_r0Sat[cexIndex][l]) {
+							mu0 = generalize(pMan,cex,r0[l]);
+							mu = Aig_AndAigs(pMan, mu0, mu1);
+						}
+						else if(!storedCEX_r1Sat[cexIndex][l]) {
+							cout << "fmcad break " << l << endl;
+							break;
+						}
+					}
+					else {
+						mu0 = Aig_SubstituteConst(pMan, mu, varsYS[l], 0);
+						Aig_ObjCreateCo(pMan, mu0);
+						r0[l].push_back(Aig_ManCoNum(pMan)-1);
+						if(storedCEX_r1Sat[cexIndex][l]) {
+							mu1 = generalize(pMan,cex,r1[l]);
+							mu = Aig_AndAigs(pMan, mu0, mu1);
+						}
+						else if(!storedCEX_r0Sat[cexIndex][l]) {
+							cout << "fmcad break " << l << endl;
+							break;
+						}
+					}
+				}
+				l = l+1;
 			}
-
-			if(addToR0 and addR1R0toR0[i]) {
-				mu0 = Aig_SubstituteConst(pMan, mu, varsYS[i+1], 0);
-				Aig_ObjCreateCo(pMan, mu0);
-				r0[i+1].push_back(Aig_ManCoNum(pMan) - 1);
-				addR1R0toR0[i] = false;
-				addR1R0toR0[i+1] = true;
-				addR1R0toR1[i+1] = true;
-			}
-
-			if(exhaustiveCollapsedTill==i and !addR1R0toR0[i] and !addR1R0toR1[i]) {
-				cout << "#3exhaustiveCollapsedTill = " << i+1 << endl;
-				exhaustiveCollapsedTill = i+1;
-			}
-
-			if(!continueFmcad) {
-				cout << "Broke at " << i << endl;
-				break;
-			}
+		}
+		else {
+			cout << "No cex available" << endl;
 		}
 	}
 
+
+	// ################################# 
+	// SECTION D: k2Fix ################
+	// ################################# 
 	k = m;
 	l = m + 1;
 	assert(k >= 0);
@@ -1574,8 +1686,10 @@ void updateAbsRef(Aig_Man_t*&pMan, vector<vector<int> > &r0, vector<vector<int> 
 			}
 		}
 
-		bool addR1R0toR0_m = addR1R0toR0[m] and !options.proactiveProp and !options.useFmcadPhase;
-		bool addR1R0toR1_m = addR1R0toR1[m] and !options.proactiveProp and !options.useFmcadPhase;
+		// bool addR1R0toR0_m = addR1R0toR0[m] and !options.proactiveProp and !options.useFmcadPhase;
+		// bool addR1R0toR1_m = addR1R0toR1[m] and !options.proactiveProp and !options.useFmcadPhase;
+		bool addR1R0toR0_m = false;
+		bool addR1R0toR1_m = false;
 
 		if((fixR0 and addR1R0toR0_m) or (fixR1 and addR1R0toR1_m)) {
 			mu0 = newOR(pMan, r0[m]);
@@ -1617,6 +1731,9 @@ void updateAbsRef(Aig_Man_t*&pMan, vector<vector<int> > &r0, vector<vector<int> 
 			cout << "#4exhaustiveCollapsedTill = " << m+1 << endl;
 			exhaustiveCollapsedTill = m+1;
 		}
+	}
+	else {
+		cout << "Skipping k2Fix" << endl;
 	}
 
 	return;
@@ -2132,6 +2249,7 @@ void Sat_SolverWriteDimacsAndIS(sat_solver * p, char * pFileName,
 }
 
 void* unigenCallThread(void* i) {
+	auto start = std::chrono::steady_clock::now();
 	pthread_mutex_lock(&CMSat::mu_lock);
 	CMSat::Main::unigenRunning = true;
 	pthread_mutex_unlock(&CMSat::mu_lock);
@@ -2145,6 +2263,8 @@ void* unigenCallThread(void* i) {
 	pthread_cond_signal(&CMSat::lilCondVar);
 	pthread_mutex_unlock(&CMSat::mu_lock);
 	unigen_threadId = -1;
+	auto end = std::chrono::steady_clock::now();
+	sat_solving_time += std::chrono::duration_cast<std::chrono::microseconds>(end - start).count()/1000000.0;
 	pthread_exit(NULL);
 }
 
@@ -2196,10 +2316,14 @@ bool unigen_fetchModels(Aig_Man_t* SAig, vector<vector<int> > &r0,
 	bool flag = false;
 	string line;
 	auto storedSolutionMap = CMSat::Main::fetchSolutionMap(options.waitSamples);
+	solsJustFetched = 0;
 	for(auto it:storedSolutionMap) {
 		line = it.first;
 		if(line == " " || line == "")
 			continue;
+
+		solsJustFetched++;
+
 		int startPoint = (line[0] == ' ') ? 2 : 1;
 		line = line.substr(startPoint, line.size() - 2 - startPoint);
 		if(cexSeen.find(line) != cexSeen.end())
@@ -2428,9 +2552,14 @@ int populateK2Vec(Aig_Man_t* SAig, vector<vector<int> >&r0, vector<vector<int> >
 			int clock1 = clock();
 			k2_prev = k2;
 			k1 = storedCEX_k1[i];
+			int k2Lim = (k2==-1)?numY - 1:k2+1;
 			// cout << "Finding k2..." << endl;
-			// cout << "Search range from " << k1 << " to " << numY - 1 << endl;
-			k2 = findK2Max(SAig, m_pSat, m_FCnf, cex, r0, r1, k1, prevM);
+			// cout << "Search range from " << k1 << " to " << k2Lim << endl;
+			int k2_actual = findK2Max(SAig, m_pSat, m_FCnf, cex, r0, r1, k1, numY - 1);
+			// cout << "k2_actual: " << k2_actual  << endl;
+			k2 = findK2Max(SAig, m_pSat, m_FCnf, cex, r0, r1, k1, k2Lim);
+			// cout << "k2:        " << k2 << endl;
+			assert(k2_actual == k2);
 			clock1 = clock() - clock1;
 			// printf ("Found k2 = %d, took (%f seconds)\n",k2,((float)clock1)/CLOCKS_PER_SEC);
 			storedCEX_k2[i] = k2;
@@ -2527,6 +2656,7 @@ bool checkIsFUnsat(sat_solver* pSat, Cnf_Dat_t* SCnf, vector<int>&cex,
 void initializeAddR1R0toR() {
 	addR1R0toR0 = vector<bool>(numY,true);
 	addR1R0toR1 = vector<bool>(numY,true);
+	collapsedInto = vector<bool>(numY,false);
 }
 
 void collapseInitialLevels(Aig_Man_t* pMan, vector<vector<int> >& r0, vector<vector<int> >& r1) {

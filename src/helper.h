@@ -7,6 +7,7 @@
 #include <unordered_map>
 #include <set>
 #include <queue>
+#include <list>
 #include <algorithm>
 #include <fstream>
 #include <sstream>
@@ -45,11 +46,11 @@ Abc_Ntk_t * Abc_NtkFromAigPhase(Aig_Man_t * pMan);
 #define UNIGEN_MODEL_FPATH	UNIGEN_OUT_DIR "/" UNIGEN_MODEL_FNAME
 #define UNIGEN_DIMAC_FPATH 	UNIGEN_DIMAC_FNAME
 #define UNIGEN_PY 			"UniGen2.py"
-#define UNIGEN_SAMPLES_DEF	220
-#define UNIGEN_THREADS_DEF	4
+#define UNIGEN_SAMPLES_DEF	110000
+#define UNIGEN_THREADS_DEF	19
 #define INIT_COLLAPSE_PARAM	4
 #define REF_COLLAPSE_PARAM	3
-#define UNIGEN_THRESHOLD 	0.9
+#define UNIGEN_THRESHOLD 	0.3
 #define WAIT_SAMPLES_DEF 	110
 
 // #define DEBUG
@@ -97,6 +98,7 @@ extern int numCEX;
 extern cxxopts::Options optParser;
 extern optionStruct options;
 extern vector<vector<int> > k2Trend;
+extern double sat_solving_time;
 
 int 			CommandExecute(Abc_Frame_t* pAbc, string cmd);
 vector<string> 	tokenize( const string& p_pcstStr, char delim );
@@ -127,7 +129,7 @@ bool 			getNextCEX(Aig_Man_t*&SAig, int& k1Level, int& m, vector<vector<int> > &
 bool 			populateCEX(Aig_Man_t* SAig,
 					vector<vector<int> > &r0, vector<vector<int> > &r1);
 bool 			populateStoredCEX(Aig_Man_t* SAig,
-					vector<vector<int> > &r0, vector<vector<int> > &r1);
+					vector<vector<int> > &r0, vector<vector<int> > &r1, bool fetch);
 void 			evaluateAig(Aig_Man_t* formula, const vector<int> &cex);
 Aig_Obj_t* 		satisfiesVec(Aig_Man_t* formula, const vector<int>& cex, const vector<int>& coObjs, bool reEvaluate);
 Aig_Obj_t* 		generalize(Aig_Man_t*pMan, vector<int> cex, const vector<int>& rl);
