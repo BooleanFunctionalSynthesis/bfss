@@ -19,6 +19,7 @@ sat_solver* m_pSat;
 Cnf_Dat_t* m_FCnf;
 lit m_f;
 double sat_solving_time = 0;
+double reverse_sub_time = 0;
 
 ////////////////////////////////////////////////////////////////////////
 ///                            MAIN                                  ///
@@ -37,7 +38,7 @@ int main(int argc, char * argv[]) {
 	benchmarkName = options.benchmark;
 	varsFile      = options.varsOrder;
 
-	clock_t main_start = clock();
+	auto main_start = std::chrono::steady_clock::now();
 
 	OUT("get FNtk..." );
 	Abc_Ntk_t* FNtk = getNtk(benchmarkName,true);
@@ -284,11 +285,13 @@ int main(int argc, char * argv[]) {
 
 	printK2Trend();
 
-	assert(verifyResult(SAig, r0, r1, 0));
-
-	clock_t main_end = clock();
-	// cout<< "Total time:   " <<double( main_end-main_start)/CLOCKS_PER_SEC << endl;
+	auto main_end = std::chrono::steady_clock::now();
+	double total_main_time = std::chrono::duration_cast<std::chrono::microseconds>(main_end - main_start).count()/1000000.0;
+	cout<< "Total main time:   " << total_main_time << endl;
 	cout<< "Total SAT solving time: " << sat_solving_time << endl;
+
+	assert(verifyResult(SAig, r0, r1, 0));
+	cout<< "Verify SAT solving time: " << sat_solving_time << endl;
 
 	sat_solver_delete(m_pSat);
 	Cnf_DataFree(m_FCnf);
