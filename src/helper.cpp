@@ -55,6 +55,7 @@ void parseOptions(int argc, char * argv[]) {
 		("u, unigenBackground", "Run UniGen in background (faster)", cxxopts::value<bool>(options.unigenBackground))
 		("unigenThreshold", "Threshold fraction of cex below which to switch error formula (default: " STR(UNIGEN_THRESHOLD) ")", cxxopts::value<double>(options.unigenThreshold), "N")
 		("w, waitSamples", "Number of solutions to wait for when Unigen runs in parallel (default: " STR(WAIT_SAMPLES_DEF) ")", cxxopts::value<int>(options.waitSamples), "N")
+		("m, monoSkolem", "Run MonoSkolem algorithm", cxxopts::value<bool>(options.monoSkolem))
 		("positional",
 			"Positional arguments: these are the arguments that are entered "
 			"without an option", cxxopts::value<std::vector<string>>())
@@ -201,6 +202,7 @@ void parseOptions(int argc, char * argv[]) {
 	cout << "\t unigenBackground:     " << options.unigenBackground << endl;
 	cout << "\t unigenThreshold:      " << options.unigenThreshold << endl;
 	cout << "\t waitSamples:          " << options.waitSamples << endl;
+	cout << "\t monoSkolem:           " << options.monoSkolem << endl;
 	cout << "}" << endl;
 }
 
@@ -2864,4 +2866,25 @@ void printK2Trend() {
 		cout << colSum << "\t";
 	}
 	cout << totalSum << endl << endl;
+}
+
+void monoSkolem(Aig_Man_t*&pMan, vector<vector<int> > &r0, vector<vector<int> > &r1) {
+	cout << "Running MonoSkolem" << endl;
+	Aig_Obj_t *mu0, *mu1, *mu, *pAigObj;
+
+	for(int i = 0; i<numY-1; i++) {
+		mu0 = newOR(pMan, r0[i]);
+		mu1 = newOR(pMan, r1[i]);
+		mu = Aig_AndAigs(pMan, mu0, mu1);
+
+		mu1 = Aig_SubstituteConst(pMan, mu, varsYS[i+1], 1);
+		pAigObj = Aig_ManCo(pMan,r1[i+1][0]);
+		Aig_ObjPatchFanin0(pMan, pAigObj, mu1);
+
+		mu0 = Aig_SubstituteConst(pMan, mu, varsYS[i+1], 0);
+		pAigObj = Aig_ManCo(pMan,r0[i+1][0]);
+		Aig_ObjPatchFanin0(pMan, pAigObj, mu0);
+	}
+
+	return;
 }

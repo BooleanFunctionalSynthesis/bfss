@@ -39,6 +39,8 @@ int main(int argc, char * argv[]) {
 	varsFile      = options.varsOrder;
 
 	auto main_start = std::chrono::steady_clock::now();
+	auto main_end = std::chrono::steady_clock::now();
+	double total_main_time;
 
 	OUT("get FNtk..." );
 	Abc_Ntk_t* FNtk = getNtk(benchmarkName,true);
@@ -171,6 +173,13 @@ int main(int argc, char * argv[]) {
 	clock_t compose_end = clock();
 	cout<< "Mega compose time: " <<double(compose_end-compose_start)/CLOCKS_PER_SEC << endl;
 
+	if(options.monoSkolem) {
+		monoSkolem(SAig, r0, r1);
+		main_end = std::chrono::steady_clock::now();
+		total_main_time = std::chrono::duration_cast<std::chrono::microseconds>(main_end - main_start).count()/1000000.0;
+		cout<< "Total main time: (monoskolem)   " << total_main_time << endl;
+		return 1;
+	}
 
 	m_pSat = sat_solver_new();
 	m_FCnf = Cnf_Derive(SAig, Aig_ManCoNum(SAig));
@@ -287,8 +296,8 @@ int main(int argc, char * argv[]) {
 	cout << endl;
 
 
-	auto main_end = std::chrono::steady_clock::now();
-	double total_main_time = std::chrono::duration_cast<std::chrono::microseconds>(main_end - main_start).count()/1000000.0;
+	main_end = std::chrono::steady_clock::now();
+	total_main_time = std::chrono::duration_cast<std::chrono::microseconds>(main_end - main_start).count()/1000000.0;
 	cout<< "Total main time:   " << total_main_time << endl;
 	cout<< "Total SAT solving time: " << sat_solving_time << endl;
 
