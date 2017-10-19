@@ -173,11 +173,19 @@ int main(int argc, char * argv[]) {
 	clock_t compose_end = clock();
 	cout<< "Mega compose time: " <<double(compose_end-compose_start)/CLOCKS_PER_SEC << endl;
 
+	// Pre-process R0/R1
+	k2Trend = vector<vector<int> >(numY+1, vector<int>(numY,0));
+	useR1AsSkolem = vector<bool>(numY,true);
+
 	if(options.monoSkolem) {
 		monoSkolem(SAig, r0, r1);
 		main_end = std::chrono::steady_clock::now();
 		total_main_time = std::chrono::duration_cast<std::chrono::microseconds>(main_end - main_start).count()/1000000.0;
+		cout << "Found Skolem Functions" << endl;
 		cout<< "Total main time: (monoskolem)   " << total_main_time << endl;
+		chooseR_(SAig,r0,r1);
+		assert(verifyResult(SAig, r0, r1, 0));
+		cout<< "Verify SAT solving time: " << sat_solving_time << endl;
 		return 1;
 	}
 
@@ -208,10 +216,6 @@ int main(int argc, char * argv[]) {
  //    #endif
 	cout << "Created SAig..." << endl;
 	cout << endl;
-
-	// Pre-process R0/R1
-	k2Trend = vector<vector<int> >(numY+1, vector<int>(numY,0));
-	useR1AsSkolem = vector<bool>(numY,true);
 
 	options.c1 = (options.c1 >= numY)? numY - 1 : options.c1;
 	options.c2 = (options.c2 >= numY)? numY - 1 : options.c2;

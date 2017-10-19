@@ -1947,8 +1947,8 @@ bool verifyResult(Aig_Man_t*&SAig, vector<vector<int> >& r0,
 		}
 	}
 
-	OUT("compressAigByNtk...");
-	SAig = compressAigByNtk(SAig);
+	// OUT("compressAigByNtk...");
+	// SAig = compressAigByNtk(SAig);
 
 	#ifdef DEBUG_CHUNK // Print SAig, r1, r_Aigs
 		cout << "\nSAig: " << endl;
@@ -1970,12 +1970,12 @@ bool verifyResult(Aig_Man_t*&SAig, vector<vector<int> >& r0,
 	#endif
 
 	int i_temp;
-	Aig_ManForEachObj(SAig,pAigObj,i_temp) {
-		assert(Aig_ObjIsConst1(pAigObj) || Aig_ObjIsCi(pAigObj) || Aig_ObjIsCo(pAigObj) || (Aig_ObjFanin0(pAigObj) && Aig_ObjFanin1(pAigObj)));
-	}
+	// Aig_ManForEachObj(SAig,pAigObj,i_temp) {
+	// 	assert(Aig_ObjIsConst1(pAigObj) || Aig_ObjIsCi(pAigObj) || Aig_ObjIsCo(pAigObj) || (Aig_ObjFanin0(pAigObj) && Aig_ObjFanin1(pAigObj)));
+	// }
 
 	auto start = std::chrono::steady_clock::now();
-	OUT("Reverse Substitution...");
+	cout << "Reverse Substitution..." << endl;
 	int iter = 0;
 	for(int i = numY-2; i >= 0; --i) {
 		iter++;
@@ -1996,7 +1996,7 @@ bool verifyResult(Aig_Man_t*&SAig, vector<vector<int> >& r0,
 		if(iter%30 == 0)
 			SAig = compressAigByNtk(SAig);
 	}
-	SAig = compressAigByNtk(SAig);
+	// SAig = compressAigByNtk(SAig);
 	// Calculating Total reverse-substituted Size
 	pAigObj = newOR(SAig, r_Aigs);
 	numAND = Aig_DagSize(pAigObj);
