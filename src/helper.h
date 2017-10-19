@@ -82,6 +82,7 @@ struct optionStruct {
 	bool	unigenBackground;
 	double 	unigenThreshold;
 	int 	waitSamples;
+	bool 	monoSkolem;
 };
 
 extern vector<int> varsSInv;
@@ -184,5 +185,6 @@ void			chooseSmallerR_(Aig_Man_t* pMan, vector<vector<int> >& r0, vector<vector<
 void			chooseR_(Aig_Man_t* pMan, vector<vector<int> >& r0, vector<vector<int> >& r1);
 void			parseOptions(int argc, char * argv[]);
 void 			printK2Trend();
+void 			monoSkolem(Aig_Man_t*&pMan, vector<vector<int> > &r0, vector<vector<int> > &r1);
 
 #endif
