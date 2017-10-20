@@ -966,13 +966,13 @@ bool populateCEX(Aig_Man_t* SAig,
 	int finSize = storedCEX.size();
 	cout << "finSize:         " << finSize << endl;
 	if(solsJustFetched>0) {
-		cout << "ratio:           " << (((double)finSize)/solsJustFetched) << endl;
+		cout << "PACratio:           " << (((double)finSize)/solsJustFetched) << endl;
 	}
 	else {
-		cout << "ratio:           " << 0 << endl;
+		cout << "PACratio:           " << 0 << endl;
 	}
 	if(finSize < solsJustFetched*options.unigenThreshold and CMSat::Main::unigenRunning) {
-		cout << "Terminating Unigen prematurely" << endl;
+		cout << "PACratio too low, Terminating Unigen prematurely" << endl;
 		CMSat::Main::prematureKill = true;
 		pthread_join(unigen_threadId, NULL);
 
@@ -2365,10 +2365,14 @@ int unigen_call(string fname, int nSamples, int nThreads) {
 		cmd = cmd + string(unigen_argv[i]) + " ";
 	}
 	cout << "\nCalling unigen: " << cmd << endl;
+	cout << "Fresh PACratios hereon" << endl;
+
 
 	// Initializations
 	CMSat::Main::prematureKill = false;
+	CMSat::Main::firstFetch    = true;
 	CMSat::Main::initStat = CMSat::initialStatus::udef;
+	CMSat::Main::unigenCalledAt = chrono::steady_clock::now();
 	cexSeen.clear();
 
 	// Thread Creation

@@ -303,8 +303,9 @@ int main(int argc, char * argv[]) {
 
 	main_end = std::chrono::steady_clock::now();
 	total_main_time = std::chrono::duration_cast<std::chrono::microseconds>(main_end - main_start).count()/1000000.0;
-	cout<< "Total main time:   " << total_main_time << endl;
-	cout<< "Total SAT solving time: " << sat_solving_time << endl;
+	cout<< "Total main time:         " << total_main_time << endl;
+	cout<< "Total SAT solving time:  " << sat_solving_time << endl;
+	cout<< "Total Dead time:         " << CMSat::Main::totalDeadTime << endl;
 
 	assert(verifyResult(SAig, r0, r1, 0));
 	cout<< "Verify SAT solving time: " << sat_solving_time << endl;
