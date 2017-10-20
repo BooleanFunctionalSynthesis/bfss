@@ -97,6 +97,7 @@ extern lit m_f;
 extern vector<bool>  useR1AsSkolem;
 extern int numFixes;
 extern int numCEX;
+extern int numCEXUsed;
 extern cxxopts::Options optParser;
 extern optionStruct options;
 extern vector<vector<int> > k2Trend;

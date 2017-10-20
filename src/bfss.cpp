@@ -295,6 +295,7 @@ int main(int argc, char * argv[]) {
 	cout << "Num Iterations: " << numloops << endl;
 	cout << "Num Fixes:      " << numFixes << endl;
 	cout << "Num CEX:        " << numCEX << endl;
+	cout << "Num CEX Used:   " << numCEXUsed << endl;
 	cout << "Total Size: ";
 	Aig_ManPrintStats( SAig );
 	cout << endl;

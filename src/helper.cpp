@@ -4,6 +4,7 @@
 vector<vector<int> > storedCEX;
 vector<int> storedCEX_k1;
 vector<int> storedCEX_k2;
+vector<bool> storedCEX_unused;
 vector<int> nodeIdtoN;
 bool new_flag = true;
 bool SwitchToABCSolver = false;
@@ -14,6 +15,7 @@ vector<bool> useR1AsSkolem;
 unordered_map<string, int> cexSeen;
 int numFixes = 0;
 int numCEX   = 0;
+int numCEXUsed = 0;
 bool initCollapseDone = false;
 cxxopts::Options optParser("bfss", "bfss: Blazingly Fast Skolem Synthesis");
 optionStruct options;
@@ -910,6 +912,7 @@ bool getNextCEX(Aig_Man_t*&SAig, int& M, int& k1Level, int& k1MaxLevel, vector<v
 			int k2Max = populateK2Vec(SAig, r0, r1, M);
 			assert(storedCEX_k1.size() == storedCEX.size());
 			assert(storedCEX_k2.size() == storedCEX.size());
+			assert(storedCEX_unused.size() == storedCEX.size());
 			// cout << "K1 K2 Data:" << endl;
 			// for (int i = 0; i < storedCEX.size(); ++i) {
 			// 	cout << i << ":\tk1: " << storedCEX_k1[i] << "\tk2: " << storedCEX_k2[i] << endl;
@@ -990,6 +993,7 @@ bool populateCEX(Aig_Man_t* SAig,
 	// 		return false;
 	// 	}
 	// }
+	numCEX += storedCEX.size();
 	return true;
 }
 
@@ -1132,6 +1136,7 @@ bool populateStoredCEX(Aig_Man_t* SAig,
 			storedCEX.push_back(cex);
 			storedCEX_k1.push_back(k1);
 			storedCEX_k2.push_back(-1);
+			storedCEX_unused.push_back(true);
 			storedCEX_r0Sat.push_back(vector<bool>(numY, false));
 			storedCEX_r1Sat.push_back(vector<bool>(numY, false));
 			return_val = true;
@@ -1708,6 +1713,10 @@ void updateAbsRef(Aig_Man_t*&pMan, int M, int k1Level, int k1MaxLevel, vector<ve
 					numFixes++;
 					// cout << "Adding " << i << " to pi0_m" << endl;
 				}
+				if(storedCEX_unused[i]) {
+					numCEXUsed++;
+					storedCEX_unused[i] = false;
+				}
 			}
 		}
 
@@ -2032,6 +2041,7 @@ bool verifyResult(Aig_Man_t*&SAig, vector<vector<int> >& r0,
 	cout << "Final reverse-substituted num outputs: " << r_Aigs.size() << endl;
 	cout << "Final reverse-substituted AVG Size:    " << avg_after << endl;
 	cout << "Final reverse-substituted MAX Size:    " << max_after << endl;
+	Aig_ManPrintStats(SAig);
 
 	// For experimental purposes
 	return true;
@@ -2430,6 +2440,7 @@ bool unigen_fetchModels(Aig_Man_t* SAig, vector<vector<int> > &r0,
 		storedCEX.push_back(cex);
 		storedCEX_k1.push_back(more?-1:k1);
 		storedCEX_k2.push_back(-1);
+		storedCEX_unused.push_back(true);
 		storedCEX_r0Sat.push_back(vector<bool>(numY, false));
 		storedCEX_r1Sat.push_back(vector<bool>(numY, false));
 		flag = true;
@@ -2503,6 +2514,7 @@ int filterAndPopulateK1Vec(Aig_Man_t* SAig, vector<vector<int> >&r0, vector<vect
 			storedCEX[j] = storedCEX[i];
 			storedCEX_k1[j] = storedCEX_k1[i];
 			storedCEX_k2[j] = storedCEX_k2[i];
+			storedCEX_unused[j] = storedCEX_unused[i];
 			storedCEX_r0Sat[j] = storedCEX_r0Sat[i];
 			storedCEX_r1Sat[j] = storedCEX_r1Sat[i];
 			j++;
@@ -2511,6 +2523,7 @@ int filterAndPopulateK1Vec(Aig_Man_t* SAig, vector<vector<int> >&r0, vector<vect
 	storedCEX.resize(j);
 	storedCEX_k1.resize(j,-1);
 	storedCEX_k2.resize(j,-1);
+	storedCEX_unused.resize(j,false);
 	storedCEX_r0Sat.resize(j,vector<bool>(numY, false));
 	storedCEX_r1Sat.resize(j,vector<bool>(numY, false));
 	assert(max>=0 || j==0);
@@ -2591,6 +2604,7 @@ int filterAndPopulateK1VecFast(Aig_Man_t* SAig, vector<vector<int> >&r0, vector<
 			storedCEX[j] = storedCEX[i];
 			storedCEX_k1[j] = storedCEX_k1[i];
 			storedCEX_k2[j] = storedCEX_k2[i];
+			storedCEX_unused[j] = storedCEX_unused[i];
 			storedCEX_r0Sat[j] = storedCEX_r0Sat[i];
 			storedCEX_r1Sat[j] = storedCEX_r1Sat[i];
 			j++;
@@ -2599,6 +2613,7 @@ int filterAndPopulateK1VecFast(Aig_Man_t* SAig, vector<vector<int> >&r0, vector<
 	storedCEX.resize(j);
 	storedCEX_k1.resize(j,-1);
 	storedCEX_k2.resize(j,-1);
+	storedCEX_unused.resize(j,false);
 	storedCEX_r0Sat.resize(j,vector<bool>(numY, false));
 	storedCEX_r1Sat.resize(j,vector<bool>(numY, false));
 
