@@ -102,6 +102,7 @@ extern cxxopts::Options optParser;
 extern optionStruct options;
 extern vector<vector<int> > k2Trend;
 extern double sat_solving_time;
+extern double verify_sat_solving_time;
 extern double reverse_sub_time;
 
 int 			CommandExecute(Abc_Frame_t* pAbc, string cmd);
@@ -187,5 +188,6 @@ void			chooseR_(Aig_Man_t* pMan, vector<vector<int> >& r0, vector<vector<int> >&
 void			parseOptions(int argc, char * argv[]);
 void 			printK2Trend();
 void 			monoSkolem(Aig_Man_t*&pMan, vector<vector<int> > &r0, vector<vector<int> > &r1);
+string			getFileName(string s);
 
 #endif

@@ -19,6 +19,7 @@ sat_solver* m_pSat;
 Cnf_Dat_t* m_FCnf;
 lit m_f;
 double sat_solving_time = 0;
+double verify_sat_solving_time = 0;
 double reverse_sub_time = 0;
 
 ////////////////////////////////////////////////////////////////////////
@@ -185,7 +186,7 @@ int main(int argc, char * argv[]) {
 		cout<< "Total main time: (monoskolem)   " << total_main_time << endl;
 		chooseR_(SAig,r0,r1);
 		assert(verifyResult(SAig, r0, r1, 0));
-		cout<< "Verify SAT solving time: " << sat_solving_time << endl;
+		cout<< "Verify SAT solving time: " << verify_sat_solving_time << endl;
 		return 1;
 	}
 
@@ -308,7 +309,7 @@ int main(int argc, char * argv[]) {
 	cout<< "Total Dead time:         " << CMSat::Main::totalDeadTime << endl;
 
 	assert(verifyResult(SAig, r0, r1, 0));
-	cout<< "Verify SAT solving time: " << sat_solving_time << endl;
+	cout<< "Verify SAT solving time: " << verify_sat_solving_time << endl;
 
 	sat_solver_delete(m_pSat);
 	Cnf_DataFree(m_FCnf);

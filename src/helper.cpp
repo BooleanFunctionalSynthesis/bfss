@@ -188,6 +188,7 @@ void parseOptions(int argc, char * argv[]) {
 
 	unigen_argv[1] = (char*)((new string("--samples="+to_string(options.numSamples)))->c_str());
 	unigen_argv[2] = (char*)((new string("--threads="+to_string(options.numThreads)))->c_str());
+	unigen_argv[13] = (char*)((new string(getFileName(options.benchmark) + "_" + UNIGEN_DIMAC_FPATH))->c_str());
 
 	cout << "Configuration: " << endl;
 	cout << "{" << endl;
@@ -1039,7 +1040,7 @@ bool populateStoredCEX(Aig_Man_t* SAig,
 
 		// Print Dimacs
 		vector<lit> assumptions = setAllNegX(SCnf, SAig, false);
-		Sat_SolverWriteDimacsAndIS(pSat, UNIGEN_DIMAC_FPATH,
+		Sat_SolverWriteDimacsAndIS(pSat, unigen_argv[13],
 			&assumptions[0], &assumptions[0] + numX, IS, RS);
 
 		Aig_ManPrintStats(SAig);
@@ -2092,7 +2093,7 @@ bool verifyResult(Aig_Man_t*&SAig, vector<vector<int> >& r0,
 	start = std::chrono::steady_clock::now();
 	int status = sat_solver_solve(pSat, LA, LA+2, (ABC_INT64_T)0, (ABC_INT64_T)0, (ABC_INT64_T)0, (ABC_INT64_T)0);
 	end = std::chrono::steady_clock::now();
-	sat_solving_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count()/1000000.0;
+	verify_sat_solving_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count()/1000000.0;
 
 	if (status == l_False) {
 		cout << "Verified!" << endl;
@@ -2938,4 +2939,22 @@ void monoSkolem(Aig_Man_t*&pMan, vector<vector<int> > &r0, vector<vector<int> > 
 	}
 
 	return;
+}
+
+string getFileName(string s) {
+	size_t i;
+
+	i = s.rfind('/', s.length());
+	if (i != string::npos) {
+		s = s.substr(i+1);
+	}
+	assert(s.length() != 0);
+
+	i = s.rfind('.', s.length());
+	if (i != string::npos) {
+		s = s.substr(0,i);
+	}
+	assert(s.length() != 0);
+
+	return(s);
 }
