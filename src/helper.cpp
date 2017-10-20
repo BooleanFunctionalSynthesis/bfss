@@ -1420,7 +1420,7 @@ void updateAbsRef(Aig_Man_t*&pMan, int M, int k1Level, int k1MaxLevel, vector<ve
 	// Calculate refCollapse Levels
 	refCollapseStart = k1Level;
 	while(collapsedInto[refCollapseStart] and refCollapseStart<k1MaxLevel) {refCollapseStart++;}
-	if(refCollapseStart==k1MaxLevel)
+	if(refCollapseStart>k1MaxLevel)
 		refCollapseStart = numY-1;
 	refCollapseEnd = min(M, min(numY - 1, refCollapseStart + options.c2));
 
