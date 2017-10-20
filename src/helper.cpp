@@ -2044,6 +2044,10 @@ bool verifyResult(Aig_Man_t*&SAig, vector<vector<int> >& r0,
 	cout << "Final reverse-substituted MAX Size:    " << max_after << endl;
 	Aig_ManPrintStats(SAig);
 
+	auto end = std::chrono::steady_clock::now();
+	reverse_sub_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count()/1000000.0;
+	cout<< "Reverse substitute time: " << reverse_sub_time << endl;
+
 	// For experimental purposes
 	return true;
 
@@ -2053,9 +2057,6 @@ bool verifyResult(Aig_Man_t*&SAig, vector<vector<int> >& r0,
 		Aig_Obj_t* skolem_i = useR1AsSkolem[i]?Aig_Not(Aig_ObjChild0(Aig_ManCo(SAig,r_Aigs[i]))):Aig_ObjChild0(Aig_ManCo(SAig,r_Aigs[i]));
 		F = Aig_Substitute(SAig, F, varsYS[i], skolem_i);
 	}
-	auto end = std::chrono::steady_clock::now();
-	reverse_sub_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count()/1000000.0;
-	cout<< "Reverse substitute time: " << reverse_sub_time << endl;
 
 	OUT("F Id:     "<<Aig_Regular(F)->Id);
 	OUT("F compl:  "<<Aig_IsComplement(F));
