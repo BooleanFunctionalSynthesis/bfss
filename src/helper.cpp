@@ -1924,11 +1924,20 @@ bool verifyResult(Aig_Man_t*&SAig, vector<vector<int> >& r0,
 	}
 
 	// Calculating Total un-substituted Size
-	pAigObj = newOR(SAig, r_Aigs);
-	numAND = Aig_DagSize(pAigObj);
-	cout << "Final un-substituted AigSize:     " << numAND << endl;
+	int max_before = 0;
+	double avg_before = 0;
+	for(auto it : r_Aigs) {
+		pAigObj = Aig_ObjChild0(Aig_ManCo(SAig, it));
+		numAND = Aig_DagSize(pAigObj);
+		avg_before += numAND;
+		if(max_before < numAND)
+			max_before = numAND;
+	}
+	avg_before = avg_before*1.0/r_Aigs.size();
 	cout << "Final un-substituted num outputs: " << r_Aigs.size() << endl;
-	cout << "Final un-substituted AVG Size:    " << ((double)numAND)/r_Aigs.size() << endl;
+	cout << "Final un-substituted AVG Size:    " << avg_before << endl;
+	cout << "Final un-substituted MAX Size:    " << max_before << endl;
+
 
 	if(deleteCos) {
 		// Delete extra stuff
@@ -2010,11 +2019,19 @@ bool verifyResult(Aig_Man_t*&SAig, vector<vector<int> >& r0,
 	}
 	// SAig = compressAigByNtk(SAig);
 	// Calculating Total reverse-substituted Size
-	pAigObj = newOR(SAig, r_Aigs);
-	numAND = Aig_DagSize(pAigObj);
-	cout << "Final reverse-substituted AigSize:     " << numAND << endl;
+	int max_after = 0;
+	double avg_after = 0;
+	for(auto it : r_Aigs) {
+		pAigObj = Aig_ObjChild0(Aig_ManCo(SAig, it));
+		numAND = Aig_DagSize(pAigObj);
+		avg_after += numAND;
+		if(max_after < numAND)
+			max_after = numAND;
+	}
+	avg_after = avg_after*1.0/r_Aigs.size();
 	cout << "Final reverse-substituted num outputs: " << r_Aigs.size() << endl;
-	cout << "Final reverse-substituted AVG Size:    " << ((double)numAND)/r_Aigs.size() << endl;
+	cout << "Final reverse-substituted AVG Size:    " << avg_after << endl;
+	cout << "Final reverse-substituted MAX Size:    " << max_after << endl;
 
 	// For experimental purposes
 	return true;
