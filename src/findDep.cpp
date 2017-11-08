@@ -50,6 +50,12 @@ void writeVariableFile(string fname);
 void writeDependenceFile(string fname);
 string vecToVerilogLine(vector<int> &v, string op);
 void writeNonTseitinToQdimacsFile(string fname);
+static inline void addToImpliesMap(map<int,int>&m, int lit, int clauseNum);
+static inline void processBinaryClause(int clauseNum);
+static inline void setConst(int lit);
+static inline map<int,int>& getImpliesMap(int lit);
+bool checkForCycles();
+bool DFS_checkForCycles(vector<set<int> >& graph, int node, vector<int>& DFS_startTime, vector<int>& DFS_endTime, int& DFS_currTime);
 
 inline string varNumToName(int v) {
 	return ("v_"+to_string(v));
@@ -58,7 +64,7 @@ inline string extraNumToName(int v) {
 	return ("x_"+to_string(v));
 }
 inline bool cannotDependOn(int v) {
-	return depFound[abs(v)]==true and 
+	return depFound[abs(v)]==true and
 			depCONST.find(abs(v))==depCONST.end() and
 			depCONST.find(-abs(v))==depCONST.end();
 }
@@ -82,22 +88,25 @@ int main(int argc, char * argv[]) {
 	string qdmFileName = baseFileName + ".qdimacs.noUnary" ;
 
 	readQdimacsFile(qdFileName);
-	cout << "Finished reading qdimacs file" << endl;
+	cout << "Finished readQdimacsFile" << endl;
 
 	// TODO: Propagate unary clauses
 	findLitToProp();
-	cout << "Finished finding prop literals" << endl;
+	cout << "Finished findLitToProp" << endl;
 	while(!litToPropagate.empty()) {
 		int toProp = litToPropagate.front();
 		litToPropagate.pop();
 		propagateLiteral(toProp);
 	}
-	cout << "Finished propagating literals" << endl;
+	cout << "Finished propagateLiteral" << endl;
 
 	writeNonTseitinToQdimacsFile(qdmFileName);
 
 	findDependencies();
-	cout << "Finished finding dependencies" << endl;
+	cout << "Finished findDependencies" << endl;
+
+	assert(!checkForCycles());
+	cout << "Finished checkForCycles" << endl;
 
 	int numNonTseitin = 0;
 	for(int i = 0; i < allClauses.size(); i++) {
@@ -191,22 +200,7 @@ void readQdimacsFile(char * qdFileName) {
 		}
 
 		if(tempClause.size() == 2) { // populate ___Implies
-			int v0 = tempClause[0];
-			int v1 = tempClause[1];
-
-			if(v0 > 0) {
-				negImplies[v0][v1] = i;
-			}
-			else {
-				posImplies[-v0][v1] = i;
-			}
-
-			if(v1 > 0) {
-				negImplies[v1][v0] = i;
-			}
-			else {
-				posImplies[-v1][v0] = i;
-			}
+			processBinaryClause(allClauses.size()-1);
 		}
 	}
 
@@ -219,15 +213,9 @@ void findDependencies() {
 	// for(auto it = varsY.rbegin(); it!=varsY.rend(); ++it) {
 	// 	int y = *it;
 	for(auto y:boost::adaptors::reverse(varsY)) {
-		// cout << "\nChecking for y = " << y << endl;
-		// cout << "posImplies[" << y <<"] = "; print(posImplies[y]);
-		// cout << "negImplies[" << y <<"] = "; print(negImplies[y]);
 		depFound[y] = depFound[y] or findDepAND(y) or findDepOR(y);
 	}
 	for(auto y:boost::adaptors::reverse(varsY)) {
-		// cout << "\nChecking for y = " << y << endl;
-		// cout << "posImplies[" << y <<"] = "; print(posImplies[y]);
-		// cout << "negImplies[" << y <<"] = "; print(negImplies[y]);
 		depFound[y] = depFound[y] or findDepXOR(y);
 	}
 }
@@ -427,6 +415,12 @@ void print(vector<int> & v) {
 	cout << endl;
 }
 
+void print(map<int, int> & v) {
+	for(auto it:v)
+		cout << "(" << it.first << "," << it.second << ") ";
+	cout << endl;
+}
+
 void print(set<int> & v) {
 	for(auto it:v)
 		cout << it << " ";
@@ -437,51 +431,30 @@ void findLitToProp() {
 	for(int clauseNum = 0; clauseNum < allClauses.size(); clauseNum++) {
 		auto & clause = allClauses[clauseNum];
 		if(clause.size() == 1) {
-			depFound[abs(clause[0])] = true;
-			depCONST.insert(clause[0]);
-			litToPropagate.push(clause[0]);
+			setConst(clause[0]);
 			tseitinClauses[clauseNum] = true; // Unary tseitinClauses=true
 		}
-		else if(clause.size() == 2) { // populate ___Implies
+		else if(clause.size() == 2) {
 			int v0 = clause[0];
 			int v1 = clause[1];
 
-			if(v0 > 0) { // negImplies[v0][v1] = i;
-				if(negImplies[v0].find(-v1) != negImplies[v0].end()) { // v0 must be true
-					depFound[abs(v0)] = true;
-					depCONST.insert(v0);
-					litToPropagate.push(v0);
-					tseitinClauses[clauseNum] = true;	// Unary tseitinClauses=true
-					tseitinClauses[negImplies[v0][-v1]] = true;	// Unary tseitinClauses=true
-				}
-			}
-			else { // posImplies[-v0][v1] = i;
-				if(posImplies[-v0].find(-v1) != posImplies[-v0].end()) { // -v0 must be false
-					depFound[abs(v0)] = true;
-					depCONST.insert(v0);
-					litToPropagate.push(v0);
-					tseitinClauses[clauseNum] = true;	// Unary tseitinClauses=true
-					tseitinClauses[posImplies[-v0][-v1]] = true;	// Unary tseitinClauses=true
-				}
-			}
+			// -v1 -> v0, check if v1 -> v0, then v0_isConst
+			// -v0 -> v1, check if v0 -> v1, then v1_isConst
 
-			if(v1 > 0) { // negImplies[v1][v0] = i;
-				if(negImplies[v1].find(-v0) != negImplies[v1].end()) { // v1 must be true
-					depFound[abs(v0)] = true;
-					depCONST.insert(v0);
-					litToPropagate.push(v0);
-					tseitinClauses[clauseNum] = true;	// Unary tseitinClauses=true
-					tseitinClauses[negImplies[v1][-v0]] = true;	// Unary tseitinClauses=true
-				}
+			map<int,int>& v0_map = getImpliesMap(v0);
+			map<int,int>& v1_map = getImpliesMap(v1);
+
+			if(v1_map.find(v0) != v1_map.end()) { // v0_isConst
+				// cout << "clause: "; print(clause);
+				setConst(v0);
+				tseitinClauses[clauseNum] = true;	// Unary tseitinClauses=true
+				tseitinClauses[v1_map[v0]] = true;	// Unary tseitinClauses=true
 			}
-			else { // posImplies[-v1][v0] = i;
-				if(posImplies[-v1].find(-v0) != posImplies[-v1].end()) { // -v0 must be false
-					depFound[abs(v1)] = true;
-					depCONST.insert(v1);
-					litToPropagate.push(v1);
-					tseitinClauses[clauseNum] = true;	// Unary tseitinClauses=true
-					tseitinClauses[posImplies[-v1][-v0]] = true;	// Unary tseitinClauses=true
-				}
+			if(v0_map.find(v1) != v0_map.end()) { // v1_isConst
+				// cout << "clause: "; print(clause);
+				setConst(v1);
+				tseitinClauses[clauseNum] = true;	// Unary tseitinClauses=true
+				tseitinClauses[v0_map[v1]] = true;	// Unary tseitinClauses=true
 			}
 		}
 	}
@@ -499,15 +472,17 @@ void propagateLiteral(int lit) {
 		else{
 			// Remove var from allClauses
 			auto it = find(allClauses[clauseNum].begin(), allClauses[clauseNum].end(), var);
+			assert(it != allClauses[clauseNum].end());
 			*it = allClauses[clauseNum].back();
 			allClauses[clauseNum].resize(allClauses[clauseNum].size()-1);
-			
-			assert(!allClauses[clauseNum].empty());
+
+			assert(!allClauses[clauseNum].empty()); // CNF formula is unsat
 			if(allClauses[clauseNum].size() == 1) {
-				depFound[abs(allClauses[clauseNum][0])] = true;
-				depCONST.insert(allClauses[clauseNum][0]);
-				litToPropagate.push(allClauses[clauseNum][0]);
+				setConst(allClauses[clauseNum][0]);
 				tseitinClauses[clauseNum] = true;	// Unary tseitinClauses=true
+			}
+			else if(allClauses[clauseNum].size() == 2) {
+				processBinaryClause(clauseNum);
 			}
 		}
 	}
@@ -521,17 +496,26 @@ void propagateLiteral(int lit) {
 		else{
 			// Remove var from allClauses
 			auto it = find(allClauses[clauseNum].begin(), allClauses[clauseNum].end(), -var);
+			assert(it != allClauses[clauseNum].end());
 			*it = allClauses[clauseNum].back();
 			allClauses[clauseNum].resize(allClauses[clauseNum].size()-1);
-			
-			assert(!allClauses[clauseNum].empty());
+
+			assert(!allClauses[clauseNum].empty()); // CNF formula is unsat
 			if(allClauses[clauseNum].size() == 1) {
-				depFound[abs(allClauses[clauseNum][0])] = true;
-				depCONST.insert(allClauses[clauseNum][0]);
-				litToPropagate.push(allClauses[clauseNum][0]);
+				setConst(allClauses[clauseNum][0]);
 				tseitinClauses[clauseNum] = true;	// Unary tseitinClauses=true
 			}
+			else if(allClauses[clauseNum].size() == 2) {
+				processBinaryClause(clauseNum);
+			}
 		}
+	}
+
+	if(pos) {
+		existsAsNeg[var].clear();
+	}
+	else{
+		existsAsPos[var].clear();
 	}
 }
 
@@ -548,9 +532,10 @@ void writeVerilogFile(string fname, string moduleName) {
 			ofs << varNumToName(it) << ", ";
 	}
 	ofs << "o_1);" << endl;
-	
+
 	// Input/Output/Wire
 	for(auto it:varsX) {
+		assert(!depFound[it]);
 		ofs << "input " << varNumToName(it) << ";\n";
 	}
 	for(auto it:varsY) {
@@ -695,10 +680,9 @@ string vecToVerilogLine(vector<int> &v, string op) {
 	return res.substr(0,res.length()-2-op.length());
 }
 
-
 void writeNonTseitinToQdimacsFile(string fname) {
 	ofstream ofs (fname, ofstream::out);
-	
+
 	// Extra wires required for non-tseitin clauses
 	int numNonTseitin = 0;
 	for(int i = 0; i < allClauses.size(); i++) {
@@ -715,14 +699,14 @@ void writeNonTseitinToQdimacsFile(string fname) {
 		ofs << it << " ";
 	}
 	ofs << 0 << endl;
-	
+
 	ofs << "e ";
 	for(auto it:varsY) {
 		if(!depFound[it])
 			ofs << it << " ";
 	}
 	ofs << 0 << endl;
-	
+
 	// constants
 	for(auto it: depCONST) {
 		ofs << it << " 0 \n";
@@ -739,4 +723,103 @@ void writeNonTseitinToQdimacsFile(string fname) {
 	}
 
 	ofs.close();
+}
+
+static inline map<int,int>& getImpliesMap(int lit) {
+	return (lit>0)?posImplies[lit]:negImplies[-lit];
+}
+
+static inline void addToImpliesMap(map<int,int>&m, int lit, int clauseNum) {
+	auto it = m.find(lit);
+	if(it == m.end()) {
+		m[lit] = clauseNum;
+	}
+	else if(it->second != clauseNum) { // set clauseNum is redundant
+		tseitinClauses[clauseNum] = true;
+	}
+}
+
+static inline void setConst(int lit) {
+	cout << "DEPConst " << lit << endl;
+	depFound[abs(lit)] = true;
+	depCONST.insert(lit);
+	litToPropagate.push(lit);
+}
+
+static inline void processBinaryClause(int clauseNum) {
+	vector<int>&clause  = allClauses[clauseNum];
+	assert(clause.size() == 2);
+	int v0 = clause[0];
+	int v1 = clause[1];
+
+	map<int,int>& v0_map = getImpliesMap(-v0);
+	map<int,int>& v1_map = getImpliesMap(-v1);
+
+	addToImpliesMap(v0_map, v1, clauseNum);
+	addToImpliesMap(v1_map, v0, clauseNum);
+}
+
+bool checkForCycles() {
+	vector<set<int> > graph(numVars+1);
+	
+	// Create Graph
+	for(auto it: depCONST) {
+		int var = abs(it);
+		graph[var].insert(0);
+	}
+	for(auto&it: depAND) {
+		int var = abs(it.first);
+		for(auto&it2:it.second)
+			graph[var].insert(abs(it2));
+	}
+	for(auto&it: depOR) {
+		int var = abs(it.first);
+		for(auto&it2:it.second)
+			graph[var].insert(abs(it2));
+	}
+	for(auto&it: depXOR) {
+		int var = abs(it.first);
+		for(auto&it2:it.second)
+			graph[var].insert(abs(it2));
+	}
+
+	vector<int> DFS_startTime(numVars+1,-1);
+	vector<int> DFS_endTime(numVars+1,-1);
+	int DFS_currTime = 0;
+
+	for (int i = 0; i < numVars + 1; ++i) {
+		if(DFS_startTime[i] == -1) {
+			if(DFS_checkForCycles(graph, i, DFS_startTime, DFS_endTime, DFS_currTime)) {
+				cout << i << endl;
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
+bool DFS_checkForCycles(vector<set<int> >& graph, int node, vector<int>& DFS_startTime, vector<int>& DFS_endTime, int& DFS_currTime) {
+	if(DFS_startTime[node] != -1) {
+		if(DFS_endTime[node] == -1) {
+			// Back Edge
+			cout << "Found dependency cycle: ";
+			return true;
+		}
+		else {
+			// Cross Edge
+			return false;
+		}
+	}
+	// Forward Edge
+	DFS_startTime[node] = DFS_currTime++;
+
+	for(auto it:graph[node]) {
+		if(DFS_checkForCycles(graph, it, DFS_startTime, DFS_endTime, DFS_currTime)) {
+			cout << it << " ";
+			return true;
+		}
+	}
+
+	DFS_endTime[node] = DFS_currTime++;
+	return false;
 }
