@@ -13,6 +13,7 @@
 using namespace std;
 
 #define VERILOG_HEADER "// Generated using findDep.cpp \n"
+#define MAX_DEP_SIZE 5
 
 vector<vector<int> > allClauses;
 vector<bool> tseitinClauses;
@@ -45,7 +46,7 @@ bool findDepXOR(int y);
 void findLitToProp();
 void propagateLiteral(int lit);
 void writeVerilogFile(string fname, string moduleName);
-int addConjunctionsToVerilog(ofstream&ofs, int start, int end, int&nextVar);
+int addFlatClausesToVerilog(ofstream&ofs, int start, int end, int&nextVar);
 void writeVariableFile(string fname);
 void writeDependenceFile(string fname);
 string vecToVerilogLine(vector<int> &v, string op);
@@ -56,6 +57,7 @@ static inline void setConst(int lit);
 static inline map<int,int>& getImpliesMap(int lit);
 bool checkForCycles();
 bool DFS_checkForCycles(vector<set<int> >& graph, int node, vector<int>& DFS_startTime, vector<int>& DFS_endTime, int& DFS_currTime);
+void reduceDependencySizes();
 
 inline string varNumToName(int v) {
 	return ("v_"+to_string(v));
@@ -108,6 +110,9 @@ int main(int argc, char * argv[]) {
 	assert(!checkForCycles());
 	cout << "Finished checkForCycles" << endl;
 
+	reduceDependencySizes();
+	cout << "Finished reduceDependencySizes" << endl;
+
 	int numNonTseitin = 0;
 	for(int i = 0; i < allClauses.size(); i++) {
 		if(!tseitinClauses[i]) {
@@ -135,7 +140,7 @@ void readQdimacsFile(char * qdFileName) {
 	while (strcmp (C, "cnf") != 0)
 		fscanf (qdFPtr, "%s", C);
 	fscanf(qdFPtr, "%d %d", &numVars, &numClauses); // read first line p cnf
-	cout << "NumVar:       " <<  numVars << endl;
+	cout << "numVars:       " <<  numVars << endl;
 	cout << "NumClauses:   " << numClauses << endl;
 
 	// Vars X
@@ -162,7 +167,7 @@ void readQdimacsFile(char * qdFileName) {
 	cout << "varsY.size(): " << varsY.size() << endl;
 	assert (numVars > varsY.size());
 
-	// Update NumVars = maxVar
+	// Update numVars = maxVar
 	int maxVar = 0;
 	for(auto it:varsX)
 		maxVar = max(maxVar,it);
@@ -265,7 +270,7 @@ bool findDepAND(int y) {
 					if(tseitinClauses[clauseNum] == true)
 						continue;
 					if(v2!=y) {
-						depAND[y].push_back(v2);
+						depAND[y].push_back(-v2);
 						tseitinClauses[posImplies[y][-v2]] = true; // tseitinClauses=true
 					}
 				}
@@ -602,7 +607,7 @@ void writeVerilogFile(string fname, string moduleName) {
 	assert(eNum == numNonTseitin+1);
 
 	// Conjunct all Extra Variables (x_1 .. x_numNonTseitin)
-	int finalVar =  addConjunctionsToVerilog(ofs, 1, numNonTseitin, eNum);
+	int finalVar =  addFlatClausesToVerilog(ofs, 1, numNonTseitin, eNum);
 	assert(finalVar <= 2*numNonTseitin);
 
 	ofs << "assign o_1 = " << extraNumToName(finalVar) << ";\n";
@@ -610,14 +615,14 @@ void writeVerilogFile(string fname, string moduleName) {
 	ofs.close();
 }
 
-int addConjunctionsToVerilog(ofstream&ofs, int start, int end, int&nextVar) {
+int addFlatClausesToVerilog(ofstream&ofs, int start, int end, int&nextVar) {
 	assert(start<=end);
 	if(start==end)
 		return start;
 
 	int mid = (start+end+1)/2 - 1;
-	int v1 = addConjunctionsToVerilog(ofs, start, mid, nextVar);
-	int v2 = addConjunctionsToVerilog(ofs, mid+1, end, nextVar);
+	int v1 = addFlatClausesToVerilog(ofs, start, mid, nextVar);
+	int v2 = addFlatClausesToVerilog(ofs, mid+1, end, nextVar);
 
 	string res = extraNumToName(v1) + " & " + extraNumToName(v2);
 	ofs << "assign " << extraNumToName(nextVar) << " = " << res << ";\n";
@@ -822,4 +827,67 @@ bool DFS_checkForCycles(vector<set<int> >& graph, int node, vector<int>& DFS_sta
 
 	DFS_endTime[node] = DFS_currTime++;
 	return false;
+}
+
+void reduceDependencySizes() {
+	for(auto&it: depAND) {
+		while(it.second.size() > MAX_DEP_SIZE) {
+			int start = 0;
+			int end = MAX_DEP_SIZE;
+			vector<int> newV;
+			while(start<it.second.size()) {
+				numVars++;
+				varsY.push_back(numVars);
+				assert(depFound.size() == numVars);
+				depFound.push_back(true);
+				
+				depAND[numVars] = vector<int>(it.second.begin()+start,it.second.begin()+end);
+				newV.push_back(numVars);
+
+				start = end;
+				end = min(start + MAX_DEP_SIZE, (int)it.second.size());
+			}
+			it.second = newV;
+		}
+	}
+	for(auto&it: depOR) {
+		while(it.second.size() > MAX_DEP_SIZE) {
+			int start = 0;
+			int end = MAX_DEP_SIZE;
+			vector<int> newV;
+			while(start<it.second.size()) {
+				numVars++;
+				varsY.push_back(numVars);
+				assert(depFound.size() == numVars);
+				depFound.push_back(true);
+				
+				depOR[numVars] = vector<int>(it.second.begin()+start,it.second.begin()+end);
+				newV.push_back(numVars);
+
+				start = end;
+				end = min(start + MAX_DEP_SIZE, (int)it.second.size());
+			}
+			it.second = newV;
+		}
+	}
+	for(auto&it: depXOR) {
+		while(it.second.size() > MAX_DEP_SIZE) {
+			int start = 0;
+			int end = MAX_DEP_SIZE;
+			vector<int> newV;
+			while(start<it.second.size()) {
+				numVars++;
+				varsY.push_back(numVars);
+				assert(depFound.size() == numVars);
+				depFound.push_back(true);
+				
+				depXOR[numVars] = vector<int>(it.second.begin()+start,it.second.begin()+end);
+				newV.push_back(numVars);
+
+				start = end;
+				end = min(start + MAX_DEP_SIZE, (int)it.second.size());
+			}
+			it.second = newV;
+		}
+	}
 }
