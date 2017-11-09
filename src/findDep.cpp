@@ -65,11 +65,6 @@ inline string varNumToName(int v) {
 inline string extraNumToName(int v) {
 	return ("x_"+to_string(v));
 }
-inline bool cannotDependOn(int v) {
-	return depFound[abs(v)]==true and
-			depCONST.find(abs(v))==depCONST.end() and
-			depCONST.find(-abs(v))==depCONST.end();
-}
 
 int main(int argc, char * argv[]) {
     char * qdFileName;
@@ -214,9 +209,6 @@ void readQdimacsFile(char * qdFileName) {
 
 void findDependencies() {
 	// Find AND dependencies
-	// for(auto y:varsY) {
-	// for(auto it = varsY.rbegin(); it!=varsY.rend(); ++it) {
-	// 	int y = *it;
 	for(auto y:boost::adaptors::reverse(varsY)) {
 		depFound[y] = depFound[y] or findDepAND(y) or findDepOR(y);
 	}
@@ -233,7 +225,6 @@ bool findDepAND(int y) {
 			continue;
 
 		bool gotcha = true;
-		bool cyclic = false;
 		// cout << "clause "; print(allClauses[clauseNum]);
 		for(auto v2: allClauses[clauseNum]) {
 			if(tseitinClauses[clauseNum] == true)
@@ -243,40 +234,33 @@ bool findDepAND(int y) {
 				gotcha = false;
 				break;
 			}
-			if(v2!=y and cannotDependOn(v2)) {
-				cyclic = true;
-			}
 		}
 		if(gotcha) {
-			// if(cyclic)
-			// 	cout << "Skipping AND because of possible cyclic dependency" << endl;
-			// else{
-				// Print it
-				string dep = "AND(";
-				for(auto v2: allClauses[clauseNum]) {
-					if(tseitinClauses[clauseNum] == true)
-						continue;
-					if(v2!=y) {
-						dep = dep + to_string(-v2) + ", ";
-					}
+			// Print it
+			string dep = "AND(";
+			for(auto v2: allClauses[clauseNum]) {
+				if(tseitinClauses[clauseNum] == true)
+					continue;
+				if(v2!=y) {
+					dep = dep + to_string(-v2) + ", ";
 				}
-				dep = dep.substr(0,dep.length()-2) + ")";
-				cout << "DEP" << y << " = " << dep << endl;
+			}
+			dep = dep.substr(0,dep.length()-2) + ")";
+			cout << "DEP" << y << " = " << dep << endl;
 
-				// Found Dependency
-				// assert(depAND.find(y) == depAND.end());
-				depAND[y] = vector<int>();
-				for(auto v2: allClauses[clauseNum]) {
-					if(tseitinClauses[clauseNum] == true)
-						continue;
-					if(v2!=y) {
-						depAND[y].push_back(-v2);
-						tseitinClauses[posImplies[y][-v2]] = true; // tseitinClauses=true
-					}
+			// Found Dependency
+			// assert(depAND.find(y) == depAND.end());
+			depAND[y] = vector<int>();
+			for(auto v2: allClauses[clauseNum]) {
+				if(tseitinClauses[clauseNum] == true)
+					continue;
+				if(v2!=y) {
+					depAND[y].push_back(-v2);
+					tseitinClauses[posImplies[y][-v2]] = true; // tseitinClauses=true
 				}
-				tseitinClauses[clauseNum] = true; // tseitinClauses=true
-				return true;
-			// }
+			}
+			tseitinClauses[clauseNum] = true; // tseitinClauses=true
+			return true;
 		}
 	}
 	return false;
@@ -290,7 +274,6 @@ bool findDepOR(int y) {
 			continue;
 
 		bool gotcha = true;
-		bool cyclic = false;
 		// cout << "clause "; print(allClauses[clauseNum]);
 		for(auto v2: allClauses[clauseNum]) {
 			if(tseitinClauses[clauseNum] == true)
@@ -300,40 +283,33 @@ bool findDepOR(int y) {
 				gotcha = false;
 				break;
 			}
-			if(v2!=y and cannotDependOn(v2)) {
-				cyclic = true;
-			}
 		}
 		if(gotcha) {
-			// if(cyclic)
-			// 	cout << "Skipping OR because of possible cyclic dependency" << endl;
-			// else {
-				// Print it
-				string dep = "OR(";
-				for(auto v2: allClauses[clauseNum]) {
-					if(tseitinClauses[clauseNum] == true)
-						continue;
-					if(v2!=-y) {
-						dep = dep + to_string(v2) + ", ";
-					}
+			// Print it
+			string dep = "OR(";
+			for(auto v2: allClauses[clauseNum]) {
+				if(tseitinClauses[clauseNum] == true)
+					continue;
+				if(v2!=-y) {
+					dep = dep + to_string(v2) + ", ";
 				}
-				dep = dep.substr(0,dep.length()-2) + ")";
-				cout << "DEP" << y << " = " << dep << endl;
+			}
+			dep = dep.substr(0,dep.length()-2) + ")";
+			cout << "DEP" << y << " = " << dep << endl;
 
-				// Found Dependency
-				// assert(depOR.find(y) == depOR.end());
-				depOR[y] = vector<int>();
-				for(auto v2: allClauses[clauseNum]) {
-					if(tseitinClauses[clauseNum] == true)
-						continue;
-					if(v2!=-y) {
-						depOR[y].push_back(v2);
-						tseitinClauses[negImplies[y][-v2]] = true; // tseitinClauses=true
-					}
+			// Found Dependency
+			// assert(depOR.find(y) == depOR.end());
+			depOR[y] = vector<int>();
+			for(auto v2: allClauses[clauseNum]) {
+				if(tseitinClauses[clauseNum] == true)
+					continue;
+				if(v2!=-y) {
+					depOR[y].push_back(v2);
+					tseitinClauses[negImplies[y][-v2]] = true; // tseitinClauses=true
 				}
-				tseitinClauses[clauseNum] = true; // tseitinClauses=true
-				return true;
-			// }
+			}
+			tseitinClauses[clauseNum] = true; // tseitinClauses=true
+			return true;
 		}
 	}
 	return false;
@@ -386,27 +362,22 @@ bool findDepXOR(int y) {
 					}
 				}
 				if(clause1foundAt != -1 and clause2foundAt != -1) {
-					// if(!cannotDependOn(otherVars[0]) and !cannotDependOn(otherVars[1])) {
-						// Print it
-						string dep = "XOR(" + to_string(otherVars[0]) + ", " + to_string(-otherVars[1]) + ")";
-						cout << "DEP" << y << " = " << dep << endl;
+					// Print it
+					string dep = "XOR(" + to_string(otherVars[0]) + ", " + to_string(-otherVars[1]) + ")";
+					cout << "DEP" << y << " = " << dep << endl;
 
-						// Found Dependency
-						vector<int> res(2);
-						res[0] = otherVars[0];
-						res[1] = -otherVars[1];
-						depXOR[y] = res;
+					// Found Dependency
+					vector<int> res(2);
+					res[0] = otherVars[0];
+					res[1] = -otherVars[1];
+					depXOR[y] = res;
 
-						tseitinClauses[clauseNum] = true;	// tseitinClauses=true
-						tseitinClauses[clauseNum2] = true;	// tseitinClauses=true
-						tseitinClauses[clause1foundAt] = true;	// tseitinClauses=true
-						tseitinClauses[clause2foundAt] = true;	// tseitinClauses=true
+					tseitinClauses[clauseNum] = true;	// tseitinClauses=true
+					tseitinClauses[clauseNum2] = true;	// tseitinClauses=true
+					tseitinClauses[clause1foundAt] = true;	// tseitinClauses=true
+					tseitinClauses[clause2foundAt] = true;	// tseitinClauses=true
 
-						return true;
-					// }
-					// else {
-					// 	cout << "Skipping XOR because of possible cyclic dependency" << endl;
-					// }
+					return true;
 				}
 			}
 		}

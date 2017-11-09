@@ -23,8 +23,8 @@ LFLAGS   = -g -std=c++11 $(LIB_UNIGEN) $(LIB_ABC) -lm -ldl -rdynamic -lreadline 
 
 SOURCES  := $(wildcard $(SRCDIR)/*.cpp)
 INCLUDES := $(wildcard $(SRCDIR)/*.h)
-SOURCES  := $(filter-out $(SRCDIR)/bfss_old.cpp, $(SOURCES))
-INCLUDES := $(filter-out $(SRCDIR)/bfss_old.h,  $(INCLUDES))
+SOURCES  := $(filter-out $(SRCDIR)/findDep.cpp, $(SOURCES))
+INCLUDES := $(filter-out $(SRCDIR)/findDep.h,  $(INCLUDES))
 OBJECTS  := $(SOURCES:$(SRCDIR)/%.cpp=$(OBJDIR)/%.o)
 rm       = rm -f
 
