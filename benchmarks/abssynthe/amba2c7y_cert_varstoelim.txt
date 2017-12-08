@@ -1,9 +1,0 @@
-controllable_hmastlock
-controllable_nstart
-controllable_locked
-controllable_hmaster0
-controllable_hgrant1
-controllable_busreq
-controllable_ndecide
-controllable_nhgrant0
-
