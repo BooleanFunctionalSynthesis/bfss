@@ -59,6 +59,8 @@ void parseOptions(int argc, char * argv[]) {
 		("w, waitSamples", "Number of solutions to wait for when Unigen runs in parallel (default: " STR(WAIT_SAMPLES_DEF) ")", cxxopts::value<int>(options.waitSamples), "N")
 		("m, monoSkolem", "Run MonoSkolem algorithm", cxxopts::value<bool>(options.monoSkolem))
 		("reverseOrder", "Use reversed variable orderings", cxxopts::value<bool>(options.reverseOrder))
+		("noRevSub", "Don't reverse substitute", cxxopts::value<bool>(options.noRevSub))
+		("verify", "Veify computed skolem functions", cxxopts::value<bool>(options.verify))
 		("positional",
 			"Positional arguments: these are the arguments that are entered "
 			"without an option", cxxopts::value<std::vector<string>>())
@@ -142,6 +144,12 @@ void parseOptions(int argc, char * argv[]) {
 
 	if (options.unigenBackground && options.useABCSolver) {
 		cerr << endl << "Error: unigenBackground and ABC's solver are exclusive" << endl << endl;
+		cout << optParser.help({"", "Group"}) << std::endl;
+		exit(0);
+	}
+
+	if (options.verify && options.noRevSub) {
+		cerr << endl << "Error: Cannot verify without reverse substitution" << endl << endl;
 		cout << optParser.help({"", "Group"}) << std::endl;
 		exit(0);
 	}
@@ -1918,7 +1926,11 @@ bool verifyResult(Aig_Man_t*&SAig, vector<vector<int> >& r0,
 	vector<vector<int> >& r1, bool deleteCos) {
 	int i; Aig_Obj_t*pAigObj; int numAND;
 	vector<int> r_Aigs(numY);
-	cout << "Verifying Result..." << endl;
+
+	if(options.noRevSub) {
+		cout << "noRevSub, exiting" << endl;
+		return true;
+	}
 
 	OUT("Taking Ors..." << i);
 	for(int i = 0; i < numY; i++) {
@@ -2049,7 +2061,10 @@ bool verifyResult(Aig_Man_t*&SAig, vector<vector<int> >& r0,
 	cout<< "Reverse substitute time: " << reverse_sub_time << endl;
 
 	// For experimental purposes
-	return true;
+	if(!options.verify)
+		return true;
+	else
+		cout << "Verifying Result..." << endl;
 
 	OUT("Final F Resubstitution...");
 	Aig_Obj_t* F = Aig_ManCo(SAig, (deleteCos?0:1));

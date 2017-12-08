@@ -84,6 +84,8 @@ struct optionStruct {
 	int 	waitSamples;
 	bool 	monoSkolem;
 	bool 	reverseOrder;
+	bool 	noRevSub;
+	bool 	verify;
 };
 
 extern vector<int> varsSInv;
