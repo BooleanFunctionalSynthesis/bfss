@@ -60,6 +60,9 @@ void node::process() { // Duplicate if needed and push bubbles down
 	assert(neg == NULL);
 	// cout <<"processing "<<name<< endl;
 
+	if(type == t_CONST1) // don't process
+		return;
+
 	set<edge> pos_parents;
 	set<edge> neg_parents;
 	set<edge> new_children;
@@ -159,6 +162,9 @@ void node::print() {
 			break;
 		case t_VAR:
 			cout <<name<<"\tn:"<<(neg!=0)<<"\tf:"<<flipped<<"\t=(input) ";
+			break;
+		case t_CONST1:
+			cout <<"CONST 1";
 	}
 	cout << endl;
 }
@@ -182,6 +188,9 @@ AigToNNF::AigToNNF(string fname): pFileName(fname), pAigName(fname), pNtk(NULL),
 AigToNNF::AigToNNF(Aig_Man_t* pAig): pAigName(string(pAig->pName)), pNtk(NULL), pSrc(pAig) {};
 
 void AigToNNF::parse_verilog() {
+
+	assert(false); // Rescinded
+
 	node* tempNode;
 	string line;
 	vector<string> words;
@@ -262,7 +271,10 @@ void AigToNNF::parse_aig() {
 		if(Aig_ObjIsConst1(pObj)) {
 			// IGNORE
 			// Have not handled the case of the AIG being a constant
-			assert(Aig_ObjRefs(pObj) == 0);
+			// assert(Aig_ObjRefs(pObj) == 0);
+			nn = new node(to_string(pObj->Id), t_CONST1);
+			name2Node[to_string(pObj->Id)] = nn;
+			AigToNNF::nodeConst1 = nn;
 		}
 		else if(Aig_ObjIsCi(pObj)) {
 			nn = new node(to_string(pObj->Id), t_VAR, ++numInputs);
@@ -355,6 +367,17 @@ void AigToNNF::createAig() {
 	resetCounters();
 	var_num2Id.clear();
 	AigToNNF::readyNodes = queue<node*>();
+	OUT("const vars... ");
+	currNode = AigToNNF::nodeConst1;
+	currObj = Abc_AigConst1(pNtk);
+	var_num2Id[currNode->var_num] = currObj->Id;
+	obName = currNode->name;
+	Abc_ObjAssignName(currObj,(char*)obName.c_str(), NULL);
+	node2Obj[currNode] = currObj;
+	for(auto par_edge:currNode->parents) {
+		par_edge.target->incCounter('c');
+	}
+
 	OUT("pos vars... ");
 	for(auto inputNode:inputs) {
 		// inputNode->print();

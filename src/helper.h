@@ -110,8 +110,8 @@ extern double reverse_sub_time;
 int 			CommandExecute(Abc_Frame_t* pAbc, string cmd);
 vector<string> 	tokenize( const string& p_pcstStr, char delim );
 string 			type2String(Aig_Type_t t);
-void 			Equate(sat_solver *pSat, int varA, int varB);
-void 			Xor(sat_solver *pSat, int varA, int varB);
+bool 			Equate(sat_solver *pSat, int varA, int varB);
+bool 			Xor(sat_solver *pSat, int varA, int varB);
 Abc_Ntk_t* 		getNtk(string pFileName, bool fraig);
 void 			populateVars(Abc_Ntk_t* FNtk, AigToNNF& nnf, string varsFile,
 					vector<int>& varsXF, vector<int>& varsXS,
@@ -121,13 +121,13 @@ Aig_Obj_t* 		Aig_SubstituteConst(Aig_Man_t* pMan, Aig_Obj_t* initAig, int varId,
 Aig_Obj_t* 		Aig_Substitute(Aig_Man_t* pMan, Aig_Obj_t* initAig, int varId, Aig_Obj_t* func);
 void			initializeCompose(Aig_Man_t* SAig, vector<Aig_Obj_t* >& Fs,
 					vector<vector<int> >& r0, vector<vector<int> >& r1);
-void 			addVarToSolver(sat_solver* pSat, int varNum, int val);
+bool 			addVarToSolver(sat_solver* pSat, int varNum, int val);
 int 			getCnfCoVarNum(Cnf_Dat_t* cnf, Aig_Man_t* aig, int nthCo);
 lit 			addRlToSolver(sat_solver* pSat, Cnf_Dat_t* GCnf, Aig_Man_t* GAig, const vector<int>& r);
 lit 			addRlToSolver_rec(sat_solver* pSat, Cnf_Dat_t* GCnf, Aig_Man_t* GAig, const vector<int>& r, int start, int end);
 lit 			OR(sat_solver* pSat, lit lh, lit rh);
-void 			addCnfToSolver(sat_solver* pSat, Cnf_Dat_t* cnf);
-Cnf_Dat_t* 		buildErrorFormula(sat_solver* pSat, Aig_Man_t* SAig,
+bool 			addCnfToSolver(sat_solver* pSat, Cnf_Dat_t* cnf);
+pair<Cnf_Dat_t*,bool> buildErrorFormula(sat_solver* pSat, Aig_Man_t* SAig,
 					vector<vector<int> > &r0, vector<vector<int> > &r1);
 bool 			callSATfindCEX(Aig_Man_t* SAig,vector<int>& cex,
 					vector<vector<int> > &r0, vector<vector<int> > &r1);

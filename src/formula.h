@@ -4,7 +4,8 @@ enum node_type
 {
 	t_AND,
 	t_OR,
-	t_VAR
+	t_VAR,
+	t_CONST1
 };
 
 class node {
@@ -61,6 +62,7 @@ public:
 	set<node*> inputs;
 	map<int, int> var_num2Id;
 	static queue<node*> readyNodes;
+	node* nodeConst1;
 
 	AigToNNF(string fname);
 	AigToNNF(Aig_Man_t* pAig);
