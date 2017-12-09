@@ -48,6 +48,29 @@ int main(int argc, char * argv[]) {
 	OUT("get FAig..." );
 	Aig_Man_t* FAig = Abc_NtkToDar(FNtk, 0, 0);
 
+	// Process for unates
+	varsXF.clear();
+	varsYF.clear();
+	name2IdF.clear();
+	id2NameF.clear();
+	cout << "populateVars" << endl;
+	populateVars(FNtk, varsFile,
+					varsXF, varsYF,
+					name2IdF, id2NameF);
+
+	// find unates, subs, rep
+	vector<int> unate(numY, -1);
+	cout << "checkUnateAll" << endl;
+	checkUnateAll(FAig, unate);
+	substituteUnates(FAig, unate);
+
+	// cleanup after unates
+	varsXF.clear();
+	varsYF.clear();
+	name2IdF.clear();
+	id2NameF.clear();
+
+
 	AigToNNF nnf(FAig);
 	OUT("parse..." );
 	nnf.parse();

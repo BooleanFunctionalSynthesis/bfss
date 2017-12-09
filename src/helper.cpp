@@ -2974,3 +2974,164 @@ string getFileName(string s) {
 
 	return(s);
 }
+
+// skolems[] = 1 (pos unate); 0 (neg unate); -1 (not unate)
+void checkUnateAll(Aig_Man_t* FAig, vector<int>&unate){
+	nodeIdtoN.resize(numOrigInputs);
+	for(int i = 0; i < numX; i++) {
+		nodeIdtoN[varsXF[i] - 1] = i;
+	}
+	for(int i = 0; i < numY; i++) {
+		nodeIdtoN[varsYF[i] - 1] = numX + i;
+	}
+
+	vector<vector<Aig_Obj_t* > > funcVecVec;
+	vector<Aig_Obj_t* > retVec;
+	vector<Aig_Obj_t* > funcVec;
+	vector<Aig_Obj_t* > funcVecTemp;
+
+	funcVecTemp.resize(0);
+	for(int i = 0; i < numX; ++i) {
+		funcVecTemp.push_back(Aig_ManObj(FAig, varsXF[i]));
+	}
+	for(int i = 0; i < numY; ++i) {
+		funcVecTemp.push_back(Aig_ManObj(FAig, varsYF[i]));
+	}
+	
+	for (int i = 0; i < numY; ++i) {
+		funcVec = funcVecTemp;
+		funcVec[numX+i] = Aig_ManConst0(FAig);
+		funcVecVec.push_back(funcVec);
+		funcVec[numX+i] = Aig_ManConst1(FAig);
+		funcVecVec.push_back(funcVec);
+	}
+
+	retVec = Aig_SubstituteVecVec(FAig, Aig_ManCo(FAig, 0), funcVecVec);
+
+	vector<int> posUnates;
+	vector<int> negUnates;
+	for (int i = 0; i < numY; ++i)
+	{
+		// pos unate
+		auto posUnateNode = Aig_OrAigs(FAig, Aig_Not(retVec[2*i]), retVec[2*i+1]);
+		Aig_ObjCreateCo(FAig, posUnateNode);
+		posUnates.push_back(Aig_ManCoNum(FAig) - 1);
+
+		// neg unate
+		auto negUnateNode = Aig_OrAigs(FAig, retVec[2*i], Aig_Not(retVec[2*i+1]));
+		Aig_ObjCreateCo(FAig, negUnateNode);
+		negUnates.push_back(Aig_ManCoNum(FAig) - 1);
+	}
+
+	// Build Solver and CNF
+	sat_solver* pSat = sat_solver_new();
+	Cnf_Dat_t* SCnf = Cnf_Derive(FAig, Aig_ManCoNum(FAig));
+	addCnfToSolver(pSat, SCnf);
+
+	int status, numUnate;
+	assert(unate.size()==numY);
+	
+	// Unate Sat Calls
+	do {
+		numUnate = 0;
+		for (int i = 0; i < numY; ++i)
+		{
+			lit LA[2];
+
+			if(unate[i] == -1) {
+				// Check if positive unate
+				LA[0] = toLitCond(getCnfCoVarNum(SCnf, FAig, posUnates[i]),1);
+				status = sat_solver_solve(pSat, LA, LA+1, (ABC_INT64_T)0, (ABC_INT64_T)0, (ABC_INT64_T)0, (ABC_INT64_T)0);
+				if (status == l_False) {
+					unate[i] = 1;
+					cerr << "Var y" << i << " is positive unate" << endl;
+					// sat_solver_push(pSat, toLitCond(SCnf->pVarNums[varsYF[i]-1],0));
+					addVarToSolver(pSat, SCnf->pVarNums[varsYF[i]-1], 1);
+					numUnate++;
+				}
+			}
+
+			if(unate[i] == -1) {
+				// Check if negative unate
+				LA[0] = toLitCond(getCnfCoVarNum(SCnf, FAig, negUnates[i]),1);
+				status = sat_solver_solve(pSat, LA, LA+1, (ABC_INT64_T)0, (ABC_INT64_T)0, (ABC_INT64_T)0, (ABC_INT64_T)0);
+				if (status == l_False) {
+					cerr << "Var y" << i << " is negative unate" << endl;
+					unate[i] = 0;
+					// sat_solver_push(pSat, toLitCond(SCnf->pVarNums[varsYF[i]-1],1));
+					addVarToSolver(pSat, SCnf->pVarNums[varsYF[i]-1], 0);
+					numUnate++;
+				}
+			}
+		}
+		cout << "Found " << numUnate << " unates" << endl;
+	}
+	while(numUnate > 0);
+
+	sat_solver_delete(pSat);
+	Cnf_DataFree(SCnf);
+}
+
+void populateVars(Abc_Ntk_t* FNtk, string varsFile,
+	vector<int>& varsXF, vector<int>& varsYF,
+	map<string,int>& name2IdF, map<int,string>& id2NameF) {
+
+	int i;
+	Abc_Obj_t* pPi;
+	string line;
+
+	Abc_NtkForEachCi( FNtk, pPi, i ) {
+		string variable_name = Abc_ObjName(pPi);
+		name2IdF[variable_name] = pPi->Id;
+	}
+
+	for(auto it:name2IdF)
+		id2NameF[it.second] = it.first;
+
+	auto name2IdFTemp = name2IdF;
+	ifstream varsStream(varsFile);
+	if(!varsStream.is_open()) {
+		cout << "Var File " + varsFile + " does not exist!" << endl;
+		cerr << "Var File " + varsFile + " does not exist!" << endl;
+	}
+	assert(varsStream.is_open());
+	while (getline(varsStream, line)) {
+		if(line != "") {
+			auto it = name2IdFTemp.find(line);
+			assert(it != name2IdFTemp.end());
+			varsYF.push_back(it->second);
+			name2IdFTemp.erase(it);
+		}
+	}
+	for(auto it:name2IdFTemp) {
+		varsXF.push_back(it.second);
+	}
+
+	numX = varsXF.size();
+	numY = varsYF.size();
+	numOrigInputs = numX + numY;
+
+	if(numY <= 0) {
+		cout << "Var File " + varsFile + " is empty!" << endl;
+		cerr << "Var File " + varsFile + " is empty!" << endl;
+		assert(numY > 0);
+	}
+}
+
+void substituteUnates(Aig_Man_t* pMan, vector<int>&unate) {
+	cout << "numCos: " << Aig_ManCoNum(pMan) << endl;
+	// Delete other COs
+	for (int i = 1; i < Aig_ManCoNum(pMan); ++i) {
+		Aig_ObjDeleteCo(pMan, Aig_ManCo(pMan,i));
+	}
+	cout << "numCos: " << Aig_ManCoNum(pMan) << endl;
+	// Substitute
+	for (int i = 0; i < numY; ++i) {
+		if(unate[i] == 1) {
+			Aig_ObjPatchFanin0(pMan, Aig_ManCo(pMan,0), Aig_ManConst1(pMan));
+		}
+		else if(unate[i] == 0) {
+			Aig_ObjPatchFanin0(pMan, Aig_ManCo(pMan,0), Aig_ManConst0(pMan));
+		}
+	}
+}
