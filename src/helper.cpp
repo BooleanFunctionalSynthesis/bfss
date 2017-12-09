@@ -252,36 +252,49 @@ string type2String(Aig_Type_t t) {
 	}
 }
 
-void Equate(sat_solver *pSat, int varA, int varB) {
+bool Equate(sat_solver *pSat, int varA, int varB) {
 	lit Lits[3];
 	assert(varA!=0 && varB!=0);
+	bool retval = true;
 	// A -> B
 	Lits[0] = toLitCond( abs(-varA), -varA<0 );
 	Lits[1] = toLitCond( abs(varB), varB<0 );
-	if(!sat_solver_addclause( pSat, Lits, Lits + 2 ))
-		assert(false);
+	if(!sat_solver_addclause( pSat, Lits, Lits + 2 )) {
+		cerr << "Warning: In addCnfToSolver, sat_solver_addclause failed" << endl;
+		retval = false;
+	}
 
 	// B -> A
 	Lits[0] = toLitCond( abs(varA), varA<0 );
 	Lits[1] = toLitCond( abs(-varB), -varB<0 );
-	if(!sat_solver_addclause( pSat, Lits, Lits + 2 ))
-		assert(false);
+	if(!sat_solver_addclause( pSat, Lits, Lits + 2 )) {
+		cerr << "Warning: In addCnfToSolver, sat_solver_addclause failed" << endl;
+		retval = false;
+	}
+	return retval;
 }
 
-void Xor(sat_solver *pSat, int varA, int varB) {
+bool Xor(sat_solver *pSat, int varA, int varB) {
 	lit Lits[3];
 	assert(varA!=0 && varB!=0);
+	bool retval = true;
+
 	// A or B
 	Lits[0] = toLitCond( abs(varA), varA<0 );
 	Lits[1] = toLitCond( abs(varB), varB<0 );
-	if(!sat_solver_addclause( pSat, Lits, Lits + 2 ))
-		assert(false);
+	if(!sat_solver_addclause( pSat, Lits, Lits + 2 )) {
+		cerr << "Warning: In addCnfToSolver, sat_solver_addclause failed" << endl;
+		retval = false;
+	}
 
 	// -A or -B
 	Lits[0] = toLitCond( abs(-varA), -varA<0 );
 	Lits[1] = toLitCond( abs(-varB), -varB<0 );
-	if(!sat_solver_addclause( pSat, Lits, Lits + 2 ))
-		assert(false);
+	if(!sat_solver_addclause( pSat, Lits, Lits + 2 )) {
+		cerr << "Warning: In addCnfToSolver, sat_solver_addclause failed" << endl;
+		retval = false;
+	}
+	return retval;
 }
 
 Abc_Ntk_t*  getNtk(string pFileName, bool fraig) {
@@ -580,10 +593,14 @@ void initializeCompose(Aig_Man_t* SAig, vector<Aig_Obj_t* >& Fs,
  * @param varNum    [in]         Variable number
  * @param val       [in]         Value to be assigned
  */
-void addVarToSolver(sat_solver* pSat, int varNum, int val) {
+bool addVarToSolver(sat_solver* pSat, int varNum, int val) {
 	lit l = toLitCond(varNum, (int)(val==0)?1:0);
-	if(!sat_solver_addclause(pSat, &l, &l+1))
-		assert(false);
+	if(!sat_solver_addclause(pSat, &l, &l+1)) {
+	// if(!sat_solver_clause_new(pSat, &l, &l+1, 0)) {
+		cerr << "Warning: In addVarToSolver, sat_solver_addclause returned false" << endl;
+		return false;
+	}
+	return true;
 }
 
 /** Function
@@ -716,11 +733,15 @@ lit AND(sat_solver* pSat, lit lh, lit rh) {
  * @param pSat      [in]        Sat Solver
  * @param cnf       [in]        Cnf Formula
  */
-void addCnfToSolver(sat_solver* pSat, Cnf_Dat_t* cnf) {
+bool addCnfToSolver(sat_solver* pSat, Cnf_Dat_t* cnf) {
+	bool retval = true;
 	sat_solver_setnvars(pSat, sat_solver_nvars(pSat) + cnf->nVars);
 	for (int i = 0; i < cnf->nClauses; i++)
-		if (!sat_solver_addclause(pSat, cnf->pClauses[i], cnf->pClauses[i+1]))
-			assert(false);
+		if (!sat_solver_addclause(pSat, cnf->pClauses[i], cnf->pClauses[i+1])) {
+			cerr << "Warning: In addCnfToSolver, sat_solver_addclause failed" << endl;
+			retval = false;
+		}
+	return retval;
 }
 
 /** Function
@@ -729,14 +750,15 @@ void addCnfToSolver(sat_solver* pSat, Cnf_Dat_t* cnf) {
  * @param pSat      [in]        Sat Solver
  * @param SAig      [in]        Aig to build the formula from
  */
-Cnf_Dat_t* buildErrorFormula(sat_solver* pSat, Aig_Man_t* SAig,
+pair<Cnf_Dat_t*,bool> buildErrorFormula(sat_solver* pSat, Aig_Man_t* SAig,
 	vector<vector<int> > &r0, vector<vector<int> > &r1, vector<int> &r0Andr1Vars) {
 	Abc_Obj_t* pAbcObj;
 	int i;
+	bool allOk = true;
 
 	// Build CNF
 	Cnf_Dat_t* SCnf = Cnf_Derive(SAig, Aig_ManCoNum(SAig));
-	addCnfToSolver(pSat, SCnf);
+	allOk = allOk && addCnfToSolver(pSat, SCnf);
 
 	#ifdef DEBUG_CHUNK
 		// Cnf_DataPrint(SCnf,1);
@@ -759,8 +781,8 @@ Cnf_Dat_t* buildErrorFormula(sat_solver* pSat, Aig_Man_t* SAig,
 	#endif
 
 	// assert F(X, Y) = false, F(X, Y') = true
-	addVarToSolver(pSat, SCnf->pVarNums[Aig_ManCo(SAig,1)->Id], 0);
-	addVarToSolver(pSat, SCnf->pVarNums[Aig_ManCo(SAig,2)->Id], 1);
+	allOk = allOk && addVarToSolver(pSat, SCnf->pVarNums[Aig_ManCo(SAig,1)->Id], 0);
+	allOk = allOk && addVarToSolver(pSat, SCnf->pVarNums[Aig_ManCo(SAig,2)->Id], 1);
 
 	r0Andr1Vars.resize(numY);
 
@@ -775,16 +797,16 @@ Cnf_Dat_t* buildErrorFormula(sat_solver* pSat, Aig_Man_t* SAig,
 			// Assert y_i == -r1[i]
 			OUT("equating  ID:     "<<varsYS[i]<<"="<<-Aig_ManCo(SAig,r1[i][0])->Id);
 			OUT("          varNum: "<<SCnf->pVarNums[varsYS[i]]<<"="<<-r1i);
-			Equate(pSat, SCnf->pVarNums[varsYS[i]], -r1i);
+			allOk = allOk && Equate(pSat, SCnf->pVarNums[varsYS[i]], -r1i);
 		}
 		else {
 			// Assert y_i == r0[i]
 			OUT("equating  ID:     "<<varsYS[i]<<"="<<Aig_ManCo(SAig,r0[i][0])->Id);
 			OUT("          varNum: "<<SCnf->pVarNums[varsYS[i]]<<"="<<r0i);
-			Equate(pSat, SCnf->pVarNums[varsYS[i]], r0i);
+			allOk = allOk && Equate(pSat, SCnf->pVarNums[varsYS[i]], r0i);
 		}
 	}
-	return SCnf;
+	return make_pair(SCnf,allOk);
 }
 
 /** Function
@@ -827,10 +849,12 @@ bool callSATfindCEX(Aig_Man_t* SAig,vector<int>& cex,
 	vector<int> r0Andr1Vars(numY);
 
 	sat_solver *pSat = sat_solver_new();
-	Cnf_Dat_t *SCnf  = buildErrorFormula(pSat, SAig, r0, r1, r0Andr1Vars);
+	auto cnf_flag  = buildErrorFormula(pSat, SAig, r0, r1, r0Andr1Vars);
+	Cnf_Dat_t *SCnf  = cnf_flag.first;
+	bool allOk = cnf_flag.second;
 
 	OUT("Simplifying..." );
-	if(!sat_solver_simplify(pSat)) {
+	if(!allOk or !sat_solver_simplify(pSat)) {
 		OUT("Formula is trivially unsat");
 		return_val = false;
 	}
@@ -1020,10 +1044,12 @@ bool populateStoredCEX(Aig_Man_t* SAig,
 	vector<int> r0Andr1Vars(numY);
 
 	sat_solver *pSat = sat_solver_new();
-	Cnf_Dat_t *SCnf  = buildErrorFormula(pSat, SAig, r0, r1, r0Andr1Vars);
+	auto cnf_flag  = buildErrorFormula(pSat, SAig, r0, r1, r0Andr1Vars);
+	Cnf_Dat_t *SCnf  = cnf_flag.first;
+	bool allOk = cnf_flag.second;
 
 	OUT("Simplifying..." );
-	if(!sat_solver_simplify(pSat)) { // Found Skolem Functions
+	if(!allOk or !sat_solver_simplify(pSat)) { // Found Skolem Functions
 		OUT("Formula is trivially unsat");
 		sat_solver_delete(pSat);
 		Cnf_DataFree(SCnf);
