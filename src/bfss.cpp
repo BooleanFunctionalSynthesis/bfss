@@ -63,6 +63,10 @@ int main(int argc, char * argv[]) {
 	cout << "checkUnateAll" << endl;
 	checkUnateAll(FAig, unate);
 	substituteUnates(FAig, unate);
+	cout << "Unates: ";
+	for (int i = 0; i < numY; ++i)
+		cout << unate[i] << " ";
+	cout << endl;
 
 	// cleanup after unates
 	varsXF.clear();
@@ -193,7 +197,7 @@ int main(int argc, char * argv[]) {
 	vector<vector<int> > r0(numY), r1(numY);
 	cout << "initializeCompose(SAig, Fs, r0, r1)..."<<endl;
 	clock_t compose_start = clock();
-	initializeCompose(SAig, Fs, r0, r1);
+	initializeCompose(SAig, Fs, r0, r1, unate);
 	clock_t compose_end = clock();
 	cout<< "Mega compose time: " <<double(compose_end-compose_start)/CLOCKS_PER_SEC << endl;
 
@@ -313,7 +317,7 @@ int main(int argc, char * argv[]) {
 
 
 
-	printK2Trend();
+	// printK2Trend();
 
 	cout << "Found Skolem Functions" << endl;
 	cout << "Num Iterations: " << numloops << endl;
@@ -321,7 +325,7 @@ int main(int argc, char * argv[]) {
 	cout << "Num CEX:        " << numCEX << endl;
 	cout << "Num CEX Used:   " << numCEXUsed << endl;
 	cout << "Total Size: ";
-	Aig_ManPrintStats( SAig );
+	Aig_ManPrintStats(SAig);
 	cout << endl;
 
 

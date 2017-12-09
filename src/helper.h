@@ -120,7 +120,7 @@ void 			populateVars(Abc_Ntk_t* FNtk, AigToNNF& nnf, string varsFile,
 Aig_Obj_t* 		Aig_SubstituteConst(Aig_Man_t* pMan, Aig_Obj_t* initAig, int varId, int one);
 Aig_Obj_t* 		Aig_Substitute(Aig_Man_t* pMan, Aig_Obj_t* initAig, int varId, Aig_Obj_t* func);
 void			initializeCompose(Aig_Man_t* SAig, vector<Aig_Obj_t* >& Fs,
-					vector<vector<int> >& r0, vector<vector<int> >& r1);
+					vector<vector<int> >& r0, vector<vector<int> >& r1, vector<int>& unate);
 bool 			addVarToSolver(sat_solver* pSat, int varNum, int val);
 int 			getCnfCoVarNum(Cnf_Dat_t* cnf, Aig_Man_t* aig, int nthCo);
 lit 			addRlToSolver(sat_solver* pSat, Cnf_Dat_t* GCnf, Aig_Man_t* GAig, const vector<int>& r);

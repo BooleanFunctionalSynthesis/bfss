@@ -475,7 +475,7 @@ vector<Aig_Obj_t* > Aig_SubstituteVecVec(Aig_Man_t* pMan, Aig_Obj_t* initAig,
  * @param r1   [out]        Underapproximates the Cannot-be-1 sets
  */
 void initializeCompose(Aig_Man_t* SAig, vector<Aig_Obj_t* >& Fs,
-		vector<vector<int> >& r0, vector<vector<int> >& r1) {
+		vector<vector<int> >& r0, vector<vector<int> >& r1, vector<int>& unate) {
 	nodeIdtoN.resize(2*numOrigInputs);
 	for(int i = 0; i < numX; i++) {
 		nodeIdtoN[varsXS[i] - 1] = i;
@@ -578,11 +578,31 @@ void initializeCompose(Aig_Man_t* SAig, vector<Aig_Obj_t* >& Fs,
 	Fs[0] = Aig_ObjCreateCo(SAig, Aig_Not(retVec[0]));
 	Fs[1] = Aig_ObjCreateCo(SAig, Aig_Not(retVec[1]));
 	for(int i = 0; i < numY; i++) {
-		Aig_ObjCreateCo(SAig, retVec[2 + i]);
+		switch(unate[i]) {
+			case -1:
+				Aig_ObjCreateCo(SAig, retVec[2 + i]);
+				break;
+			case 0:
+				Aig_ObjCreateCo(SAig, Aig_ManConst0(SAig));
+				break;
+			case 1:
+				Aig_ObjCreateCo(SAig, Aig_ManConst1(SAig));
+				break;
+		}
 		r0[i].push_back(Aig_ManCoNum(SAig) - 1);
 	}
 	for(int i = 0; i < numY; i++) {
-		Aig_ObjCreateCo(SAig, retVec[2 + numY + i]);
+		switch(unate[i]) {
+			case -1:
+				Aig_ObjCreateCo(SAig, retVec[2 + numY + i]);
+				break;
+			case 0:
+				Aig_ObjCreateCo(SAig, Aig_ManConst1(SAig));
+				break;
+			case 1:
+				Aig_ObjCreateCo(SAig, Aig_ManConst0(SAig));
+				break;
+		}
 		r1[i].push_back(Aig_ManCoNum(SAig) - 1);
 	}
 }
@@ -3147,10 +3167,12 @@ void populateVars(Abc_Ntk_t* FNtk, string varsFile,
 void substituteUnates(Aig_Man_t* pMan, vector<int>&unate) {
 	cout << "numCos: " << Aig_ManCoNum(pMan) << endl;
 	// Delete other COs
-	for (int i = 1; i < Aig_ManCoNum(pMan); ++i) {
-		Aig_ObjDeleteCo(pMan, Aig_ManCo(pMan,i));
+	while(Aig_ManCoNum(pMan) > 1) {
+		Aig_ObjDeleteCo(pMan, Aig_ManCo(pMan,1));
 	}
 	cout << "numCos: " << Aig_ManCoNum(pMan) << endl;
+	Aig_ManCleanup(pMan);
+
 	// Substitute
 	for (int i = 0; i < numY; ++i) {
 		if(unate[i] == 1) {
