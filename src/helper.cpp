@@ -44,6 +44,7 @@ void parseOptions(int argc, char * argv[]) {
 	optParser.add_options()
 		("b, benchmark", "Specify the benchmark (required)", cxxopts::value<string>(options.benchmark), "FILE")
 		("v, varsOrder", "Specify the variable ordering", cxxopts::value<string>(options.varsOrder), "FILE")
+		("o, out", "Specify the output file (default: <benchmark>.v)", cxxopts::value<string>(options.outFName), "FILE")
 		("skolem", "Specify skolem function to be used (r0/r1/rx)", cxxopts::value<string>(skolemType)->default_value("rx"))
 		("a, ABC", "Use ABC's solver for SAT calls", cxxopts::value<bool>(options.useABCSolver))
 		("e, evalAigAtNode", "Efficiently evaluate AIG on a need-only basis", cxxopts::value<bool>(options.evalAigAtNode))
@@ -195,6 +196,10 @@ void parseOptions(int argc, char * argv[]) {
 		exit(0);
 	}
 
+	if (!optParser.count("out")) {
+		options.outFName = getFileName(options.benchmark) + "_result.v";
+	}
+
 	options.noUnate = options.noUnate || options.monoSkolem;
 
 	unigen_argv[1] = (char*)((new string("--samples="+to_string(options.numSamples)))->c_str());
@@ -205,6 +210,7 @@ void parseOptions(int argc, char * argv[]) {
 	cout << "{" << endl;
 	cout << "\t proactiveProp:        " << options.proactiveProp << endl;
 	cout << "\t useABCSolver:         " << options.useABCSolver << endl;
+	cout << "\t out:                  " << options.outFName << endl;
 	cout << "\t evalAigAtNode:        " << options.evalAigAtNode << endl;
 	cout << "\t benchmark:            " << options.benchmark << endl;
 	cout << "\t varsOrder:            " << options.varsOrder << endl;
@@ -2111,6 +2117,9 @@ bool verifyResult(Aig_Man_t*&SAig, vector<vector<int> >& r0,
 	reverse_sub_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count()/1000000.0;
 	cout<< "Reverse substitute time: " << reverse_sub_time << endl;
 
+	// save skolems to file
+	saveSkolems(SAig, skolemAig);
+
 	// For experimental purposes
 	if(!options.verify)
 		return true;
@@ -3192,6 +3201,38 @@ void substituteUnates(Aig_Man_t* &pMan, vector<int>&unate) {
 	Aig_Man_t* tempAig = pMan;
 	pMan = Aig_ManDupSimple(pMan);
 	Aig_ManStop(tempAig);
+}
+
+void saveSkolems(Aig_Man_t* SAig, vector<int>& skolemAig) {
+	assert(skolemAig.size() == numY);
+
+	// Checking Supports for all except X
+	vector<int> temp = varsXS;
+	sort(temp.begin(), temp.end());
+	int k = 0;
+	for (int j = 1; j <= Aig_ManCiNum(SAig); ++j) {
+		while(j==temp[k] and k<temp.size() and j <= Aig_ManCiNum(SAig)) {
+			j++;
+			k++;
+		}
+		for (int i = 0; i < numY; ++i) {
+			assert(Aig_Support(SAig, Aig_ManCo(SAig, skolemAig[i]), j) == false);
+		}
+	}
+
+	Vec_Ptr_t * vPis = Vec_PtrAlloc(numX);
+	Vec_Ptr_t * vPos = Vec_PtrAlloc(numY);
+	for(auto it:varsXS) {
+		Vec_PtrPush(vPis, Aig_ManObj(SAig,it));
+	}
+	for(auto it:skolemAig) {
+		Vec_PtrPush(vPos, Aig_ManCo(SAig,it));
+	}
+
+	cout << "Saving skolems..." << endl;
+	Aig_Man_t* outAig = Aig_ManDupSimpleDfsPart(SAig, vPis, vPos);
+	Aig_ManDumpVerilog(outAig, (char*)options.outFName.c_str());
+	cout << "Saved skolems to " << options.outFName << endl;
 }
 
 void printAig(Aig_Man_t* pMan) {

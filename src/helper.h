@@ -72,6 +72,7 @@ struct optionStruct {
 	bool 	useABCSolver;
 	bool 	evalAigAtNode;
 	string 	benchmark;
+	string 	outFName;
 	string 	varsOrder;
 	sType 	skolemType;
 	int 	numSamples;
