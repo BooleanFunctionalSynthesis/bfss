@@ -86,6 +86,7 @@ struct optionStruct {
 	bool 	reverseOrder;
 	bool 	noRevSub;
 	bool 	verify;
+	bool 	noUnate;
 };
 
 extern vector<int> varsSInv;
@@ -195,6 +196,21 @@ void 			checkUnateAll(Aig_Man_t* FAig, vector<int>&unate);
 void 			populateVars(Abc_Ntk_t* FNtk, string varsFile,
 					vector<int>& varsXF, vector<int>& varsYF,
 					map<string,int>& name2IdF, map<int,string>& id2NameF);
-void 			substituteUnates(Aig_Man_t* pMan, vector<int>&unate);
+void 			substituteUnates(Aig_Man_t* &pMan, vector<int>&unate);
+void 			saveSkolems(Aig_Man_t* SAig, vector<int>& r_Aigs);
+void 			printAig(Aig_Man_t* pMan);
+
+template<class T>
+void print(T v) {
+	cout << v;
+}
+
+template<class T>
+void print(vector<T> v, string delim) {
+	for (int i = 0; i < v.size(); ++i) {
+		print(v[i]);
+		cout << delim;
+	}
+}
 
 #endif

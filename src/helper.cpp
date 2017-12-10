@@ -61,6 +61,7 @@ void parseOptions(int argc, char * argv[]) {
 		("reverseOrder", "Use reversed variable orderings", cxxopts::value<bool>(options.reverseOrder))
 		("noRevSub", "Don't reverse substitute", cxxopts::value<bool>(options.noRevSub))
 		("verify", "Veify computed skolem functions", cxxopts::value<bool>(options.verify))
+		("noUnate", "Don't find and substitute unates", cxxopts::value<bool>(options.noUnate))
 		("positional",
 			"Positional arguments: these are the arguments that are entered "
 			"without an option", cxxopts::value<std::vector<string>>())
@@ -194,6 +195,8 @@ void parseOptions(int argc, char * argv[]) {
 		exit(0);
 	}
 
+	options.noUnate = options.noUnate || options.monoSkolem;
+
 	unigen_argv[1] = (char*)((new string("--samples="+to_string(options.numSamples)))->c_str());
 	unigen_argv[2] = (char*)((new string("--threads="+to_string(options.numThreads)))->c_str());
 	unigen_argv[13] = (char*)((new string(getFileName(options.benchmark) + "_" + UNIGEN_DIMAC_FPATH))->c_str());
@@ -216,6 +219,9 @@ void parseOptions(int argc, char * argv[]) {
 	cout << "\t waitSamples:          " << options.waitSamples << endl;
 	cout << "\t monoSkolem:           " << options.monoSkolem << endl;
 	cout << "\t reverseOrder:         " << options.reverseOrder << endl;
+	cout << "\t noRevSub:             " << options.noRevSub << endl;
+	cout << "\t verify:               " << options.verify << endl;
+	cout << "\t noUnate:              " << options.noUnate << endl;
 	cout << "}" << endl;
 }
 
@@ -1971,7 +1977,7 @@ Aig_Obj_t* Aig_XOR(Aig_Man_t*p, Aig_Obj_t*p0, Aig_Obj_t*p1) {
 bool verifyResult(Aig_Man_t*&SAig, vector<vector<int> >& r0,
 	vector<vector<int> >& r1, bool deleteCos) {
 	int i; Aig_Obj_t*pAigObj; int numAND;
-	vector<int> r_Aigs(numY);
+	vector<int> skolemAig(numY);
 
 	if(options.noRevSub) {
 		cout << "noRevSub, exiting" << endl;
@@ -1980,38 +1986,37 @@ bool verifyResult(Aig_Man_t*&SAig, vector<vector<int> >& r0,
 
 	OUT("Taking Ors..." << i);
 	for(int i = 0; i < numY; i++) {
-		vector<int>& r_ = useR1AsSkolem[i]?r1[i]:r0[i];
-		if(r_.size() == 1) {
-			r_Aigs[i] = r_[0];
-		}
-		else {
-			pAigObj = Aig_ObjCreateCo(SAig,newOR(SAig, r_));
-			r_Aigs[i] = Aig_ManCoNum(SAig)-1;
-			assert(pAigObj!=NULL);
-		}
+		if(useR1AsSkolem[i])
+			pAigObj	= Aig_Not(newOR(SAig, r1[i]));
+		else
+			pAigObj	= newOR(SAig, r0[i]);
+		pAigObj = Aig_ObjCreateCo(SAig,pAigObj);
+		skolemAig[i] = Aig_ManCoNum(SAig)-1;
+		assert(pAigObj!=NULL);
 	}
 
 	// Calculating Total un-substituted Size
 	int max_before = 0;
 	double avg_before = 0;
-	for(auto it : r_Aigs) {
+	for(auto it : skolemAig) {
 		pAigObj = Aig_ObjChild0(Aig_ManCo(SAig, it));
 		numAND = Aig_DagSize(pAigObj);
 		avg_before += numAND;
 		if(max_before < numAND)
 			max_before = numAND;
 	}
-	avg_before = avg_before*1.0/r_Aigs.size();
-	cout << "Final un-substituted num outputs: " << r_Aigs.size() << endl;
+	avg_before = avg_before*1.0/skolemAig.size();
+	cout << "Final un-substituted num outputs: " << skolemAig.size() << endl;
 	cout << "Final un-substituted AVG Size:    " << avg_before << endl;
 	cout << "Final un-substituted MAX Size:    " << max_before << endl;
 
 
 	if(deleteCos) {
+		assert(false); // rescinded
 		// Delete extra stuff
 		set<int> requiredCOs;
 		set<Aig_Obj_t*> redundantCos;
-		for(auto it:r_Aigs)
+		for(auto it:skolemAig)
 			requiredCOs.insert(Aig_ManCo(SAig,it)->Id);
 		requiredCOs.insert(Aig_ManCo(SAig,1)->Id);
 		Aig_ManForEachCo( SAig, pAigObj, i) {
@@ -2023,23 +2028,23 @@ bool verifyResult(Aig_Man_t*&SAig, vector<vector<int> >& r0,
 			Aig_ObjDeleteCo(SAig,it);
 		}
 
-		// Recompute r_Aigs
+		// Recompute skolemAig
 		vector<pair<int, int> > vv(numY);
 		i = 0;
-		for(auto it:r_Aigs)
+		for(auto it:skolemAig)
 			vv[i++] = make_pair(it,i);
 
 		sort(vv.begin(), vv.end());
 		i=1;
 		for(auto it:vv) {
-			r_Aigs[it.second] = i++;
+			skolemAig[it.second] = i++;
 		}
 	}
 
 	// OUT("compressAigByNtk...");
 	// SAig = compressAigByNtk(SAig);
 
-	#ifdef DEBUG_CHUNK // Print SAig, r1, r_Aigs
+	#ifdef DEBUG_CHUNK // Print SAig, r1, skolemAig
 		cout << "\nSAig: " << endl;
 		Aig_ManForEachObj( SAig, pAigObj, i )
 			Aig_ObjPrintVerbose( pAigObj, 1 ), printf( "\n" );
@@ -2052,8 +2057,8 @@ bool verifyResult(Aig_Man_t*&SAig, vector<vector<int> >& r0,
 			i++;
 		}
 		i=0;
-		for(auto it:r_Aigs) {
-			cout<<"r_Aigs["<<i<<"] : " << r_Aigs[i] << endl;
+		for(auto it:skolemAig) {
+			cout<<"skolemAig["<<i<<"] : " << skolemAig[i] << endl;
 			i++;
 		}
 	#endif
@@ -2068,20 +2073,20 @@ bool verifyResult(Aig_Man_t*&SAig, vector<vector<int> >& r0,
 	int iter = 0;
 	for(int i = numY-2; i >= 0; --i) {
 		iter++;
-		Aig_Obj_t * curr = Aig_ManCo(SAig, r_Aigs[i]);
+		Aig_Obj_t * curr = Aig_ManCo(SAig, skolemAig[i]);
 		for(int j = i + 1; j < numY; ++j) {
 			// Aig_ManForEachObj(SAig,pAigObj,i_temp) {
 			// 	assert(Aig_ObjIsConst1(pAigObj) || Aig_ObjIsCi(pAigObj) || Aig_ObjIsCo(pAigObj) || (Aig_ObjFanin0(pAigObj) && Aig_ObjFanin1(pAigObj)));
 			// }
 
-			Aig_Obj_t* skolem_j = useR1AsSkolem[j]?Aig_Not(Aig_ObjChild0(Aig_ManCo(SAig,r_Aigs[j]))):Aig_ObjChild0(Aig_ManCo(SAig,r_Aigs[j]));
+			Aig_Obj_t* skolem_j = useR1AsSkolem[j]?Aig_Not(Aig_ObjChild0(Aig_ManCo(SAig,skolemAig[j]))):Aig_ObjChild0(Aig_ManCo(SAig,skolemAig[j]));
 			curr = Aig_Substitute(SAig, curr, varsYS[j], skolem_j);
-			assert(r_Aigs[i]!=NULL);
+			assert(skolemAig[i]!=NULL);
 			assert(Aig_ObjIsCo(Aig_Regular(curr))==false);
 		}
 		Aig_ObjCreateCo(SAig,curr);
-		r_Aigs[i] = Aig_ManCoNum(SAig)-1;
-		assert(r_Aigs[i]!=NULL);
+		skolemAig[i] = Aig_ManCoNum(SAig)-1;
+		assert(skolemAig[i]!=NULL);
 		if(iter%30 == 0)
 			SAig = compressAigByNtk(SAig);
 	}
@@ -2089,15 +2094,15 @@ bool verifyResult(Aig_Man_t*&SAig, vector<vector<int> >& r0,
 	// Calculating Total reverse-substituted Size
 	int max_after = 0;
 	double avg_after = 0;
-	for(auto it : r_Aigs) {
+	for(auto it : skolemAig) {
 		pAigObj = Aig_ObjChild0(Aig_ManCo(SAig, it));
 		numAND = Aig_DagSize(pAigObj);
 		avg_after += numAND;
 		if(max_after < numAND)
 			max_after = numAND;
 	}
-	avg_after = avg_after*1.0/r_Aigs.size();
-	cout << "Final reverse-substituted num outputs: " << r_Aigs.size() << endl;
+	avg_after = avg_after*1.0/skolemAig.size();
+	cout << "Final reverse-substituted num outputs: " << skolemAig.size() << endl;
 	cout << "Final reverse-substituted AVG Size:    " << avg_after << endl;
 	cout << "Final reverse-substituted MAX Size:    " << max_after << endl;
 	Aig_ManPrintStats(SAig);
@@ -2115,7 +2120,7 @@ bool verifyResult(Aig_Man_t*&SAig, vector<vector<int> >& r0,
 	OUT("Final F Resubstitution...");
 	Aig_Obj_t* F = Aig_ManCo(SAig, (deleteCos?0:1));
 	for(int i = 0; i < numY; i++) {
-		Aig_Obj_t* skolem_i = useR1AsSkolem[i]?Aig_Not(Aig_ObjChild0(Aig_ManCo(SAig,r_Aigs[i]))):Aig_ObjChild0(Aig_ManCo(SAig,r_Aigs[i]));
+		Aig_Obj_t* skolem_i = Aig_ObjChild0(Aig_ManCo(SAig,skolemAig[i]));
 		F = Aig_Substitute(SAig, F, varsYS[i], skolem_i);
 	}
 
@@ -3043,7 +3048,7 @@ void checkUnateAll(Aig_Man_t* FAig, vector<int>&unate){
 	for(int i = 0; i < numY; ++i) {
 		funcVecTemp.push_back(Aig_ManObj(FAig, varsYF[i]));
 	}
-	
+
 	for (int i = 0; i < numY; ++i) {
 		funcVec = funcVecTemp;
 		funcVec[numX+i] = Aig_ManConst0(FAig);
@@ -3076,7 +3081,7 @@ void checkUnateAll(Aig_Man_t* FAig, vector<int>&unate){
 
 	int status, numUnate;
 	assert(unate.size()==numY);
-	
+
 	// Unate Sat Calls
 	do {
 		numUnate = 0;
@@ -3164,22 +3169,36 @@ void populateVars(Abc_Ntk_t* FNtk, string varsFile,
 	}
 }
 
-void substituteUnates(Aig_Man_t* pMan, vector<int>&unate) {
-	cout << "numCos: " << Aig_ManCoNum(pMan) << endl;
+void substituteUnates(Aig_Man_t* &pMan, vector<int>&unate) {
 	// Delete other COs
 	while(Aig_ManCoNum(pMan) > 1) {
 		Aig_ObjDeleteCo(pMan, Aig_ManCo(pMan,1));
 	}
-	cout << "numCos: " << Aig_ManCoNum(pMan) << endl;
 	Aig_ManCleanup(pMan);
 
 	// Substitute
 	for (int i = 0; i < numY; ++i) {
 		if(unate[i] == 1) {
-			Aig_ObjPatchFanin0(pMan, Aig_ManCo(pMan,0), Aig_ManConst1(pMan));
+			Aig_Obj_t* pAigObj = Aig_SubstituteConst(pMan, Aig_ManCo(pMan,0), varsYF[i], 1);
+			Aig_ObjPatchFanin0(pMan, Aig_ManCo(pMan,0), pAigObj);
 		}
 		else if(unate[i] == 0) {
-			Aig_ObjPatchFanin0(pMan, Aig_ManCo(pMan,0), Aig_ManConst0(pMan));
+			Aig_Obj_t* pAigObj = Aig_SubstituteConst(pMan, Aig_ManCo(pMan,0), varsYF[i], 0);
+			Aig_ObjPatchFanin0(pMan, Aig_ManCo(pMan,0), pAigObj);
 		}
 	}
+
+	// Duplicate Aig to toposort nodes
+	Aig_Man_t* tempAig = pMan;
+	pMan = Aig_ManDupSimple(pMan);
+	Aig_ManStop(tempAig);
+}
+
+void printAig(Aig_Man_t* pMan) {
+	int i;
+	Aig_Obj_t* pAigObj;
+	cout << "\nAig: " << endl;
+	Aig_ManForEachObj( pMan, pAigObj, i )
+	    Aig_ObjPrintVerbose( pAigObj, 1 ), printf( "\n" );
+	cout << endl;
 }

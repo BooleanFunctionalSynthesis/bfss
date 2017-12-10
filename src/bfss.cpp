@@ -48,32 +48,35 @@ int main(int argc, char * argv[]) {
 	OUT("get FAig..." );
 	Aig_Man_t* FAig = Abc_NtkToDar(FNtk, 0, 0);
 
-	// Process for unates
-	varsXF.clear();
-	varsYF.clear();
-	name2IdF.clear();
-	id2NameF.clear();
-	cout << "populateVars" << endl;
-	populateVars(FNtk, varsFile,
-					varsXF, varsYF,
-					name2IdF, id2NameF);
+	vector<int> unate;
+	if(!options.noUnate) {
 
-	// find unates, subs, rep
-	vector<int> unate(numY, -1);
-	cout << "checkUnateAll" << endl;
-	checkUnateAll(FAig, unate);
-	substituteUnates(FAig, unate);
-	cout << "Unates: ";
-	for (int i = 0; i < numY; ++i)
-		cout << unate[i] << " ";
-	cout << endl;
+		varsXF.clear();
+		varsYF.clear();
+		name2IdF.clear();
+		id2NameF.clear();
 
-	// cleanup after unates
-	varsXF.clear();
-	varsYF.clear();
-	name2IdF.clear();
-	id2NameF.clear();
+		cout << "populateVars" << endl;
+		populateVars(FNtk, varsFile,
+						varsXF, varsYF,
+						name2IdF, id2NameF);
 
+		unate.resize(numY, -1);
+		// find unates, substitute
+		cout << "checkUnateAll" << endl;
+		checkUnateAll(FAig, unate);
+		substituteUnates(FAig, unate);
+		cout << "Unates: ";
+		for (int i = 0; i < numY; ++i)
+			cout << unate[i] << " ";
+		cout << endl;
+
+		// cleanup after unates
+		varsXF.clear();
+		varsYF.clear();
+		name2IdF.clear();
+		id2NameF.clear();
+	}
 
 	AigToNNF nnf(FAig);
 	OUT("parse..." );
@@ -158,7 +161,11 @@ int main(int argc, char * argv[]) {
 
 	cout << "numX " << numX << endl;
 	cout << "numY " << numY << endl;
+	cout << "numUnate " << numY - count(unate.begin(), unate.end(), -1) << endl;
 	cout << "numOrigInputs " << numOrigInputs << endl;
+
+	unate.resize(numY, -1);
+
 	#ifdef DEBUG_CHUNK // Print nnf.inputs, varsXS, varsYS
 		// cout << "varsXF: " << endl;
 		// for(auto it : varsXF)
