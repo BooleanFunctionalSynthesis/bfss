@@ -448,7 +448,7 @@ Aig_Obj_t* Aig_Substitute(Aig_Man_t* pMan, Aig_Obj_t* initAig, int varId, Aig_Ob
 	return afterCompose;
 }
 
-Aig_Obj_t* Aig_SubstituteVec(Aig_Man_t* pMan, Aig_Obj_t* initAig, vector<int>& varIdVec,
+Aig_Obj_t* Aig_SubstituteVec(Aig_Man_t* pMan, Aig_Obj_t* initAig, vector<int> varIdVec,
 	vector<Aig_Obj_t*>& funcVec) {
 	Aig_Obj_t* currFI = Aig_ObjIsCo(Aig_Regular(initAig))? initAig->pFanin0: initAig;
 	for (int i = 0; i < funcVec.size(); ++i) {
@@ -3186,16 +3186,20 @@ void substituteUnates(Aig_Man_t* &pMan, vector<int>&unate) {
 	Aig_ManCleanup(pMan);
 
 	// Substitute
+	vector<int> varIdVec;
+	vector<Aig_Obj_t*> funcVec;
 	for (int i = 0; i < numY; ++i) {
 		if(unate[i] == 1) {
-			Aig_Obj_t* pAigObj = Aig_SubstituteConst(pMan, Aig_ManCo(pMan,0), varsYF[i], 1);
-			Aig_ObjPatchFanin0(pMan, Aig_ManCo(pMan,0), pAigObj);
+			varIdVec.push_back(varsYF[i]);
+			funcVec.push_back(Aig_ManConst1(pMan));
 		}
 		else if(unate[i] == 0) {
-			Aig_Obj_t* pAigObj = Aig_SubstituteConst(pMan, Aig_ManCo(pMan,0), varsYF[i], 0);
-			Aig_ObjPatchFanin0(pMan, Aig_ManCo(pMan,0), pAigObj);
+			varIdVec.push_back(varsYF[i]);
+			funcVec.push_back(Aig_ManConst0(pMan));
 		}
 	}
+	Aig_Obj_t* pAigObj = Aig_SubstituteVec(pMan, Aig_ManCo(pMan,0), varIdVec, funcVec);
+	Aig_ObjPatchFanin0(pMan, Aig_ManCo(pMan,0), pAigObj);
 
 	// Duplicate Aig to toposort nodes
 	Aig_Man_t* tempAig = pMan;

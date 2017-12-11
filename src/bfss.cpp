@@ -61,6 +61,9 @@ int main(int argc, char * argv[]) {
 						varsXF, varsYF,
 						name2IdF, id2NameF);
 
+		cout << "numX " << numX << endl;
+		cout << "numY " << numY << endl;
+
 		unate.resize(numY, -1);
 		// find unates, substitute
 		cout << "checkUnateAll" << endl;
@@ -89,69 +92,6 @@ int main(int argc, char * argv[]) {
 	OUT("getNtk..." );
 	Abc_Ntk_t* SNtk = nnf.getNtk();
 	Aig_Man_t* SAig = Abc_NtkToDar(SNtk, 0, 0);
-
-	// #ifdef DEBUG_CHUNK // Print FAig, SAig
-	//     // cout << "\nAig_ManPrintVerbose FAig: " << endl;
-	//     // Aig_ManPrintVerbose(FAig,1);
-	//     // cout << "\nAig_ManPrintVerbose SAig: " << endl;
-	//     // Aig_ManPrintVerbose(SAig,1);
-	//     cout << "\nFAig: " << endl;
-	//     Abc_NtkForEachObj(FNtk,pAbcObj,i)
-	//         cout <<"FAig Node "<<i<<": " << Abc_ObjName(pAbcObj) << endl;
-
-	//     cout << endl;
-	//     Aig_ManForEachObj( FAig, pAigObj, i )
-	//         Aig_ObjPrintVerbose( pAigObj, 1 ), printf( "\n" );
-
-	//     cout << "\nSAig: " << endl;
-	//     Abc_NtkForEachObj(SNtk,pAbcObj,i)
-	//         cout <<"SAig Node "<<i<<": " << Abc_ObjName(pAbcObj) << endl;
-
-	//     cout << endl;
-	//     Aig_ManForEachObj( SAig, pAigObj, i )
-	//         Aig_ObjPrintVerbose( pAigObj, 1 ), printf( "\n" );
-	// #endif
-
-	#ifdef COMPARE_SAIGS // Compare SAig1 to old SAig
-		AigToNNF nnf2(benchmarkName);
-		OUT("nnf2 parse..." );
-		nnf2.parse();
-		OUT("nnf2 process..." );
-		nnf2.process();
-		OUT("nnf2 resetCounters..." );
-		nnf2.resetCounters();
-		OUT("nnf2 createAig..." );
-		nnf2.createAig();
-		OUT("nnf2 getNtk..." );
-		Abc_Ntk_t* SNtk2 = nnf2.getNtk();
-		OUT("nnf2 get AIGs..." );
-		Aig_Man_t* SAig2 = Abc_NtkToDar(SNtk2, 0, 0);
-
-		cout << "Compare SAig1 to old SAig" << endl;
-		cout << "#####################################################" << endl;
-		cout << "\nSAig: " << endl;
-		cout << "#####################################################" << endl;
-		Abc_NtkForEachObj(SNtk,pAbcObj,i)
-			cout <<"Node "<<i<<": " << Abc_ObjName(pAbcObj) << endl;
-
-		cout << endl;
-		Aig_ManForEachObj( SAig, pAigObj, i )
-			Aig_ObjPrintVerbose( pAigObj, 1 ), printf( "\n" );
-
-		cout << "#####################################################" << endl;
-		cout << "\nSAig2: " << endl;
-		cout << "#####################################################" << endl;
-		Abc_NtkForEachObj(SNtk2,pAbcObj,i)
-			cout <<"Node "<<i<<": " << Abc_ObjName(pAbcObj) << endl;
-
-		cout << endl;
-		Aig_ManForEachObj( SAig2, pAigObj, i )
-			Aig_ObjPrintVerbose( pAigObj, 1 ), printf( "\n" );
-
-		cout << "#####################################################" << endl;
-		cout << "DONE!!!" << endl;
-		cout << "#####################################################" << endl;
-	#endif
 
 	OUT("Aig_ManCoNum(SAig): " << Aig_ManCoNum(SAig));
 	populateVars(FNtk, nnf, varsFile,
