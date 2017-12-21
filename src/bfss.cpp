@@ -26,7 +26,6 @@ double reverse_sub_time = 0;
 ///                            MAIN                                  ///
 ////////////////////////////////////////////////////////////////////////
 int main(int argc, char * argv[]) {
-	string varsFile, benchmarkName;
 	Abc_Obj_t* pAbcObj;
 	Aig_Obj_t* pAigObj;
 	map<string, int> name2IdF;
@@ -36,15 +35,12 @@ int main(int argc, char * argv[]) {
 
 	parseOptions(argc, argv);
 
-	benchmarkName = options.benchmark;
-	varsFile      = options.varsOrder;
-
 	auto main_start = std::chrono::steady_clock::now();
 	auto main_end = std::chrono::steady_clock::now();
 	double total_main_time;
 
 	OUT("get FNtk..." );
-	Abc_Ntk_t* FNtk = getNtk(benchmarkName,true);
+	Abc_Ntk_t* FNtk = getNtk(options.benchmark,true);
 	OUT("get FAig..." );
 	Aig_Man_t* FAig = Abc_NtkToDar(FNtk, 0, 0);
 
@@ -57,7 +53,7 @@ int main(int argc, char * argv[]) {
 		id2NameF.clear();
 
 		cout << "populateVars" << endl;
-		populateVars(FNtk, varsFile,
+		populateVars(FNtk, options.varsOrder,
 						varsXF, varsYF,
 						name2IdF, id2NameF);
 
@@ -94,7 +90,7 @@ int main(int argc, char * argv[]) {
 	Aig_Man_t* SAig = Abc_NtkToDar(SNtk, 0, 0);
 
 	OUT("Aig_ManCoNum(SAig): " << Aig_ManCoNum(SAig));
-	populateVars(FNtk, nnf, varsFile,
+	populateVars(FNtk, nnf, options.varsOrder,
 					varsXF, varsXS,
 					varsYF, varsYS,
 					name2IdF, id2NameF);

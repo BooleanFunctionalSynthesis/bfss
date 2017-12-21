@@ -1486,11 +1486,11 @@ void updateAbsRef(Aig_Man_t*&pMan, int M, int k1Level, int k1MaxLevel, vector<ve
 	// Calculate refCollapse Levels
 	refCollapseStart = k1Level;
 	while(collapsedInto[refCollapseStart] and refCollapseStart<=M) {refCollapseStart++;}
-	if(refCollapseStart>M or collapsedInto[refCollapseStart])
-		refCollapseStart = numY-1;
 	refCollapseEnd = min(M, min(numY - 1, refCollapseStart + options.c2));
+	if(refCollapseStart>M or collapsedInto[refCollapseStart])
+		refCollapseEnd = refCollapseStart = k1Level;
 
-	fmcadPhaseStart = refCollapseEnd;
+	fmcadPhaseStart = (refCollapseEnd == refCollapseStart)?k1Level:refCollapseEnd;
 	fmcadPhaseEnd = M;
 
 
@@ -3211,6 +3211,7 @@ void saveSkolems(Aig_Man_t* SAig, vector<int>& skolemAig) {
 	assert(skolemAig.size() == numY);
 
 	// Checking Supports for all except X
+	cout << "Checking Support in saveSkolems" << endl;
 	vector<int> temp = varsXS;
 	sort(temp.begin(), temp.end());
 	int k = 0;
