@@ -2085,7 +2085,7 @@ bool verifyResult(Aig_Man_t*&SAig, vector<vector<int> >& r0,
 			// 	assert(Aig_ObjIsConst1(pAigObj) || Aig_ObjIsCi(pAigObj) || Aig_ObjIsCo(pAigObj) || (Aig_ObjFanin0(pAigObj) && Aig_ObjFanin1(pAigObj)));
 			// }
 
-			Aig_Obj_t* skolem_j = useR1AsSkolem[j]?Aig_Not(Aig_ObjChild0(Aig_ManCo(SAig,skolemAig[j]))):Aig_ObjChild0(Aig_ManCo(SAig,skolemAig[j]));
+			Aig_Obj_t* skolem_j = Aig_ObjChild0(Aig_ManCo(SAig,skolemAig[j]));
 			curr = Aig_Substitute(SAig, curr, varsYS[j], skolem_j);
 			assert(skolemAig[i]!=NULL);
 			assert(Aig_ObjIsCo(Aig_Regular(curr))==false);
