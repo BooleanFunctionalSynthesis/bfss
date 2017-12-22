@@ -1104,14 +1104,15 @@ bool populateStoredCEX(Aig_Man_t* SAig,
 			RS.push_back(r0Andr1Vars[i]);
 		assert(r0Andr1Vars.size()==numY);
 
+		string fname = getFileName(options.benchmark) + "_" + UNIGEN_DIMAC_FPATH + "_" + to_string(numUnigenCalls);
 		// Print Dimacs
 		vector<lit> assumptions = setAllNegX(SCnf, SAig, false);
-		Sat_SolverWriteDimacsAndIS(pSat, unigen_argv[13],
+		Sat_SolverWriteDimacsAndIS(pSat, (char*)fname.c_str(),
 			&assumptions[0], &assumptions[0] + numX, IS, RS);
 
 		Aig_ManPrintStats(SAig);
 		// Call Unigen
-		status = unigen_call(UNIGEN_DIMAC_FPATH, options.numSamples, options.numThreads);
+		status = unigen_call(fname, options.numSamples, options.numThreads);
 	}
 	else {
 		status = -1; // Switch to ABC
@@ -2436,6 +2437,10 @@ int unigen_call(string fname, int nSamples, int nThreads) {
 	numUnigenCalls++;
 	assert(fname.find(' ') == string::npos);
 	system("rm -rf " UNIGEN_OUT_DIR "/*");
+
+	unigen_argv[1] = (char*)((new string("--samples="+to_string(nSamples)))->c_str());
+	unigen_argv[2] = (char*)((new string("--threads="+to_string(nThreads)))->c_str());
+	unigen_argv[13] = (char*)((new string(fname))->c_str());
 
 	string cmd;
 	for (int i = 0; i < unigen_argc; ++i) {
