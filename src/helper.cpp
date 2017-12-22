@@ -44,7 +44,7 @@ void parseOptions(int argc, char * argv[]) {
 	optParser.add_options()
 		("b, benchmark", "Specify the benchmark (required)", cxxopts::value<string>(options.benchmark), "FILE")
 		("v, varsOrder", "Specify the variable ordering", cxxopts::value<string>(options.varsOrder), "FILE")
-		("o, out", "Specify the output file (default: <benchmark>.v)", cxxopts::value<string>(options.outFName), "FILE")
+		("o, out", "Specify the output file (default: <benchmark>_result.v)", cxxopts::value<string>(options.outFName), "FILE")
 		("skolem", "Specify skolem function to be used (r0/r1/rx)", cxxopts::value<string>(skolemType)->default_value("rx"))
 		("a, ABC", "Use ABC's solver for SAT calls", cxxopts::value<bool>(options.useABCSolver))
 		("e, evalAigAtNode", "Efficiently evaluate AIG on a need-only basis", cxxopts::value<bool>(options.evalAigAtNode))
@@ -3215,20 +3215,20 @@ void substituteUnates(Aig_Man_t* &pMan, vector<int>&unate) {
 void saveSkolems(Aig_Man_t* SAig, vector<int>& skolemAig) {
 	assert(skolemAig.size() == numY);
 
-	// Checking Supports for all except X
-	cout << "Checking Support in saveSkolems" << endl;
-	vector<int> temp = varsXS;
-	sort(temp.begin(), temp.end());
-	int k = 0;
-	for (int j = 1; j <= Aig_ManCiNum(SAig); ++j) {
-		while(j==temp[k] and k<temp.size() and j <= Aig_ManCiNum(SAig)) {
-			j++;
-			k++;
-		}
-		for (int i = 0; i < numY; ++i) {
-			assert(Aig_Support(SAig, Aig_ManCo(SAig, skolemAig[i]), j) == false);
-		}
-	}
+	// // Checking Supports for all except X
+	// cout << "Checking Support in saveSkolems" << endl;
+	// vector<int> temp = varsXS;
+	// sort(temp.begin(), temp.end());
+	// int k = 0;
+	// for (int j = 1; j <= Aig_ManCiNum(SAig); ++j) {
+	// 	while(j==temp[k] and k<temp.size() and j <= Aig_ManCiNum(SAig)) {
+	// 		j++;
+	// 		k++;
+	// 	}
+	// 	for (int i = 0; i < numY; ++i) {
+	// 		assert(Aig_Support(SAig, Aig_ManCo(SAig, skolemAig[i]), j) == false);
+	// 	}
+	// }
 
 	Vec_Ptr_t * vPis = Vec_PtrAlloc(numX);
 	Vec_Ptr_t * vPos = Vec_PtrAlloc(numY);
