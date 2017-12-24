@@ -16,6 +16,7 @@ public:
 	Nnf_Type Type;
 	int Id;
 	int AIG_num;
+	Nnf_Obj* neg;			// Stores negation-node (if available)
 	Nnf_Obj* pFanin0;
 	Nnf_Obj* pFanin1;
 	set<Nnf_Obj*> pFanout;
@@ -45,6 +46,7 @@ public:
 	Nnf_Obj* createNode(Nnf_Type t);
 	Nnf_Obj* createCi();
 	Nnf_Obj* createCo();
+	void orderNodes();
 };
 
 // ===========HELPER ROUTINES========
