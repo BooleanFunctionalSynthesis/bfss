@@ -4,6 +4,7 @@
 ////////////////////////////////////////////////////////////////////////
 #include "helper.h"
 #include "formula.h"
+#include "nnf.h"
 
 using namespace std;
 
@@ -43,6 +44,13 @@ int main(int argc, char * argv[]) {
 	Abc_Ntk_t* FNtk = getNtk(options.benchmark,true);
 	OUT("get FAig..." );
 	Aig_Man_t* FAig = Abc_NtkToDar(FNtk, 0, 0);
+
+
+	// ============ TESTING NEW NNF ============
+	Nnf_Man nnfNew(FAig);
+
+	exit(0);
+	// ============ END ============
 
 	vector<int> unate;
 	if(!options.noUnate) {
