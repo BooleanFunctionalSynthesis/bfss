@@ -242,6 +242,9 @@ void Nnf_Man::print() {
 }
 
 // assumes topo-sorted nodes in NNF
+// Objs are ordered as:
+// x1 x1' x2 x2' ... xn xn' ... cloud1 ... cloud2 ... cloud3 ...
+// Note that (CioId != Id+1) for cloud nodes
 Aig_Man_t* Nnf_Man::createAigWithClouds() {
 	int nNodesMax = 1e5;
 	Aig_Man_t* pMan = Aig_ManStart(nNodesMax);
