@@ -305,6 +305,27 @@ void NNf_ObjSetFanin1(Nnf_Obj* parent, Nnf_Obj* child) {
 	}
 }
 
+void Nnf_ConeMark_rec(Nnf_Obj * pObj) {
+    assert(!Nnf_IsComplement(pObj));
+    if(Nnf_ObjIsMarkA(pObj))
+        return;
+    Nnf_ConeMark_rec(Nnf_ObjFanin0(pObj));
+    Nnf_ConeMark_rec(Nnf_ObjFanin1(pObj));
+    assert(!Nnf_ObjIsMarkA(pObj)); // loop detection
+    Nnf_ObjSetMarkA(pObj);
+}
+
+void Nnf_ConeUnmark_rec(Nnf_Obj * pObj) {
+    assert(!Nnf_IsComplement(pObj));
+    if(!Nnf_ObjIsMarkA(pObj))
+        return;
+    Nnf_ConeUnmark_rec(Nnf_ObjFanin0(pObj));
+    Nnf_ConeUnmark_rec(Nnf_ObjFanin1(pObj));
+    assert(Nnf_ObjIsMarkA(pObj)); // loop detection
+    Nnf_ObjClearMarkA(pObj);
+}
+
+
 Nnf_Type SwitchAndOrType(Nnf_Type t) {
 	if(t == NNF_OBJ_AND)
 		return NNF_OBJ_OR;

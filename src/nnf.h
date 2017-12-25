@@ -22,6 +22,7 @@ public:
 	set<Nnf_Obj*> pFanoutPos;
 	set<Nnf_Obj*> pFanoutNeg;
 
+	unsigned int fMarkA : 1;
 	int iData;
 	void* pData;
 
@@ -85,7 +86,13 @@ static inline Nnf_Obj *  Nnf_ObjFanin1(Nnf_Obj * pObj)      { return Nnf_Regular
 static inline Nnf_Obj *  Nnf_ObjChild0(Nnf_Obj * pObj)      { return pObj->pFanin0;                          }
 static inline Nnf_Obj *  Nnf_ObjChild1(Nnf_Obj * pObj)      { return pObj->pFanin1;                          }
 
+static inline int        Nnf_ObjIsMarkA(Nnf_Obj * pObj)   	{ return pObj->fMarkA;  }
+static inline void       Nnf_ObjSetMarkA(Nnf_Obj * pObj)  	{ pObj->fMarkA = 1;     }
+static inline void       Nnf_ObjClearMarkA(Nnf_Obj * pObj)	{ pObj->fMarkA = 0;     }
+
 void NNf_ObjSetFanin0(Nnf_Obj* parent, Nnf_Obj* child);
 void NNf_ObjSetFanin1(Nnf_Obj* parent, Nnf_Obj* child);
+void Nnf_ConeMark_rec(Nnf_Obj * pObj);
+void Nnf_ConeUnmark_rec(Nnf_Obj * pObj);
 Nnf_Type SwitchAndOrType(Nnf_Type t);
 string type2String(Nnf_Type t);
