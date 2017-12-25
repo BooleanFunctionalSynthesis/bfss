@@ -56,6 +56,7 @@ public:
 	Nnf_Obj* const1();
 	void pushBubblesDown(Nnf_Obj* nObj);
 	void print();
+	Aig_Man_t* createAigWithClouds();
 };
 
 // ===========HELPER ROUTINES========

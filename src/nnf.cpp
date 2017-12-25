@@ -1,7 +1,7 @@
 #include "nnf.h"
 
-Nnf_Obj::Nnf_Obj(int id) : Id(id), Type(NNF_OBJ_NONE), neg(NULL), pFanin0(NULL), pFanin1(NULL) {};
-Nnf_Obj::Nnf_Obj(int id, Nnf_Type t) : Id(id), Type(t), neg(NULL), pFanin0(NULL), pFanin1(NULL) {};
+Nnf_Obj::Nnf_Obj(int id) : Nnf_Obj(id, NNF_OBJ_NONE) {};
+Nnf_Obj::Nnf_Obj(int id, Nnf_Type t) : Id(id), Type(t), neg(NULL), pFanin0(NULL), pFanin1(NULL), AIG_num(-1) {};
 
 void Nnf_Obj::print()
 {
@@ -239,6 +239,86 @@ void Nnf_Man::print() {
 			node->print();
 		}
 	}
+}
+
+// assumes topo-sorted nodes in NNF
+Aig_Man_t* Nnf_Man::createAigWithClouds() {
+	int nNodesMax = 1e5;
+	Aig_Man_t* pMan = Aig_ManStart(nNodesMax);
+
+	Aig_Obj_t* pObj;
+	vector<int> CiPosIth;
+	vector<int> CiNegIth;
+	vector<int> CiCloudIth;
+	vector<int> CoIth;
+
+	for(auto node: _allNodes) {
+		if (Nnf_ObjIsConst1(node)) {
+			node->pData = Aig_ManConst1(pMan);
+		}
+		else if (Nnf_ObjIsCiPos(node)) {
+			pObj = Aig_ObjCreateCi(pMan);
+			CiPosIth.push_back(Aig_ObjCioId(pObj));
+			node->AIG_num = Aig_ObjCioId(pObj);
+			node->pData = pObj;
+
+			pObj = Aig_ObjCreateCi(pMan);
+			CiNegIth.push_back(Aig_ObjCioId(pObj));
+			node->neg->AIG_num = Aig_ObjCioId(pObj);
+			node->neg->pData = pObj;
+		}
+		else if (Nnf_ObjIsCiNeg(node)) {
+			// Handled in CiPos section
+		}
+		else if (Nnf_ObjIsCo(node)) {
+			Aig_Obj_t* child = (Aig_Obj_t*) Nnf_ObjFanin0(node)->pData;
+			// child = Aig_NotCond(child, Nnf_ObjFaninC0(node));
+			assert(!Nnf_ObjFaninC0(node));
+			pObj = Aig_ObjCreateCo(pMan, child);
+			CoIth.push_back(Aig_ObjCioId(pObj));
+			node->AIG_num = Nnf_ObjFanin0(node)->AIG_num;
+			node->pData = pObj;
+		}
+		else if (Nnf_ObjIsAnd(node)) {
+			Aig_Obj_t* child0 = (Aig_Obj_t*) Nnf_ObjFanin0(node)->pData;
+			// child0 = Aig_NotCond(child0, Nnf_ObjFaninC0(node));
+			assert(!Nnf_ObjFaninC0(node));
+
+			Aig_Obj_t* child1 = (Aig_Obj_t*) Nnf_ObjFanin1(node)->pData;
+			// child1 = Aig_NotCond(child1, Nnf_ObjFaninC1(node));
+			assert(!Nnf_ObjFaninC1(node));
+
+			pObj = Aig_And(pMan, child0, child1);
+
+			// Create Cloud
+			Aig_Obj_t* cloudObj = Aig_ObjCreateCi(pMan);
+			CiCloudIth.push_back(Aig_ObjCioId(cloudObj));
+			node->AIG_num = Aig_ObjCioId(cloudObj);
+			node->pData = Aig_And(pMan, pObj, cloudObj);
+		}
+		else if ( Nnf_ObjIsOr(node)) {
+			Aig_Obj_t* child0 = (Aig_Obj_t*) Nnf_ObjFanin0(node)->pData;
+			// child0 = Aig_NotCond(child0, Nnf_ObjFaninC0(node));
+			assert(!Nnf_ObjFaninC0(node));
+
+			Aig_Obj_t* child1 = (Aig_Obj_t*) Nnf_ObjFanin1(node)->pData;
+			// child1 = Aig_NotCond(child1, Nnf_ObjFaninC1(node));
+			assert(!Nnf_ObjFaninC1(node));
+
+			pObj = Aig_Or(pMan, child0, child1);
+
+			// Create Cloud
+			Aig_Obj_t* cloudObj = Aig_ObjCreateCi(pMan);
+			CiCloudIth.push_back(Aig_ObjCioId(cloudObj));
+			node->AIG_num = Aig_ObjCioId(cloudObj);
+			node->pData = Aig_And(pMan, pObj, cloudObj);
+		}
+		else {
+			assert(false);
+		}
+	}
+
+	return pMan;
 }
 
 void NNf_ObjSetFanin0(Nnf_Obj* parent, Nnf_Obj* child) {
