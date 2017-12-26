@@ -60,6 +60,7 @@ public:
 	void Nnf_ManDfs_rec(Nnf_Obj * pObj, vector<Nnf_Obj*> &vNodes);
 	vector<Nnf_Obj*> Nnf_ManDfs();
 	void Nnf_ManTopoId();
+	Aig_Man_t* createAigWithClouds();
 };
 
 // ===========HELPER ROUTINES========
