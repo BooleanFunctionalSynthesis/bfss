@@ -44,6 +44,10 @@ Nnf_Man::Nnf_Man(Aig_Man_t* pSrc) : Nnf_Man() {
 
 	cout <<"\n\nPushed Bubbles down" << endl;
 	print();
+	Nnf_ManTopoId();
+
+	cout <<"\n\nTopo-sorted" << endl;
+	print();
 }
 
 Nnf_Man::~Nnf_Man() {
@@ -325,34 +329,55 @@ void Nnf_ConeUnmark_rec(Nnf_Obj * pObj) {
     Nnf_ObjClearMarkA(pObj);
 }
 
-void Nnf_ManDfs_rec(Nnf_Man * p, Nnf_Obj * pObj, vector<Nnf_Obj*> &vNodes) {
-    if ( pObj == NULL )
+void Nnf_Man::Nnf_ManDfs_rec(Nnf_Obj * pObj, vector<Nnf_Obj*> &vNodes) {
+    if (pObj == NULL)
         return;
     assert(!Nnf_IsComplement(pObj));
-    Nnf_ManDfs_rec(p, Nnf_ObjFanin0(pObj), vNodes);
-    Nnf_ManDfs_rec(p, Nnf_ObjFanin1(pObj), vNodes);
+    if (Nnf_ObjIsMarkA(pObj))
+        return;
+    Nnf_ObjSetMarkA(pObj);
+    Nnf_ManDfs_rec(Nnf_ObjFanin0(pObj), vNodes);
+    Nnf_ManDfs_rec(Nnf_ObjFanin1(pObj), vNodes);
+	cout << "Pushed " << pObj->Id << endl;
 	vNodes.push_back(pObj);
 }
 
-vector<Nnf_Obj*> Nnf_ManDfs(Nnf_Man * p) {
+// Returns Nodes in Toposorted Order
+vector<Nnf_Obj*> Nnf_Man::Nnf_ManDfs() {
     vector<Nnf_Obj*> vNodes;
     Nnf_Obj * pObj;
     int i;
 
-    vNodes.push_back(Nnf_ManConst1(p));
+    // Unmark all nodes
+    for(auto it: _allNodes)
+        Nnf_ObjClearMarkA(it);
+
+    // Add const1 and inputs
+    Nnf_ManDfs_rec(const1(), vNodes);
+    for(auto it: _inputs_pos)
+        Nnf_ManDfs_rec(it, vNodes);
+    for(auto it: _inputs_neg)
+        Nnf_ManDfs_rec(it, vNodes);
+
     // collect nodes reachable in the DFS order
-    for(auto it: p->_outputs)
-        Nnf_ManDfs_rec(p, it, vNodes);
-    assert(vNodes.size() == p->_allNodes.size());
+    for(auto it: _outputs)
+        Nnf_ManDfs_rec(it, vNodes);
+
+    // Unmark all nodes
+    for(auto it: _allNodes)
+        Nnf_ObjClearMarkA(it);
+
+    // @TODO: necessary for size to be same?
+    assert(vNodes.size() == _allNodes.size());
     return vNodes;
 }
 
-void Nnf_ManTopoId(Nnf_Man * p) {
-    vector<Nnf_Obj*> vNodes = Nnf_ManDfs(p);
+void Nnf_Man::Nnf_ManTopoId() {
+    vector<Nnf_Obj*> vNodes = Nnf_ManDfs();
     int currId = 0;
     for(auto it: vNodes)
 		it->Id = currId++;
-    p->_allNodes = vNodes;
+    _allNodes = vNodes;
     return;
 }
 
