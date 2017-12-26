@@ -34,8 +34,8 @@ public:
 class Nnf_Man {
 	vector<Nnf_Obj*> _inputs_pos;
 	vector<Nnf_Obj*> _inputs_neg;
-	vector<Nnf_Obj*> _outputs;
-	vector<Nnf_Obj*> _allNodes; //(to be stored in order of IDs) (topo-sort)
+	// vector<Nnf_Obj*> _outputs;
+	// vector<Nnf_Obj*> _allNodes; //(to be stored in order of IDs) (topo-sort)
 	Nnf_Obj* pConst1;
 
 	void parse_aig(Aig_Man_t* pSrc);
@@ -55,6 +55,9 @@ public:
 	Nnf_Obj* createCo(Nnf_Obj* pDriver);
 	Nnf_Obj* const0();
 	Nnf_Obj* const1();
+	// @TODO: the variable is public in ABC, do we need a helper or make it public?
+	vector<Nnf_Obj*> _outputs;
+	vector<Nnf_Obj*> _allNodes;
 	void pushBubblesDown(Nnf_Obj* nObj);
 	void print();
 };
@@ -94,5 +97,9 @@ void NNf_ObjSetFanin0(Nnf_Obj* parent, Nnf_Obj* child);
 void NNf_ObjSetFanin1(Nnf_Obj* parent, Nnf_Obj* child);
 void Nnf_ConeMark_rec(Nnf_Obj * pObj);
 void Nnf_ConeUnmark_rec(Nnf_Obj * pObj);
+void Nnf_ManDfs_rec(Nnf_Man * p, Nnf_Obj * pObj, vector<Nnf_Obj*> &vNodes);
+vector<Nnf_Obj*> Nnf_ManDfs(Nnf_Man * p);
+void Nnf_ManTopoId(Nnf_Man * p);
+
 Nnf_Type SwitchAndOrType(Nnf_Type t);
 string type2String(Nnf_Type t);

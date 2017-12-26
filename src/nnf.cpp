@@ -325,6 +325,36 @@ void Nnf_ConeUnmark_rec(Nnf_Obj * pObj) {
     Nnf_ObjClearMarkA(pObj);
 }
 
+void Nnf_ManDfs_rec(Nnf_Man * p, Nnf_Obj * pObj, vector<Nnf_Obj*> &vNodes) {
+    if ( pObj == NULL )
+        return;
+    assert(!Nnf_IsComplement(pObj));
+    Nnf_ManDfs_rec(p, Nnf_ObjFanin0(pObj), vNodes);
+    Nnf_ManDfs_rec(p, Nnf_ObjFanin1(pObj), vNodes);
+	vNodes.push_back(pObj);
+}
+
+vector<Nnf_Obj*> Nnf_ManDfs(Nnf_Man * p) {
+    vector<Nnf_Obj*> vNodes;
+    Nnf_Obj * pObj;
+    int i;
+
+    vNodes.push_back(Nnf_ManConst1(p));
+    // collect nodes reachable in the DFS order
+    for(auto it: p->_outputs)
+        Nnf_ManDfs_rec(p, it, vNodes);
+    assert(vNodes.size() == p->_allNodes.size());
+    return vNodes;
+}
+
+void Nnf_ManTopoId(Nnf_Man * p) {
+    vector<Nnf_Obj*> vNodes = Nnf_ManDfs(p);
+    int currId = 0;
+    for(auto it: vNodes)
+		it->Id = currId++;
+    p->_allNodes = vNodes;
+    return;
+}
 
 Nnf_Type SwitchAndOrType(Nnf_Type t) {
 	if(t == NNF_OBJ_AND)
