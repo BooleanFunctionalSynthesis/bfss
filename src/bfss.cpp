@@ -3,7 +3,7 @@
 ///                        DECLARATIONS                              ///
 ////////////////////////////////////////////////////////////////////////
 #include "helper.h"
-#include "formula.h"
+// #include "formula.h"
 #include "nnf.h"
 
 using namespace std;
@@ -45,20 +45,19 @@ int main(int argc, char * argv[]) {
 	OUT("get FAig..." );
 	Aig_Man_t* FAig = Abc_NtkToDar(FNtk, 0, 0);
 
-
-	// ============ TESTING NEW NNF ============
 	Nnf_Man nnfNew(FAig);
 
 	Aig_Man_t* normalAig = nnfNew.createAigWithoutClouds();
 	cout << "\n\nNormal Aig: " << endl;
 	printAig(normalAig);
 
-	Aig_Man_t* cloudAig = nnfNew.createAigWithClouds();
-	cout << "\n\nCloud Aig: " << endl;
-	printAig(cloudAig);
+	// Aig_Man_t* cloudAig = nnfNew.createAigWithClouds();
+	// cout << "\n\nCloud Aig: " << endl;
+	// printAig(cloudAig);
 
-	exit(0);
-	// ============ END ============
+	numOrigInputs = nnfNew.getCiNum();
+	Aig_Man_t* SAig = nnfNew.createAigWithoutClouds();
+
 
 	vector<int> unate;
 	if(!options.noUnate) {
@@ -93,20 +92,8 @@ int main(int argc, char * argv[]) {
 		id2NameF.clear();
 	}
 
-	AigToNNF nnf(FAig);
-	OUT("parse..." );
-	nnf.parse();
-	numOrigInputs = nnf.getNumInputs();
-	OUT("process..." );
-	nnf.process();
-	OUT("createAig..." );
-	nnf.createAig();
-	OUT("getNtk..." );
-	Abc_Ntk_t* SNtk = nnf.getNtk();
-	Aig_Man_t* SAig = Abc_NtkToDar(SNtk, 0, 0);
-
 	OUT("Aig_ManCoNum(SAig): " << Aig_ManCoNum(SAig));
-	populateVars(FNtk, nnf, options.varsOrder,
+	populateVars(FNtk, nnfNew, options.varsOrder,
 					varsXF, varsXS,
 					varsYF, varsYS,
 					name2IdF, id2NameF);
@@ -118,7 +105,7 @@ int main(int argc, char * argv[]) {
 
 	unate.resize(numY, -1);
 
-	#ifdef DEBUG_CHUNK // Print nnf.inputs, varsXS, varsYS
+	#ifdef DEBUG_CHUNK // Print varsXS, varsYS
 		// cout << "varsXF: " << endl;
 		// for(auto it : varsXF)
 		//     cout << it << " ";
@@ -127,11 +114,6 @@ int main(int argc, char * argv[]) {
 		// for(auto it : varsYF)
 		//     cout << it << " ";
 		// cout<<endl;
-		cout << "nnf.inputs: " << endl;
-		for(auto it: nnf.inputs) {
-			cout << it->var_num << " ";
-		}
-		cout << endl;
 
 		cout << "varsXS: " << endl;
 		for(auto it : varsXS)
@@ -149,6 +131,9 @@ int main(int argc, char * argv[]) {
 	int removed = Aig_ManCleanup(SAig);
 	OUT("Removed "<<removed<<" nodes");
 
+
+	// // @TODO: ============ DELETE THIS ===========
+	// exit(0);
 
 	// Fs[0] - F_SAig      will always be Aig_ManCo( ... , 1)
 	// Fs[1] - FPrime_SAig will always be Aig_ManCo( ... , 2)

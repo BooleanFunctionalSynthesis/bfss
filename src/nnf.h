@@ -16,6 +16,7 @@ public:
 	Nnf_Type Type;
 	int Id;
 	int AIG_num;
+	int Orig_AIG_Id;
 	Nnf_Obj* neg;			// Stores negation-node (if available)
 	Nnf_Obj* pFanin0;
 	Nnf_Obj* pFanin1;
@@ -37,6 +38,7 @@ class Nnf_Man {
 	vector<Nnf_Obj*> _outputs;
 	vector<Nnf_Obj*> _allNodes; //(to be stored in order of IDs) (topo-sort)
 	Nnf_Obj* pConst1;
+	map<int,int> _origToNewNodeId;
 
 	void parse_aig(Aig_Man_t* pSrc);
 	void makeNnf();
@@ -46,15 +48,22 @@ public:
 	Nnf_Man();
 	Nnf_Man(Aig_Man_t* pSrc);
 	~Nnf_Man();
+
+	// Getters
 	Nnf_Obj* getCiPos(int i);
 	Nnf_Obj* getCiNeg(int i);
 	Nnf_Obj* getCo(int i);
 	Nnf_Obj* getObj(int i);
+	int      getCiNum();
+	int      getCoNum();
+	int      getNewAigNodeID(int origAigNodeId);
 	Nnf_Obj* createNode(Nnf_Type t);
 	Nnf_Obj* createCi();
 	Nnf_Obj* createCo(Nnf_Obj* pDriver);
 	Nnf_Obj* const0();
 	Nnf_Obj* const1();
+	
+	// Routines
 	void pushBubblesDown(Nnf_Obj* nObj);
 	void print();
 	void Nnf_ManDfs_rec(Nnf_Obj * pObj, vector<Nnf_Obj*> &vNodes);

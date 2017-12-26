@@ -64,7 +64,7 @@ Abc_Ntk_t * Abc_NtkFromAigPhase(Aig_Man_t * pMan);
 
 class  edge;
 class  node;
-class  AigToNNF;
+class  Nnf_Man;
 
 enum sType {skolemR0, skolemR1, skolemRx};
 struct optionStruct {
@@ -115,7 +115,7 @@ string 			type2String(Aig_Type_t t);
 bool 			Equate(sat_solver *pSat, int varA, int varB);
 bool 			Xor(sat_solver *pSat, int varA, int varB);
 Abc_Ntk_t* 		getNtk(string pFileName, bool fraig);
-void 			populateVars(Abc_Ntk_t* FNtk, AigToNNF& nnf, string varsFile,
+void 			populateVars(Abc_Ntk_t* FNtk, Nnf_Man& nnf, string varsFile,
 					vector<int>& varsXF, vector<int>& varsXS,
 					vector<int>& varsYF, vector<int>& varsYS,
 					map<string,int>& name2IdF, map<int,string>& id2NameF);

@@ -1,5 +1,6 @@
 #include "helper.h"
-#include "formula.h"
+// #include "formula.h"
+#include "nnf.h"
 
 vector<vector<int> > storedCEX;
 vector<int> storedCEX_k1;
@@ -348,7 +349,7 @@ Abc_Ntk_t*  getNtk(string pFileName, bool fraig) {
  * @param name2IdF  [out]   maps name to Id in FAig
  * @param Id2nameF  [out]   maps Id in FAig to name
  */
-void populateVars(Abc_Ntk_t* FNtk, AigToNNF& nnf, string varsFile,
+void populateVars(Abc_Ntk_t* FNtk, Nnf_Man& nnf, string varsFile,
 	vector<int>& varsXF, vector<int>& varsXS,
 	vector<int>& varsYF, vector<int>& varsYS,
 	map<string,int>& name2IdF, map<int,string>& id2NameF) {
@@ -389,10 +390,14 @@ void populateVars(Abc_Ntk_t* FNtk, AigToNNF& nnf, string varsFile,
 	}
 
 	OUT( "Populating varsXS varsYS..." );
-	for(auto it : varsXF)
-		varsXS.push_back(nnf.var_num2Id[it]);
-	for(auto it : varsYF)
-		varsYS.push_back(nnf.var_num2Id[it]);
+	for(auto it : varsXF) {
+		varsXS.push_back(nnf.getNewAigNodeID(it));
+		assert(varsXS.back() != -1);
+	}
+	for(auto it : varsYF) {
+		varsYS.push_back(nnf.getNewAigNodeID(it));
+		assert(varsYS.back() != -1);
+	}
 
 	if(options.reverseOrder)
 		reverse(varsYS.begin(),varsYS.end());
@@ -504,56 +509,56 @@ void initializeCompose(Aig_Man_t* SAig, vector<Aig_Obj_t* >& Fs,
 
 	funcVec.resize(0);
 	for(int i = 0; i < numX; ++i) {
-		funcVec.push_back(Aig_Not(Aig_ManObj(SAig, varsXS[i])));
-	}
-	for(int i = 0; i < numY; ++i) {
-		funcVec.push_back(Aig_Not(Aig_ManObj(SAig, varsYS[i])));
-	}
-	for(int i = 0; i < numX; ++i) {
 		funcVec.push_back(Aig_ManObj(SAig, varsXS[i]));
 	}
 	for(int i = 0; i < numY; ++i) {
 		funcVec.push_back(Aig_ManObj(SAig, varsYS[i]));
 	}
-	funcVecVec.push_back(funcVec);
-
-	funcVec.resize(0);
 	for(int i = 0; i < numX; ++i) {
 		funcVec.push_back(Aig_Not(Aig_ManObj(SAig, varsXS[i])));
 	}
 	for(int i = 0; i < numY; ++i) {
-		funcVec.push_back(Aig_Not(Aig_ManObj(SAig, numOrigInputs + varsYS[i])));
+		funcVec.push_back(Aig_Not(Aig_ManObj(SAig, varsYS[i])));
 	}
+	funcVecVec.push_back(funcVec);
+
+	funcVec.resize(0);
 	for(int i = 0; i < numX; ++i) {
 		funcVec.push_back(Aig_ManObj(SAig, varsXS[i]));
 	}
 	for(int i = 0; i < numY; ++i) {
 		funcVec.push_back(Aig_ManObj(SAig, numOrigInputs + varsYS[i]));
 	}
+	for(int i = 0; i < numX; ++i) {
+		funcVec.push_back(Aig_Not(Aig_ManObj(SAig, varsXS[i])));
+	}
+	for(int i = 0; i < numY; ++i) {
+		funcVec.push_back(Aig_Not(Aig_ManObj(SAig, numOrigInputs + varsYS[i])));
+	}
 	funcVecVec.push_back(funcVec);
 
 	for(int i = 0; i < numY; ++i) {
 		funcVec.resize(0);
 		for(int j = 0; j < numX; j++) {
-			funcVec.push_back(Aig_Not(Aig_ManObj(SAig, varsXS[j])));
-		}
-		for(int j = 0; j < numY; j++) {
-			if(j < i) {
-				funcVec.push_back(Aig_ManConst0(SAig));
-			} else if(j == i) {
-				funcVec.push_back(Aig_ManConst1(SAig));
-			} else {
-				funcVec.push_back(Aig_Not(Aig_ManObj(SAig, varsYS[j])));
-			}
-		}
-		for(int j = 0; j < numX; j++) {
 			funcVec.push_back(Aig_ManObj(SAig, varsXS[j]));
 		}
 		for(int j = 0; j < numY; j++) {
-			if(j <= i) {
-				funcVec.push_back(Aig_ManConst0(SAig));
+			if(j < i) {
+				funcVec.push_back(Aig_Not(Aig_ManConst0(SAig)));
+			} else if(j == i) {
+				funcVec.push_back(Aig_Not(Aig_ManConst1(SAig)));
 			} else {
 				funcVec.push_back(Aig_ManObj(SAig, varsYS[j]));
+			}
+		}
+		for(int j = 0; j < numX; j++) {
+			funcVec.push_back(Aig_Not(Aig_ManObj(SAig, varsXS[j])));
+		}
+		for(int j = 0; j < numY; j++) {
+			if(j <= i) {
+				funcVec.push_back(Aig_Not(Aig_ManConst0(SAig)));
+			} else {
+				funcVec.push_back(Aig_Not(Aig_ManObj(SAig, varsYS[j])));
 			}
 		}
 		funcVecVec.push_back(funcVec);
@@ -562,37 +567,37 @@ void initializeCompose(Aig_Man_t* SAig, vector<Aig_Obj_t* >& Fs,
 	for(int i = 0; i < numY; ++i) {
 		funcVec.resize(0);
 		for(int j = 0; j < numX; j++) {
-			funcVec.push_back(Aig_Not(Aig_ManObj(SAig, varsXS[j])));
-		}
-		for(int j = 0; j < numY; j++) {
-			if(j <= i) {
-				funcVec.push_back(Aig_ManConst0(SAig));
-			} else {
-				funcVec.push_back(Aig_Not(Aig_ManObj(SAig, varsYS[j])));
-			}
-		}
-		for(int j = 0; j < numX; j++) {
 			funcVec.push_back(Aig_ManObj(SAig, varsXS[j]));
 		}
 		for(int j = 0; j < numY; j++) {
-			if(j < i) {
-				funcVec.push_back(Aig_ManConst0(SAig));
-			} else if(j == i) {
-				funcVec.push_back(Aig_ManConst1(SAig));
+			if(j <= i) {
+				funcVec.push_back(Aig_Not(Aig_ManConst0(SAig)));
 			} else {
 				funcVec.push_back(Aig_ManObj(SAig, varsYS[j]));
+			}
+		}
+		for(int j = 0; j < numX; j++) {
+			funcVec.push_back(Aig_Not(Aig_ManObj(SAig, varsXS[j])));
+		}
+		for(int j = 0; j < numY; j++) {
+			if(j < i) {
+				funcVec.push_back(Aig_Not(Aig_ManConst0(SAig)));
+			} else if(j == i) {
+				funcVec.push_back(Aig_Not(Aig_ManConst1(SAig)));
+			} else {
+				funcVec.push_back(Aig_Not(Aig_ManObj(SAig, varsYS[j])));
 			}
 		}
 		funcVecVec.push_back(funcVec);
 	}
 
 	retVec = Aig_SubstituteVecVec(SAig, Aig_ManCo(SAig, 0), funcVecVec);
-	Fs[0] = Aig_ObjCreateCo(SAig, Aig_Not(retVec[0]));
-	Fs[1] = Aig_ObjCreateCo(SAig, Aig_Not(retVec[1]));
+	Fs[0] = Aig_ObjCreateCo(SAig, retVec[0]);
+	Fs[1] = Aig_ObjCreateCo(SAig, retVec[1]);
 	for(int i = 0; i < numY; i++) {
 		switch(unate[i]) {
 			case -1:
-				Aig_ObjCreateCo(SAig, retVec[2 + i]);
+				Aig_ObjCreateCo(SAig, Aig_Not(retVec[2 + i]));
 				break;
 			case 0:
 				Aig_ObjCreateCo(SAig, Aig_ManConst0(SAig));
@@ -606,7 +611,7 @@ void initializeCompose(Aig_Man_t* SAig, vector<Aig_Obj_t* >& Fs,
 	for(int i = 0; i < numY; i++) {
 		switch(unate[i]) {
 			case -1:
-				Aig_ObjCreateCo(SAig, retVec[2 + numY + i]);
+				Aig_ObjCreateCo(SAig, Aig_Not(retVec[2 + numY + i]));
 				break;
 			case 0:
 				Aig_ObjCreateCo(SAig, Aig_ManConst1(SAig));
