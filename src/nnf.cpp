@@ -236,23 +236,29 @@ Aig_Man_t* Nnf_Man::createAig(bool withCloudInputs) {
 	vector<int> CiCloudIth;
 	vector<int> CoIth;
 
+	// Ordering Cis
+	for(auto node: _inputs_pos) {
+		pObj = Aig_ObjCreateCi(pMan);
+		CiPosIth.push_back(Aig_ObjCioId(pObj));
+		node->AIG_num = Aig_ObjCioId(pObj);
+		node->pData = pObj;
+	}
+	for(auto node: _inputs_neg) {
+		pObj = Aig_ObjCreateCi(pMan);
+		CiNegIth.push_back(Aig_ObjCioId(pObj));
+		node->AIG_num = Aig_ObjCioId(pObj);
+		node->pData = pObj;
+	}
+
 	for(auto node: _allNodes) {
 		if (Nnf_ObjIsConst1(node)) {
 			node->pData = Aig_ManConst1(pMan);
 		}
 		else if (Nnf_ObjIsCiPos(node)) {
-			pObj = Aig_ObjCreateCi(pMan);
-			CiPosIth.push_back(Aig_ObjCioId(pObj));
-			node->AIG_num = Aig_ObjCioId(pObj);
-			node->pData = pObj;
-
-			pObj = Aig_ObjCreateCi(pMan);
-			CiNegIth.push_back(Aig_ObjCioId(pObj));
-			node->neg->AIG_num = Aig_ObjCioId(pObj);
-			node->neg->pData = pObj;
+			// Handled before
 		}
 		else if (Nnf_ObjIsCiNeg(node)) {
-			// Handled in CiPos section
+			// Handled before
 		}
 		else if (Nnf_ObjIsCo(node)) {
 			Aig_Obj_t* child = (Aig_Obj_t*) Nnf_ObjFanin0(node)->pData;
