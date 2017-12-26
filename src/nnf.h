@@ -22,6 +22,7 @@ public:
 	set<Nnf_Obj*> pFanoutPos;
 	set<Nnf_Obj*> pFanoutNeg;
 
+	bool fMarkA;
 	int iData;
 	void* pData;
 
@@ -56,6 +57,9 @@ public:
 	Nnf_Obj* const1();
 	void pushBubblesDown(Nnf_Obj* nObj);
 	void print();
+	void Nnf_ManDfs_rec(Nnf_Obj * pObj, vector<Nnf_Obj*> &vNodes);
+	vector<Nnf_Obj*> Nnf_ManDfs();
+	void Nnf_ManTopoId();
 	Aig_Man_t* createAigWithClouds();
 };
 
@@ -79,14 +83,22 @@ static inline bool       Nnf_ObjIsCo(Nnf_Obj * pObj)        { return pObj->Type 
 static inline bool       Nnf_ObjIsAnd(Nnf_Obj * pObj)       { return pObj->Type == NNF_OBJ_AND;    }
 static inline bool       Nnf_ObjIsOr(Nnf_Obj * pObj)        { return pObj->Type == NNF_OBJ_OR;     }
 
-static inline int        Nnf_ObjFaninC0(Nnf_Obj * pObj)     { return Nnf_IsComplement(pObj->pFanin0);        }
-static inline int        Nnf_ObjFaninC1(Nnf_Obj * pObj)     { return Nnf_IsComplement(pObj->pFanin1);        }
+static inline bool       Nnf_ObjFaninC0(Nnf_Obj * pObj)     { return Nnf_IsComplement(pObj->pFanin0);        }
+static inline bool       Nnf_ObjFaninC1(Nnf_Obj * pObj)     { return Nnf_IsComplement(pObj->pFanin1);        }
 static inline Nnf_Obj *  Nnf_ObjFanin0(Nnf_Obj * pObj)      { return Nnf_Regular(pObj->pFanin0);             }
 static inline Nnf_Obj *  Nnf_ObjFanin1(Nnf_Obj * pObj)      { return Nnf_Regular(pObj->pFanin1);             }
 static inline Nnf_Obj *  Nnf_ObjChild0(Nnf_Obj * pObj)      { return pObj->pFanin0;                          }
 static inline Nnf_Obj *  Nnf_ObjChild1(Nnf_Obj * pObj)      { return pObj->pFanin1;                          }
 
+static inline bool       Nnf_ObjIsMarkA(Nnf_Obj * pObj)   	{ return pObj->fMarkA;  }
+static inline void       Nnf_ObjSetMarkA(Nnf_Obj * pObj)  	{ pObj->fMarkA = true;  }
+static inline void       Nnf_ObjClearMarkA(Nnf_Obj * pObj)	{ pObj->fMarkA = false; }
+
 void NNf_ObjSetFanin0(Nnf_Obj* parent, Nnf_Obj* child);
 void NNf_ObjSetFanin1(Nnf_Obj* parent, Nnf_Obj* child);
+// @TODO: Maybe redundant?
+void Nnf_ConeMark_rec(Nnf_Obj * pObj);
+void Nnf_ConeUnmark_rec(Nnf_Obj * pObj);
+
 Nnf_Type SwitchAndOrType(Nnf_Type t);
 string type2String(Nnf_Type t);

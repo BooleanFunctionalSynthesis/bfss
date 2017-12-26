@@ -44,6 +44,10 @@ Nnf_Man::Nnf_Man(Aig_Man_t* pSrc) : Nnf_Man() {
 
 	cout <<"\n\nPushed Bubbles down" << endl;
 	print();
+	Nnf_ManTopoId();
+
+	cout <<"\n\nTopo-sorted" << endl;
+	print();
 }
 
 Nnf_Man::~Nnf_Man() {
@@ -386,6 +390,78 @@ void NNf_ObjSetFanin1(Nnf_Obj* parent, Nnf_Obj* child) {
 		auto p = fanoutSet.insert(parent);
 		assert(p.second);
 	}
+}
+
+void Nnf_ConeMark_rec(Nnf_Obj * pObj) {
+    assert(!Nnf_IsComplement(pObj));
+    if(Nnf_ObjIsMarkA(pObj))
+        return;
+    Nnf_ConeMark_rec(Nnf_ObjFanin0(pObj));
+    Nnf_ConeMark_rec(Nnf_ObjFanin1(pObj));
+    assert(!Nnf_ObjIsMarkA(pObj)); // loop detection
+    Nnf_ObjSetMarkA(pObj);
+}
+
+void Nnf_ConeUnmark_rec(Nnf_Obj * pObj) {
+    assert(!Nnf_IsComplement(pObj));
+    if(!Nnf_ObjIsMarkA(pObj))
+        return;
+    Nnf_ConeUnmark_rec(Nnf_ObjFanin0(pObj));
+    Nnf_ConeUnmark_rec(Nnf_ObjFanin1(pObj));
+    assert(Nnf_ObjIsMarkA(pObj)); // loop detection
+    Nnf_ObjClearMarkA(pObj);
+}
+
+void Nnf_Man::Nnf_ManDfs_rec(Nnf_Obj * pObj, vector<Nnf_Obj*> &vNodes) {
+    if (pObj == NULL)
+        return;
+    assert(!Nnf_IsComplement(pObj));
+    if (Nnf_ObjIsMarkA(pObj))
+        return;
+    Nnf_ObjSetMarkA(pObj);
+    Nnf_ManDfs_rec(Nnf_ObjFanin0(pObj), vNodes);
+    Nnf_ManDfs_rec(Nnf_ObjFanin1(pObj), vNodes);
+	cout << "Pushed " << pObj->Id << endl;
+	vNodes.push_back(pObj);
+}
+
+// Returns Nodes in Toposorted Order
+vector<Nnf_Obj*> Nnf_Man::Nnf_ManDfs() {
+    vector<Nnf_Obj*> vNodes;
+    Nnf_Obj * pObj;
+    int i;
+
+    // Unmark all nodes
+    for(auto it: _allNodes)
+        Nnf_ObjClearMarkA(it);
+
+    // Add const1 and inputs
+    Nnf_ManDfs_rec(const1(), vNodes);
+    for(auto it: _inputs_pos)
+        Nnf_ManDfs_rec(it, vNodes);
+    for(auto it: _inputs_neg)
+        Nnf_ManDfs_rec(it, vNodes);
+
+    // collect nodes reachable in the DFS order
+    for(auto it: _outputs)
+        Nnf_ManDfs_rec(it, vNodes);
+
+    // Unmark all nodes
+    for(auto it: _allNodes)
+        Nnf_ObjClearMarkA(it);
+
+    // @TODO: necessary for size to be same?
+    assert(vNodes.size() == _allNodes.size());
+    return vNodes;
+}
+
+void Nnf_Man::Nnf_ManTopoId() {
+    vector<Nnf_Obj*> vNodes = Nnf_ManDfs();
+    int currId = 0;
+    for(auto it: vNodes)
+		it->Id = currId++;
+    _allNodes = vNodes;
+    return;
 }
 
 Nnf_Type SwitchAndOrType(Nnf_Type t) {
