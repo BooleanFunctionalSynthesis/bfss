@@ -1,7 +1,7 @@
 #include "nnf.h"
 
 Nnf_Obj::Nnf_Obj(int id) : Nnf_Obj(id, NNF_OBJ_NONE) {};
-Nnf_Obj::Nnf_Obj(int id, Nnf_Type t) : Id(id), Type(t), neg(NULL), pFanin0(NULL), pFanin1(NULL), AIG_num(-1) {};
+Nnf_Obj::Nnf_Obj(int id, Nnf_Type t) : Id(id), Type(t), neg(NULL), pFanin0(NULL), pFanin1(NULL), AIG_num(-1), fMarkA(false) {};
 
 void Nnf_Obj::print()
 {
@@ -91,32 +91,6 @@ Nnf_Obj* Nnf_Man::createCo(Nnf_Obj* pDriver) {
 	NNf_ObjSetFanin0(co, pDriver);
 	_outputs.push_back(co);
 	return co;
-}
-
-void Nnf_Man::orderNodes() {
-	vector<Nnf_Obj*> newAllNodes;
-	newAllNodes.push_back(pConst1);
-
-	assert(_inputs_neg.size() == _inputs_pos.size());
-	int numInputs = _inputs_pos.size();
-
-	for (int i = 0; i < numInputs; ++i) {
-		newAllNodes.push_back(_inputs_pos[i]);
-		newAllNodes.push_back(_inputs_neg[i]);
-	}
-
-	for(auto node: _allNodes) {
-		if(!Nnf_ObjIsCi(node)) {
-			newAllNodes.push_back(node);
-		}
-	}
-
-	assert(newAllNodes.size() == _allNodes.size());
-	for (int i = 0; i < newAllNodes.size(); ++i) {
-		newAllNodes[i]->Id = i;
-	}
-
-	_allNodes = newAllNodes;
 }
 
 void Nnf_Man::parse_aig(Aig_Man_t* pSrc) {
@@ -245,11 +219,14 @@ void Nnf_Man::print() {
 	}
 }
 
+Aig_Man_t* Nnf_Man::createAigWithClouds() {return createAig(true);}
+Aig_Man_t* Nnf_Man::createAigWithoutClouds() {return createAig(false);}
+
 // assumes topo-sorted nodes in NNF
 // Objs are ordered as:
 // x1 x1' x2 x2' ... xn xn' ... cloud1 ... cloud2 ... cloud3 ...
 // Note that (CioId != Id+1) for cloud nodes
-Aig_Man_t* Nnf_Man::createAigWithClouds() {
+Aig_Man_t* Nnf_Man::createAig(bool withCloudInputs) {
 	int nNodesMax = 1e5;
 	Aig_Man_t* pMan = Aig_ManStart(nNodesMax);
 
@@ -298,10 +275,14 @@ Aig_Man_t* Nnf_Man::createAigWithClouds() {
 			pObj = Aig_And(pMan, child0, child1);
 
 			// Create Cloud
-			Aig_Obj_t* cloudObj = Aig_ObjCreateCi(pMan);
-			CiCloudIth.push_back(Aig_ObjCioId(cloudObj));
-			node->AIG_num = Aig_ObjCioId(cloudObj);
-			node->pData = Aig_And(pMan, pObj, cloudObj);
+			if(withCloudInputs) {
+				Aig_Obj_t* cloudObj = Aig_ObjCreateCi(pMan);
+				CiCloudIth.push_back(Aig_ObjCioId(cloudObj));
+				node->AIG_num = Aig_ObjCioId(cloudObj);
+				pObj = Aig_And(pMan, pObj, cloudObj);
+			}
+
+			node->pData = pObj;
 		}
 		else if ( Nnf_ObjIsOr(node)) {
 			Aig_Obj_t* child0 = (Aig_Obj_t*) Nnf_ObjFanin0(node)->pData;
@@ -315,10 +296,14 @@ Aig_Man_t* Nnf_Man::createAigWithClouds() {
 			pObj = Aig_Or(pMan, child0, child1);
 
 			// Create Cloud
-			Aig_Obj_t* cloudObj = Aig_ObjCreateCi(pMan);
-			CiCloudIth.push_back(Aig_ObjCioId(cloudObj));
-			node->AIG_num = Aig_ObjCioId(cloudObj);
-			node->pData = Aig_And(pMan, pObj, cloudObj);
+			if(withCloudInputs) {
+				Aig_Obj_t* cloudObj = Aig_ObjCreateCi(pMan);
+				CiCloudIth.push_back(Aig_ObjCioId(cloudObj));
+				node->AIG_num = Aig_ObjCioId(cloudObj);
+				pObj = Aig_And(pMan, pObj, cloudObj);
+			}
+
+			node->pData = pObj;
 		}
 		else {
 			assert(false);
@@ -392,26 +377,6 @@ void NNf_ObjSetFanin1(Nnf_Obj* parent, Nnf_Obj* child) {
 	}
 }
 
-void Nnf_ConeMark_rec(Nnf_Obj * pObj) {
-    assert(!Nnf_IsComplement(pObj));
-    if(Nnf_ObjIsMarkA(pObj))
-        return;
-    Nnf_ConeMark_rec(Nnf_ObjFanin0(pObj));
-    Nnf_ConeMark_rec(Nnf_ObjFanin1(pObj));
-    assert(!Nnf_ObjIsMarkA(pObj)); // loop detection
-    Nnf_ObjSetMarkA(pObj);
-}
-
-void Nnf_ConeUnmark_rec(Nnf_Obj * pObj) {
-    assert(!Nnf_IsComplement(pObj));
-    if(!Nnf_ObjIsMarkA(pObj))
-        return;
-    Nnf_ConeUnmark_rec(Nnf_ObjFanin0(pObj));
-    Nnf_ConeUnmark_rec(Nnf_ObjFanin1(pObj));
-    assert(Nnf_ObjIsMarkA(pObj)); // loop detection
-    Nnf_ObjClearMarkA(pObj);
-}
-
 void Nnf_Man::Nnf_ManDfs_rec(Nnf_Obj * pObj, vector<Nnf_Obj*> &vNodes) {
     if (pObj == NULL)
         return;
@@ -421,7 +386,6 @@ void Nnf_Man::Nnf_ManDfs_rec(Nnf_Obj * pObj, vector<Nnf_Obj*> &vNodes) {
     Nnf_ObjSetMarkA(pObj);
     Nnf_ManDfs_rec(Nnf_ObjFanin0(pObj), vNodes);
     Nnf_ManDfs_rec(Nnf_ObjFanin1(pObj), vNodes);
-	cout << "Pushed " << pObj->Id << endl;
 	vNodes.push_back(pObj);
 }
 
@@ -430,10 +394,6 @@ vector<Nnf_Obj*> Nnf_Man::Nnf_ManDfs() {
     vector<Nnf_Obj*> vNodes;
     Nnf_Obj * pObj;
     int i;
-
-    // Unmark all nodes
-    for(auto it: _allNodes)
-        Nnf_ObjClearMarkA(it);
 
     // Add const1 and inputs
     Nnf_ManDfs_rec(const1(), vNodes);

@@ -40,7 +40,7 @@ class Nnf_Man {
 
 	void parse_aig(Aig_Man_t* pSrc);
 	void makeNnf();
-	void orderNodes();
+	Aig_Man_t* createAig(bool withCloudInputs);
 
 public:
 	Nnf_Man();
@@ -61,6 +61,7 @@ public:
 	vector<Nnf_Obj*> Nnf_ManDfs();
 	void Nnf_ManTopoId();
 	Aig_Man_t* createAigWithClouds();
+	Aig_Man_t* createAigWithoutClouds();
 };
 
 // ===========HELPER ROUTINES========
@@ -96,9 +97,6 @@ static inline void       Nnf_ObjClearMarkA(Nnf_Obj * pObj)	{ pObj->fMarkA = fals
 
 void NNf_ObjSetFanin0(Nnf_Obj* parent, Nnf_Obj* child);
 void NNf_ObjSetFanin1(Nnf_Obj* parent, Nnf_Obj* child);
-// @TODO: Maybe redundant?
-void Nnf_ConeMark_rec(Nnf_Obj * pObj);
-void Nnf_ConeUnmark_rec(Nnf_Obj * pObj);
 
 Nnf_Type SwitchAndOrType(Nnf_Type t);
 string type2String(Nnf_Type t);

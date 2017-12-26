@@ -49,6 +49,14 @@ int main(int argc, char * argv[]) {
 	// ============ TESTING NEW NNF ============
 	Nnf_Man nnfNew(FAig);
 
+	Aig_Man_t* normalAig = nnfNew.createAigWithoutClouds();
+	cout << "\n\nNormal Aig: " << endl;
+	printAig(normalAig);
+
+	Aig_Man_t* cloudAig = nnfNew.createAigWithClouds();
+	cout << "\n\nCloud Aig: " << endl;
+	printAig(cloudAig);
+
 	exit(0);
 	// ============ END ============
 
