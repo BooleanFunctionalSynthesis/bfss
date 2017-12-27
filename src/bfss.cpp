@@ -47,13 +47,18 @@ int main(int argc, char * argv[]) {
 
 	Nnf_Man nnfNew(FAig);
 
+	Aig_Man_t* cloudAig = nnfNew.createAigWithClouds();
+	cout << "\n\nCloud Aig: " << endl;
+	printAig(cloudAig);
+
+	Aig_Man_t* multiCloudAig = nnfNew.createAigMultipleClouds(4);
+	cout << "\n\nMultiple Cloud Aig: " << endl;
+	printAig(multiCloudAig);
+
 	Aig_Man_t* normalAig = nnfNew.createAigWithoutClouds();
 	cout << "\n\nNormal Aig: " << endl;
 	printAig(normalAig);
 
-	// Aig_Man_t* cloudAig = nnfNew.createAigWithClouds();
-	// cout << "\n\nCloud Aig: " << endl;
-	// printAig(cloudAig);
 
 	numOrigInputs = nnfNew.getCiNum();
 	Aig_Man_t* SAig = nnfNew.createAigWithoutClouds();

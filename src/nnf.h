@@ -16,6 +16,7 @@ public:
 	Nnf_Type Type;
 	int Id;
 	int AIG_num;
+	vector<int> AigNumVec;
 	int Orig_AIG_Id;
 	Nnf_Obj* neg;			// Stores negation-node (if available)
 	Nnf_Obj* pFanin0;
@@ -71,6 +72,7 @@ public:
 	void Nnf_ManTopoId();
 	Aig_Man_t* createAigWithClouds();
 	Aig_Man_t* createAigWithoutClouds();
+	Aig_Man_t* createAigMultipleClouds(int numCloudSets);
 };
 
 // ===========HELPER ROUTINES========

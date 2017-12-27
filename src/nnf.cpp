@@ -320,6 +320,111 @@ Aig_Man_t* Nnf_Man::createAig(bool withCloudInputs) {
 	return pMan;
 }
 
+// assumes topo-sorted 	nodes in NNF
+// Objs are ordered as:
+// x1 x1' x2 x2' ... xn xn' ... c1.1 .. c1.2 .. c1.|Y| ... c2.1 .. c2.2 .. c2.|Y| ...
+// Note that (CioId != Id+1) for cloud nodes
+Aig_Man_t* Nnf_Man::createAigMultipleClouds(int numCloudSets) {
+	int nNodesMax = 1e5;
+	Aig_Man_t* pMan = Aig_ManStart(nNodesMax);
+
+	Aig_Obj_t* pObj;
+	vector<int> CiPosIth;
+	vector<int> CiNegIth;
+	vector<vector<int>> CiCloudIth(numCloudSets);
+	vector<vector<int>> CoIth(numCloudSets);
+
+	// Clear Id mappings
+	_origToNewNodeId.clear();
+
+	// Ordering Cis
+	for(auto node: _inputs_pos) {
+		pObj = Aig_ObjCreateCi(pMan);
+		CiPosIth.push_back(Aig_ObjCioId(pObj));
+		node->pData = new vector<Aig_Obj_t*>(numCloudSets, pObj);
+
+		// Build InputID map (original -> new)
+		_origToNewNodeId[node->Orig_AIG_Id] = pObj->Id;
+	}
+	for(auto node: _inputs_neg) {
+		pObj = Aig_ObjCreateCi(pMan);
+		CiNegIth.push_back(Aig_ObjCioId(pObj));
+		node->pData = new vector<Aig_Obj_t*>(numCloudSets, pObj);
+	}
+
+	for(auto node: _allNodes) {
+		if (Nnf_ObjIsConst1(node)) {
+			node->pData = new vector<Aig_Obj_t*>(numCloudSets, Aig_ManConst1(pMan));
+		}
+		else if (Nnf_ObjIsCiPos(node)) {
+			// Handled before
+		}
+		else if (Nnf_ObjIsCiNeg(node)) {
+			// Handled before
+		}
+		else if (Nnf_ObjIsCo(node)) {
+			vector<Aig_Obj_t*>* childVec = (vector<Aig_Obj_t*>*) Nnf_ObjFanin0(node)->pData;
+			assert(!Nnf_ObjFaninC0(node));
+			assert(childVec->size() == numCloudSets);
+
+			node->AigNumVec.resize(numCloudSets);
+			node->pData = new vector<Aig_Obj_t*>(numCloudSets, NULL);
+
+			for(int i = 0; i<numCloudSets; i++) {
+				pObj = (*childVec)[i];
+
+				// Create New Cloud
+				Aig_Obj_t* cloudObj = Aig_ObjCreateCi(pMan);
+				CiCloudIth[i].push_back(Aig_ObjCioId(cloudObj));
+				node->AigNumVec[i] = Aig_ObjCioId(cloudObj);
+				pObj = Aig_And(pMan, pObj, cloudObj);
+
+				pObj = Aig_ObjCreateCo(pMan, pObj);
+				CoIth[i].push_back(Aig_ObjCioId(pObj));
+
+				(*(vector<Aig_Obj_t*>*)node->pData)[i] = pObj;
+			}
+		}
+		else if (Nnf_ObjIsAnd(node) || Nnf_ObjIsOr(node)) {
+			vector<Aig_Obj_t*>* childVec0 = (vector<Aig_Obj_t*>*) Nnf_ObjFanin0(node)->pData;
+			vector<Aig_Obj_t*>* childVec1 = (vector<Aig_Obj_t*>*) Nnf_ObjFanin1(node)->pData;
+			assert(!Nnf_ObjFaninC0(node));
+			assert(!Nnf_ObjFaninC1(node));
+			assert(childVec0->size() == numCloudSets);
+			assert(childVec1->size() == numCloudSets);
+
+			node->AigNumVec.resize(numCloudSets);
+			node->pData = new vector<Aig_Obj_t*>(numCloudSets, NULL);
+
+			for(int i = 0; i<numCloudSets; i++) {
+				auto child0 = (*childVec0)[i];
+				auto child1 = (*childVec1)[i];
+
+				if (Nnf_ObjIsAnd(node))
+					pObj = Aig_And(pMan, child0, child1);
+				else
+					pObj = Aig_Or(pMan, child0, child1);
+
+				// Create New Cloud
+				Aig_Obj_t* cloudObj = Aig_ObjCreateCi(pMan);
+				CiCloudIth[i].push_back(Aig_ObjCioId(cloudObj));
+				node->AigNumVec[i] = Aig_ObjCioId(cloudObj);
+				pObj = Aig_And(pMan, pObj, cloudObj);
+				(*(vector<Aig_Obj_t*>*)node->pData)[i] = pObj;
+			}
+		}
+		else {
+			assert(false);
+		}
+	}
+
+	for(auto node: _allNodes) {
+		delete (vector<Aig_Obj_t*>*)node->pData;
+	}
+
+	return pMan;
+}
+
 void NNf_ObjSetFanin0(Nnf_Obj* parent, Nnf_Obj* child) {
 	assert(!Nnf_IsComplement(parent));
 
