@@ -544,9 +544,9 @@ void initializeCompose(Aig_Man_t* SAig, vector<Aig_Obj_t* >& Fs,
 		}
 		for(int j = 0; j < numY; j++) {
 			if(j < i) {
-				funcVec.push_back(Aig_Not(Aig_ManConst0(SAig)));
+				funcVec.push_back(Aig_ManConst1(SAig));
 			} else if(j == i) {
-				funcVec.push_back(Aig_Not(Aig_ManConst1(SAig)));
+				funcVec.push_back(Aig_ManConst0(SAig));
 			} else {
 				funcVec.push_back(Aig_ManObj(SAig, varsYS[j]));
 			}
@@ -556,7 +556,7 @@ void initializeCompose(Aig_Man_t* SAig, vector<Aig_Obj_t* >& Fs,
 		}
 		for(int j = 0; j < numY; j++) {
 			if(j <= i) {
-				funcVec.push_back(Aig_Not(Aig_ManConst0(SAig)));
+				funcVec.push_back(Aig_ManConst1(SAig));
 			} else {
 				funcVec.push_back(Aig_Not(Aig_ManObj(SAig, varsYS[j])));
 			}
@@ -571,7 +571,7 @@ void initializeCompose(Aig_Man_t* SAig, vector<Aig_Obj_t* >& Fs,
 		}
 		for(int j = 0; j < numY; j++) {
 			if(j <= i) {
-				funcVec.push_back(Aig_Not(Aig_ManConst0(SAig)));
+				funcVec.push_back(Aig_ManConst1(SAig));
 			} else {
 				funcVec.push_back(Aig_ManObj(SAig, varsYS[j]));
 			}
@@ -581,9 +581,9 @@ void initializeCompose(Aig_Man_t* SAig, vector<Aig_Obj_t* >& Fs,
 		}
 		for(int j = 0; j < numY; j++) {
 			if(j < i) {
-				funcVec.push_back(Aig_Not(Aig_ManConst0(SAig)));
+				funcVec.push_back(Aig_ManConst1(SAig));
 			} else if(j == i) {
-				funcVec.push_back(Aig_Not(Aig_ManConst1(SAig)));
+				funcVec.push_back(Aig_ManConst0(SAig));
 			} else {
 				funcVec.push_back(Aig_Not(Aig_ManObj(SAig, varsYS[j])));
 			}

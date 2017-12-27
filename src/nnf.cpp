@@ -291,31 +291,16 @@ Aig_Man_t* Nnf_Man::createAig(bool withCloudInputs) {
 			node->AIG_num = Nnf_ObjFanin0(node)->AIG_num;
 			node->pData = pObj;
 		}
-		else if (Nnf_ObjIsAnd(node)) {
+		else if (Nnf_ObjIsAnd(node) || Nnf_ObjIsOr(node)) {
 			Aig_Obj_t* child0 = (Aig_Obj_t*) Nnf_ObjFanin0(node)->pData;
 			assert(!Nnf_ObjFaninC0(node));
 			Aig_Obj_t* child1 = (Aig_Obj_t*) Nnf_ObjFanin1(node)->pData;
 			assert(!Nnf_ObjFaninC1(node));
 
-			pObj = Aig_And(pMan, child0, child1);
-
-			// Create Cloud
-			if(withCloudInputs) {
-				Aig_Obj_t* cloudObj = Aig_ObjCreateCi(pMan);
-				CiCloudIth.push_back(Aig_ObjCioId(cloudObj));
-				node->AIG_num = Aig_ObjCioId(cloudObj);
-				pObj = Aig_And(pMan, pObj, cloudObj);
-			}
-
-			node->pData = pObj;
-		}
-		else if ( Nnf_ObjIsOr(node)) {
-			Aig_Obj_t* child0 = (Aig_Obj_t*) Nnf_ObjFanin0(node)->pData;
-			assert(!Nnf_ObjFaninC0(node));
-			Aig_Obj_t* child1 = (Aig_Obj_t*) Nnf_ObjFanin1(node)->pData;
-			assert(!Nnf_ObjFaninC1(node));
-
-			pObj = Aig_Or(pMan, child0, child1);
+			if (Nnf_ObjIsAnd(node))
+				pObj = Aig_And(pMan, child0, child1);
+			else
+				pObj = Aig_Or(pMan, child0, child1);
 
 			// Create Cloud
 			if(withCloudInputs) {
