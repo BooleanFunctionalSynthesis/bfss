@@ -15,9 +15,9 @@ class Nnf_Obj {
 public:
 	Nnf_Type Type;
 	int Id;
-	int AIG_num;
+	int AigNum;
 	vector<int> AigNumVec;
-	int Orig_AIG_Id;
+	int OrigAigId;
 	Nnf_Obj* neg;			// Stores negation-node (if available)
 	Nnf_Obj* pFanin0;
 	Nnf_Obj* pFanin1;

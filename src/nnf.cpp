@@ -1,7 +1,7 @@
 #include "nnf.h"
 
 Nnf_Obj::Nnf_Obj(int id) : Nnf_Obj(id, NNF_OBJ_NONE) {};
-Nnf_Obj::Nnf_Obj(int id, Nnf_Type t) : Id(id), Type(t), neg(NULL), pFanin0(NULL), pFanin1(NULL), AIG_num(-1), fMarkA(false) {};
+Nnf_Obj::Nnf_Obj(int id, Nnf_Type t) : Id(id), Type(t), neg(NULL), pFanin0(NULL), pFanin1(NULL), AigNum(-1), fMarkA(false) {};
 
 void Nnf_Obj::print()
 {
@@ -120,19 +120,19 @@ void Nnf_Man::parse_aig(Aig_Man_t* pSrc) {
 	Aig_ManForEachObj( pSrc, pObj, i ) {
 		if(Aig_ObjIsConst1(pObj)) {
 			nObj = this->pConst1;
-			nObj->Orig_AIG_Id = pObj->Id;
+			nObj->OrigAigId = pObj->Id;
 			pObj->pData = nObj;
 		}
 		else if(Aig_ObjIsCi(pObj)) {
 			nObj = this->createCi();
-			nObj->Orig_AIG_Id = pObj->Id;
+			nObj->OrigAigId = pObj->Id;
 			pObj->pData = nObj;
 		}
 		else if(Aig_ObjIsCo(pObj)) {
 			Nnf_Obj* child = (Nnf_Obj*) Aig_ObjFanin0(pObj)->pData;
 			child = Nnf_NotCond(child, Aig_ObjFaninC0(pObj));
 			nObj = this->createCo(child);
-			nObj->Orig_AIG_Id = pObj->Id;
+			nObj->OrigAigId = pObj->Id;
 			pObj->pData = nObj;
 		}
 		else if(Aig_ObjIsAnd(pObj)) {
@@ -155,7 +155,7 @@ void Nnf_Man::parse_aig(Aig_Man_t* pSrc) {
 			nObj = this->createNode(NNF_OBJ_AND);
 			NNf_ObjSetFanin0(nObj, child0);
 			NNf_ObjSetFanin1(nObj, child1);
-			nObj->Orig_AIG_Id = pObj->Id;
+			nObj->OrigAigId = pObj->Id;
 			pObj->pData = nObj;
 		}
 		else {
@@ -260,16 +260,16 @@ Aig_Man_t* Nnf_Man::createAig(bool withCloudInputs) {
 	for(auto node: _inputs_pos) {
 		pObj = Aig_ObjCreateCi(pMan);
 		CiPosIth.push_back(Aig_ObjCioId(pObj));
-		node->AIG_num = Aig_ObjCioId(pObj);
+		node->AigNum = Aig_ObjCioId(pObj);
 		node->pData = pObj;
 
 		// Build InputID map (original -> new)
-		_origToNewNodeId[node->Orig_AIG_Id] = pObj->Id;
+		_origToNewNodeId[node->OrigAigId] = pObj->Id;
 	}
 	for(auto node: _inputs_neg) {
 		pObj = Aig_ObjCreateCi(pMan);
 		CiNegIth.push_back(Aig_ObjCioId(pObj));
-		node->AIG_num = Aig_ObjCioId(pObj);
+		node->AigNum = Aig_ObjCioId(pObj);
 		node->pData = pObj;
 	}
 
@@ -288,7 +288,7 @@ Aig_Man_t* Nnf_Man::createAig(bool withCloudInputs) {
 			assert(!Nnf_ObjFaninC0(node));
 			pObj = Aig_ObjCreateCo(pMan, child);
 			CoIth.push_back(Aig_ObjCioId(pObj));
-			node->AIG_num = Nnf_ObjFanin0(node)->AIG_num;
+			node->AigNum = Nnf_ObjFanin0(node)->AigNum;
 			node->pData = pObj;
 		}
 		else if (Nnf_ObjIsAnd(node) || Nnf_ObjIsOr(node)) {
@@ -306,7 +306,7 @@ Aig_Man_t* Nnf_Man::createAig(bool withCloudInputs) {
 			if(withCloudInputs) {
 				Aig_Obj_t* cloudObj = Aig_ObjCreateCi(pMan);
 				CiCloudIth.push_back(Aig_ObjCioId(cloudObj));
-				node->AIG_num = Aig_ObjCioId(cloudObj);
+				node->AigNum = Aig_ObjCioId(cloudObj);
 				pObj = Aig_And(pMan, pObj, cloudObj);
 			}
 
@@ -344,7 +344,7 @@ Aig_Man_t* Nnf_Man::createAigMultipleClouds(int numCloudSets) {
 		node->pData = new vector<Aig_Obj_t*>(numCloudSets, pObj);
 
 		// Build InputID map (original -> new)
-		_origToNewNodeId[node->Orig_AIG_Id] = pObj->Id;
+		_origToNewNodeId[node->OrigAigId] = pObj->Id;
 	}
 	for(auto node: _inputs_neg) {
 		pObj = Aig_ObjCreateCi(pMan);
