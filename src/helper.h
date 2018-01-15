@@ -52,6 +52,7 @@ Abc_Ntk_t * Abc_NtkFromAigPhase(Aig_Man_t * pMan);
 #define REF_COLLAPSE_PARAM	3
 #define UNIGEN_THRESHOLD 	0.3
 #define WAIT_SAMPLES_DEF 	110
+#define FMCAD_SIZE_THRESH	1e6
 
 // #define DEBUG
 // #define DEBUG_CHUNK
@@ -88,6 +89,7 @@ struct optionStruct {
 	bool 	noRevSub;
 	bool 	verify;
 	bool 	noUnate;
+	int 	fmcadSizeThreshold;
 };
 
 extern vector<int> varsSInv;
@@ -104,6 +106,7 @@ extern int numCEX;
 extern int numCEXUsed;
 extern cxxopts::Options optParser;
 extern optionStruct options;
+extern optionStruct optionsOriginal;
 extern vector<vector<int> > k2Trend;
 extern double sat_solving_time;
 extern double verify_sat_solving_time;

@@ -20,6 +20,7 @@ int numCEXUsed = 0;
 bool initCollapseDone = false;
 cxxopts::Options optParser("bfss", "bfss: Blazingly Fast Skolem Synthesis");
 optionStruct options;
+optionStruct optionsOriginal;
 vector<vector<int> > k2Trend;
 vector<vector<bool> > storedCEX_r0Sat;
 vector<vector<bool> > storedCEX_r1Sat;
@@ -64,6 +65,7 @@ void parseOptions(int argc, char * argv[]) {
 		("noRevSub", "Don't reverse substitute", cxxopts::value<bool>(options.noRevSub))
 		("verify", "Veify computed skolem functions", cxxopts::value<bool>(options.verify))
 		("noUnate", "Don't find and substitute unates", cxxopts::value<bool>(options.noUnate))
+		("fmcadSizeThresh", "Size after which to turn off fmcad (default: " STR(FMCAD_SIZE_THRESH) ")", cxxopts::value<int>(options.fmcadSizeThreshold), "N")
 		("positional",
 			"Positional arguments: these are the arguments that are entered "
 			"without an option", cxxopts::value<std::vector<string>>())
@@ -202,6 +204,8 @@ void parseOptions(int argc, char * argv[]) {
 	}
 
 	options.noUnate = options.noUnate || options.monoSkolem;
+
+	optionsOriginal = options;
 
 	unigen_argv[1] = (char*)((new string("--samples="+to_string(options.numSamples)))->c_str());
 	unigen_argv[2] = (char*)((new string("--threads="+to_string(options.numThreads)))->c_str());
@@ -1676,6 +1680,19 @@ void updateAbsRef(Aig_Man_t*&pMan, int M, int k1Level, int k1MaxLevel, vector<ve
 	// #########################################
 	// SECTION C: k1+c -> fmcad ################
 	// #########################################
+	if(optionsOriginal.useFmcadPhase) {
+		int size = Aig_ManAndNum(pMan);
+		if(size  > options.fmcadSizeThreshold and options.useFmcadPhase) {
+			printf("Aig Size (%d) exceeded Threshold (%d), turning off fmcad\n",
+					size, options.fmcadSizeThreshold);
+			options.useFmcadPhase = false;
+		}
+		else if(size  <= options.fmcadSizeThreshold and !options.useFmcadPhase) {
+			printf("Aig Size (%d) less than Threshold (%d), turning on fmcad\n",
+					size, options.fmcadSizeThreshold);
+			options.useFmcadPhase = true;
+		}
+	}
 	if(options.useFmcadPhase and !releventCEX.empty()) {
 		bool continueFmcad = true;
 		fmcadPhaseStart = max(fmcadPhaseStart, exhaustiveCollapsedTill);
