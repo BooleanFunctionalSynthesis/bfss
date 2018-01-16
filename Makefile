@@ -5,7 +5,7 @@ ifndef ABC_PATH
 export ABC_PATH = ${HOME}/abc
 endif
 export ABC_INCLUDES = -I$(ABC_PATH) -I$(ABC_PATH)/src
-export LIB_UNIGEN = /usr/local/lib/libunigen.a
+export LIB_UNIGEN = /usr/local/lib/libcryptominisat5.so.5.0 -lboost_program_options
 export LIB_ABC = lib/libabc.a
 
 SRCDIR   = src
@@ -19,7 +19,7 @@ CC       = g++
 CPP_FLAGS = -g -std=c++11
 
 # linking flags here
-LFLAGS   = -g -std=c++11 $(LIB_UNIGEN) $(LIB_ABC) -lm -ldl -rdynamic -lreadline -ltermcap -lpthread -fopenmp -lrt $(ABC_INCLUDES)
+LFLAGS   = -g -std=c++11 $(LIB_ABC) $(LIB_UNIGEN) -lm -ldl -rdynamic -lreadline -ltermcap -lpthread -fopenmp -lrt $(ABC_INCLUDES)
 
 SOURCES  := $(wildcard $(SRCDIR)/*.cpp)
 INCLUDES := $(wildcard $(SRCDIR)/*.h)
@@ -34,7 +34,7 @@ $(BINDIR)/$(TARGET): $(OBJECTS)
 	@echo "Linking complete!"
 
 $(OBJECTS): $(OBJDIR)/%.o : $(SRCDIR)/%.cpp
-	$(CC) $(CPP_FLAGS) -c $^ -o $@ $(ABC_INCLUDES)
+	$(CC) $(CPP_FLAGS) -c $^ -o $@  $(LIB_UNIGEN) $(ABC_INCLUDES)
 	@echo "Compiled "$<" successfully!"
 
 .PHONY: all

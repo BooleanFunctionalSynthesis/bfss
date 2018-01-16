@@ -13,10 +13,10 @@
 #include <sstream>
 #include <ctime>
 #include <signal.h>
-#include "cmsat/Main.h"
+#include "cryptominisat5/cusp.h"
 #include "cxxopts.hpp"
 
-using namespace std;
+#define ABC_NAMESPACE NS_ABC
 
 extern "C" {
 #include "base/abc/abc.h"
@@ -31,9 +31,16 @@ extern "C" {
 #include "opt/mfs/mfs.h"
 #include "opt/mfs/mfsInt.h"
 #include "bool/kit/kit.h"
-Aig_Man_t * Abc_NtkToDar(Abc_Ntk_t * pNtk, int fExors, int fRegisters);
-Abc_Ntk_t * Abc_NtkFromAigPhase(Aig_Man_t * pMan);
 }
+namespace ABC_NAMESPACE {
+	extern "C" {
+	Aig_Man_t * Abc_NtkToDar(Abc_Ntk_t * pNtk, int fExors, int fRegisters);
+	Abc_Ntk_t * Abc_NtkFromAigPhase(Aig_Man_t * pMan);
+	}
+}
+
+using namespace std;
+using namespace ABC_NAMESPACE;
 
 #define STR_HELPER(X)		#X
 #define STR(X)				STR_HELPER(X)

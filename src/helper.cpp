@@ -2,6 +2,8 @@
 // #include "formula.h"
 #include "nnf.h"
 
+using namespace ABC_NAMESPACE;
+
 vector<vector<int> > storedCEX;
 vector<int> storedCEX_k1;
 vector<int> storedCEX_k2;
@@ -1018,7 +1020,7 @@ bool getNextCEX(Aig_Man_t*&SAig, int& M, int& k1Level, int& k1MaxLevel, vector<v
 
 bool populateCEX(Aig_Man_t* SAig,
 	vector<vector<int> > &r0, vector<vector<int> > &r1) {
-	if(!CMSat::Main::unigenRunning && CMSat::Main::getSolutionMapSize() == 0) {
+	if(!CMSat::CUSP::unigenRunning && CMSat::CUSP::getSolutionMapSize() == 0) {
 		if(populateStoredCEX(SAig, r0, r1, true)) {
 			// Add to numCEX
 			numCEX += storedCEX.size();
@@ -1045,19 +1047,19 @@ bool populateCEX(Aig_Man_t* SAig,
 	else {
 		cout << "PACratio:           " << 0 << endl;
 	}
-	if(finSize < solsJustFetched*options.unigenThreshold and CMSat::Main::unigenRunning) {
+	if(finSize < solsJustFetched*options.unigenThreshold and CMSat::CUSP::unigenRunning) {
 		cout << "PACratio too low, Terminating Unigen prematurely" << endl;
-		CMSat::Main::prematureKill = true;
+		CMSat::CUSP::prematureKill = true;
 		pthread_join(unigen_threadId, NULL);
 
 		pthread_mutex_lock(&CMSat::mu_lock);
-		CMSat::Main::unigenRunning = false;
+		CMSat::CUSP::unigenRunning = false;
 		pthread_cond_signal(&CMSat::lilCondVar);
 		pthread_mutex_unlock(&CMSat::mu_lock);
 		unigen_threadId = -1;
 	}
 
-	// if(!CMSat::Main::unigenRunning && CMSat::Main::getSolutionMapSize() == 0) {
+	// if(!CMSat::CUSP::unigenRunning && CMSat::CUSP::getSolutionMapSize() == 0) {
 	// 	if(populateStoredCEX(SAig, r0, r1, false)) {
 	// 		// Add to numCEX
 	// 		numCEX += storedCEX.size();
@@ -2432,15 +2434,16 @@ void Sat_SolverWriteDimacsAndIS(sat_solver * p, char * pFileName,
 void* unigenCallThread(void* i) {
 	auto start = std::chrono::steady_clock::now();
 	pthread_mutex_lock(&CMSat::mu_lock);
-	CMSat::Main::unigenRunning = true;
+	CMSat::CUSP::unigenRunning = true;
 	pthread_mutex_unlock(&CMSat::mu_lock);
 
-	CMSat::Main unigenCall(unigen_argc, unigen_argv);
+	CMSat::CUSP unigenCall(unigen_argc, unigen_argv);
+	unigenCall.conf.verbStats = 1;
 	unigenCall.parseCommandLine();
-	unigenCall.singleThreadSolve();
+	unigenCall.solve();
 
 	pthread_mutex_lock(&CMSat::mu_lock);
-	CMSat::Main::unigenRunning = false;
+	CMSat::CUSP::unigenRunning = false;
 	pthread_cond_signal(&CMSat::lilCondVar);
 	pthread_mutex_unlock(&CMSat::mu_lock);
 	unigen_threadId = -1;
@@ -2473,10 +2476,10 @@ int unigen_call(string fname, int nSamples, int nThreads) {
 
 
 	// Initializations
-	CMSat::Main::prematureKill = false;
-	CMSat::Main::firstFetch    = true;
-	CMSat::Main::initStat = CMSat::initialStatus::udef;
-	CMSat::Main::unigenCalledAt = chrono::steady_clock::now();
+	CMSat::CUSP::prematureKill = false;
+	CMSat::CUSP::firstFetch    = true;
+	CMSat::CUSP::initStat = CMSat::initialStatus::udef;
+	CMSat::CUSP::unigenCalledAt = chrono::steady_clock::now();
 	cexSeen.clear();
 
 	// Thread Creation
@@ -2485,11 +2488,11 @@ int unigen_call(string fname, int nSamples, int nThreads) {
 		pthread_join(unigen_threadId, NULL);
 
 	pthread_mutex_lock(&CMSat::stat_lock);
-	while(CMSat::Main::initStat == CMSat::initialStatus::udef)
+	while(CMSat::CUSP::initStat == CMSat::initialStatus::udef)
 		pthread_cond_wait(&CMSat::statCondVar, &CMSat::stat_lock);
 	pthread_mutex_unlock(&CMSat::stat_lock);
 
-	switch(CMSat::Main::initStat) {
+	switch(CMSat::CUSP::initStat) {
 		case CMSat::initialStatus::unsat: return 0;
 		case CMSat::initialStatus::tooLittle: return -1;
 		case CMSat::initialStatus::sat: return 1;
@@ -2504,7 +2507,7 @@ bool unigen_fetchModels(Aig_Man_t* SAig, vector<vector<int> > &r0,
 
 	bool flag = false;
 	string line;
-	auto storedSolutionMap = CMSat::Main::fetchSolutionMap(options.waitSamples);
+	auto storedSolutionMap = CMSat::CUSP::fetchSolutionMap(options.waitSamples);
 	solsJustFetched = 0;
 	for(auto it:storedSolutionMap) {
 		line = it.first;

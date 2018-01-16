@@ -47,17 +47,17 @@ int main(int argc, char * argv[]) {
 
 	Nnf_Man nnfNew(FAig);
 
-	Aig_Man_t* cloudAig = nnfNew.createAigWithClouds();
-	cout << "\n\nCloud Aig: " << endl;
-	printAig(cloudAig);
+	// Aig_Man_t* cloudAig = nnfNew.createAigWithClouds();
+	// cout << "\n\nCloud Aig: " << endl;
+	// printAig(cloudAig);
 
-	Aig_Man_t* multiCloudAig = nnfNew.createAigMultipleClouds(4);
-	cout << "\n\nMultiple Cloud Aig: " << endl;
-	printAig(multiCloudAig);
+	// Aig_Man_t* multiCloudAig = nnfNew.createAigMultipleClouds(4);
+	// cout << "\n\nMultiple Cloud Aig: " << endl;
+	// printAig(multiCloudAig);
 
-	Aig_Man_t* normalAig = nnfNew.createAigWithoutClouds();
-	cout << "\n\nNormal Aig: " << endl;
-	printAig(normalAig);
+	// Aig_Man_t* normalAig = nnfNew.createAigWithoutClouds();
+	// cout << "\n\nNormal Aig: " << endl;
+	// printAig(normalAig);
 
 
 	numOrigInputs = nnfNew.getCiNum();
@@ -282,7 +282,7 @@ int main(int argc, char * argv[]) {
 	total_main_time = std::chrono::duration_cast<std::chrono::microseconds>(main_end - main_start).count()/1000000.0;
 	cout<< "Total main time:         " << total_main_time << endl;
 	cout<< "Total SAT solving time:  " << sat_solving_time << endl;
-	cout<< "Total Dead time:         " << CMSat::Main::totalDeadTime << endl;
+	cout<< "Total Dead time:         " << CMSat::CUSP::totalDeadTime << endl;
 
 	assert(verifyResult(SAig, r0, r1, 0));
 	cout<< "Verify SAT solving time: " << verify_sat_solving_time << endl;
