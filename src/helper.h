@@ -13,7 +13,7 @@
 #include <sstream>
 #include <ctime>
 #include <signal.h>
-#include "cryptominisat5/cusp.h"
+#include "cusp.h"
 #include "cxxopts.hpp"
 
 #define ABC_NAMESPACE NS_ABC

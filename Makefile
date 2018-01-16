@@ -5,8 +5,8 @@ ifndef ABC_PATH
 export ABC_PATH = ${HOME}/abc
 endif
 export ABC_INCLUDES = -I$(ABC_PATH) -I$(ABC_PATH)/src
-export LIB_UNIGEN = /usr/local/lib/libcryptominisat5.so.5.0 -lboost_program_options
-export LIB_ABC = lib/libabc.a
+export LIB_UNIGEN = ~/Github/scalmcSampling/build/lib/libcryptominisat5.a -I/home/shubham/Github/scalmcSampling/build/cmsat5-src/ -I/home/shubham/Github/scalmcSampling/src/
+export LIB_ABC = lib/libabc.a -I$(ABC_INCLUDES)
 
 SRCDIR   = src
 OBJDIR   = obj
@@ -19,7 +19,7 @@ CC       = g++
 CPP_FLAGS = -g -std=c++11
 
 # linking flags here
-LFLAGS   = -g -std=c++11 $(LIB_ABC) $(LIB_UNIGEN) -lm -ldl -rdynamic -lreadline -ltermcap -lpthread -fopenmp -lrt $(ABC_INCLUDES)
+LFLAGS   = $(LIB_ABC) $(LIB_UNIGEN) -lm -ldl -rdynamic -lreadline -ltermcap -lpthread -fopenmp -lrt -lboost_program_options -lz -lm4ri
 
 SOURCES  := $(wildcard $(SRCDIR)/*.cpp)
 INCLUDES := $(wildcard $(SRCDIR)/*.h)
@@ -30,11 +30,11 @@ rm       = rm -f
 
 
 $(BINDIR)/$(TARGET): $(OBJECTS)
-	$(CC) $(CPP_FLAGS) -o $@ $^ $(LFLAGS) $(ABC_INCLUDES)
+	$(CC) $(CPP_FLAGS) -o $@ $^ $(LFLAGS)
 	@echo "Linking complete!"
 
 $(OBJECTS): $(OBJDIR)/%.o : $(SRCDIR)/%.cpp
-	$(CC) $(CPP_FLAGS) -c $^ -o $@  $(LIB_UNIGEN) $(ABC_INCLUDES)
+	$(CC) $(CPP_FLAGS) -c $^ -o $@  $(LFLAGS)
 	@echo "Compiled "$<" successfully!"
 
 .PHONY: all

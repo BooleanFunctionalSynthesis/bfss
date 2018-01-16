@@ -27,11 +27,22 @@ vector<vector<int> > k2Trend;
 vector<vector<bool> > storedCEX_r0Sat;
 vector<vector<bool> > storedCEX_r1Sat;
 int exhaustiveCollapsedTill = 0;
-int unigen_argc = 15;
-char* unigen_argv[] = {"./unigen", "--samples=2200", "--threads=4", "--kappa=0.638", \
-						"--pivotUniGen=27.0", "--maxTotalTime=72000", "--startIteration=0", \
-						"--maxLoopTime=3000", "--tApproxMC=1", "--pivotAC=60", "--gaussuntil=400", \
-						"--verbosity=0", "--multisample", UNIGEN_DIMAC_FNAME, UNIGEN_MODEL_FPATH};
+// int unigen_argc = 15;
+// int unigen_samples_argnum = 1;
+// int unigen_threads_argnum = 2;
+// int unigen_cnfname_argnum = 13;
+// char* unigen_argv[] = {"./unigen", "--samples=2200", "--threads=4", "--kappa=0.638", \
+// 						"--pivotUniGen=27.0", "--maxTotalTime=72000", "--startIteration=0", \
+// 						"--maxLoopTime=3000", "--tApproxMC=1", "--pivotAC=60", "--gaussuntil=400", \
+// 						"--verbosity=0", "--multisample", UNIGEN_DIMAC_FNAME, UNIGEN_MODEL_FPATH};
+int unigen_argc = 8;
+int unigen_samples_argnum = 1;
+int unigen_threads_argnum = 2;
+int unigen_cnfname_argnum = 7;
+char* unigen_argv[] = {"./scalmc", "--samples=2200", "--threads=4", "--kappa=0.638", \
+						"--startIteration=0", \
+						"--tApproxMC=1", "--pivotAC=60", \
+						UNIGEN_DIMAC_FNAME};
 pthread_t unigen_threadId = -1;
 map<int, int> varNum2ID;
 map<int, int> varNum2R0R1;
@@ -2463,9 +2474,9 @@ int unigen_call(string fname, int nSamples, int nThreads) {
 	assert(fname.find(' ') == string::npos);
 	system("rm -rf " UNIGEN_OUT_DIR "/*");
 
-	unigen_argv[1] = (char*)((new string("--samples="+to_string(nSamples)))->c_str());
-	unigen_argv[2] = (char*)((new string("--threads="+to_string(nThreads)))->c_str());
-	unigen_argv[13] = (char*)((new string(fname))->c_str());
+	unigen_argv[unigen_samples_argnum] = (char*)((new string("--samples="+to_string(nSamples)))->c_str());
+	unigen_argv[unigen_threads_argnum] = (char*)((new string("--threads="+to_string(nThreads)))->c_str());
+	unigen_argv[unigen_cnfname_argnum] = (char*)((new string(fname))->c_str());
 
 	string cmd;
 	for (int i = 0; i < unigen_argc; ++i) {
