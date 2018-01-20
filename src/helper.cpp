@@ -226,13 +226,13 @@ void parseOptions(int argc, char * argv[]) {
 
 	cout << "Configuration: " << endl;
 	cout << "{" << endl;
-	cout << "\t proactiveProp:        " << options.proactiveProp << endl;
-	cout << "\t useABCSolver:         " << options.useABCSolver << endl;
-	cout << "\t out:                  " << options.outFName << endl;
-	cout << "\t evalAigAtNode:        " << options.evalAigAtNode << endl;
 	cout << "\t benchmark:            " << options.benchmark << endl;
 	cout << "\t varsOrder:            " << options.varsOrder << endl;
+	cout << "\t out:                  " << options.outFName << endl;
 	cout << "\t skolemType:           " << options.skolemType << endl;
+	cout << "\t useABCSolver:         " << options.useABCSolver << endl;
+	cout << "\t evalAigAtNode:        " << options.evalAigAtNode << endl;
+	cout << "\t proactiveProp:        " << options.proactiveProp << endl;
 	cout << "\t numSamples:           " << options.numSamples << endl;
 	cout << "\t numThreads:           " << options.numThreads << endl;
 	cout << "\t initCollapseParam:    " << options.c1 << endl;
@@ -246,6 +246,7 @@ void parseOptions(int argc, char * argv[]) {
 	cout << "\t noRevSub:             " << options.noRevSub << endl;
 	cout << "\t verify:               " << options.verify << endl;
 	cout << "\t noUnate:              " << options.noUnate << endl;
+	cout << "\t fmcadSizeThreshold:   " << options.fmcadSizeThreshold << endl;
 	cout << "}" << endl;
 }
 

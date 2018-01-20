@@ -5,7 +5,7 @@ ifndef ABC_PATH
 export ABC_PATH = ${HOME}/abc
 endif
 export ABC_INCLUDES = -I$(ABC_PATH) -I$(ABC_PATH)/src
-export LIB_UNIGEN = ~/Github/scalmcSampling/build/lib/libcryptominisat5.a -I/home/shubham/Github/scalmcSampling/build/cmsat5-src/ -I/home/shubham/Github/scalmcSampling/src/
+export LIB_UNIGEN = ~/Github/scalmcSampling/build/lib/libcryptominisat5.so -I/home/shubham/Github/scalmcSampling/build/cmsat5-src/ -I/home/shubham/Github/scalmcSampling/src/
 export LIB_ABC = lib/libabc.a -I$(ABC_INCLUDES)
 
 SRCDIR   = src
