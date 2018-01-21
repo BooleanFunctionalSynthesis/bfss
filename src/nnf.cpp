@@ -33,21 +33,21 @@ Nnf_Man::Nnf_Man() {
 
 Nnf_Man::Nnf_Man(Aig_Man_t* pSrc) : Nnf_Man() {
 	cout <<"\n\nInitially" << endl;
-	print();
+	// print();
 
 	cout <<"\n\nParsing..." << endl;
 	parse_aig(pSrc);
 
 	cout <<"\n\nParsed Aig" << endl;
-	print();
+	// print();
 	makeNnf();
 
 	cout <<"\n\nPushed Bubbles down" << endl;
-	print();
+	// print();
 	Nnf_ManTopoId();
 
 	cout <<"\n\nTopo-sorted" << endl;
-	print();
+	// print();
 }
 
 Nnf_Man::~Nnf_Man() {

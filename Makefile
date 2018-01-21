@@ -44,11 +44,11 @@ rm       = rm -f
 
 
 $(BINDIR)/$(TARGET): $(OBJECTS)
-	$(CC) $(CPP_FLAGS) -o $@ $^ $(LFLAGS)
+	$(CXX) $(CPP_FLAGS) -o $@ $^ $(LFLAGS)
 	@echo "Linking complete!"
 
 $(OBJECTS): $(OBJDIR)/%.o : $(SRCDIR)/%.cpp
-	$(CC) $(CPP_FLAGS) -c $^ -o $@  $(LFLAGS)
+	$(CXX) $(CPP_FLAGS) -c $^ -o $@  $(LFLAGS)
 	@echo "Compiled "$<" successfully!"
 
 .PHONY: all
