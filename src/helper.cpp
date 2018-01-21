@@ -218,6 +218,15 @@ void parseOptions(int argc, char * argv[]) {
 
 	options.noUnate = options.noUnate || options.monoSkolem;
 
+	if (!optParser.count("fmcadSizeThres")) {
+		options.fmcadSizeThreshold = FMCAD_SIZE_THRESH;
+	}
+	else if(options.fmcadSizeThreshold < 0) {
+		cerr << endl << "Error: FMCAD Size threshold must be non-negative" << endl << endl;
+		cout << optParser.help({"", "Group"}) << std::endl;
+		exit(0);
+	}
+
 	optionsOriginal = options;
 
 	unigen_argv[1] = (char*)((new string("--samples="+to_string(options.numSamples)))->c_str());
