@@ -35,6 +35,9 @@ Nnf_Man::Nnf_Man(Aig_Man_t* pSrc) : Nnf_Man() {
 	cout <<"\n\nInitially" << endl;
 	// print();
 
+	int rem = Aig_ManCleanup(pSrc);
+	cout << "\n\nRemoved " << rem << " nodes during cleanup" << endl;
+
 	cout <<"\n\nParsing..." << endl;
 	parse_aig(pSrc);
 

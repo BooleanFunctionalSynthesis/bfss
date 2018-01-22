@@ -3155,7 +3155,7 @@ void checkUnateAll(Aig_Man_t* FAig, vector<int>&unate){
 				status = sat_solver_solve(pSat, LA, LA+1, (ABC_INT64_T)0, (ABC_INT64_T)0, (ABC_INT64_T)0, (ABC_INT64_T)0);
 				if (status == l_False) {
 					unate[i] = 1;
-					cerr << "Var y" << i << " is positive unate" << endl;
+					cout << "Var y" << i << " is positive unate" << endl;
 					// sat_solver_push(pSat, toLitCond(SCnf->pVarNums[varsYF[i]-1],0));
 					addVarToSolver(pSat, SCnf->pVarNums[varsYF[i]-1], 1);
 					numUnate++;
@@ -3167,7 +3167,7 @@ void checkUnateAll(Aig_Man_t* FAig, vector<int>&unate){
 				LA[0] = toLitCond(getCnfCoVarNum(SCnf, FAig, negUnates[i]),1);
 				status = sat_solver_solve(pSat, LA, LA+1, (ABC_INT64_T)0, (ABC_INT64_T)0, (ABC_INT64_T)0, (ABC_INT64_T)0);
 				if (status == l_False) {
-					cerr << "Var y" << i << " is negative unate" << endl;
+					cout << "Var y" << i << " is negative unate" << endl;
 					unate[i] = 0;
 					// sat_solver_push(pSat, toLitCond(SCnf->pVarNums[varsYF[i]-1],1));
 					addVarToSolver(pSat, SCnf->pVarNums[varsYF[i]-1], 0);
