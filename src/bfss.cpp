@@ -45,25 +45,6 @@ int main(int argc, char * argv[]) {
 	OUT("get FAig..." );
 	Aig_Man_t* FAig = Abc_NtkToDar(FNtk, 0, 0);
 
-	Nnf_Man nnfNew(FAig);
-
-	// Aig_Man_t* cloudAig = nnfNew.createAigWithClouds();
-	// cout << "\n\nCloud Aig: " << endl;
-	// printAig(cloudAig);
-
-	// Aig_Man_t* multiCloudAig = nnfNew.createAigMultipleClouds(4);
-	// cout << "\n\nMultiple Cloud Aig: " << endl;
-	// printAig(multiCloudAig);
-
-	// Aig_Man_t* normalAig = nnfNew.createAigWithoutClouds();
-	// cout << "\n\nNormal Aig: " << endl;
-	// printAig(normalAig);
-
-
-	numOrigInputs = nnfNew.getCiNum();
-	Aig_Man_t* SAig = nnfNew.createAigWithoutClouds();
-
-
 	vector<int> unate;
 	if(!options.noUnate) {
 
@@ -96,6 +77,25 @@ int main(int argc, char * argv[]) {
 		name2IdF.clear();
 		id2NameF.clear();
 	}
+
+
+	Nnf_Man nnfNew(FAig);
+
+	// Aig_Man_t* cloudAig = nnfNew.createAigWithClouds();
+	// cout << "\n\nCloud Aig: " << endl;
+	// printAig(cloudAig);
+
+	// Aig_Man_t* multiCloudAig = nnfNew.createAigMultipleClouds(4);
+	// cout << "\n\nMultiple Cloud Aig: " << endl;
+	// printAig(multiCloudAig);
+
+	// Aig_Man_t* normalAig = nnfNew.createAigWithoutClouds();
+	// cout << "\n\nNormal Aig: " << endl;
+	// printAig(normalAig);
+
+
+	numOrigInputs = nnfNew.getCiNum();
+	Aig_Man_t* SAig = nnfNew.createAigWithoutClouds();
 
 	OUT("Aig_ManCoNum(SAig): " << Aig_ManCoNum(SAig));
 	populateVars(FNtk, nnfNew, options.varsOrder,
