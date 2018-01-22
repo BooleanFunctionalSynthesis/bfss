@@ -507,6 +507,10 @@ vector<Nnf_Obj*> Nnf_Man::Nnf_ManDfs() {
     Nnf_Obj * pObj;
     int i;
 
+    // Unmark all nodes
+    for(auto it: _allNodes)
+        Nnf_ObjClearMarkA(it);
+
     // Add const1 and inputs
     Nnf_ManDfs_rec(const1(), vNodes);
     for(auto it: _inputs_pos)
@@ -522,8 +526,25 @@ vector<Nnf_Obj*> Nnf_Man::Nnf_ManDfs() {
     for(auto it: _allNodes)
         Nnf_ObjClearMarkA(it);
 
-    // @TODO: necessary for size to be same?
-    assert(vNodes.size() == _allNodes.size());
+    if(vNodes.size() != _allNodes.size()) {
+	    cout << "NNF: " << endl;
+	    this->print();
+	    set<Nnf_Obj*> a(_allNodes.begin(), _allNodes.end());
+	    set<Nnf_Obj*> v(vNodes.begin(), vNodes.end());
+
+	    vector<Nnf_Obj*> diff;
+	    set_difference(a.begin(), a.end(), v.begin(), v.end(),
+	        std::inserter(diff, diff.begin()));
+	    cout << "Missing Nodes: " << endl;
+	    for(auto it:diff) {
+	        it->print();
+	    }
+	    cout << "vNodes.size(): 	" << vNodes.size() << endl;
+	    cout << "_allNodes.size(): 	" << _allNodes.size() << endl;
+	    // @TODO: necessary for size to be same?
+	    assert(vNodes.size() == _allNodes.size());
+    }
+
     return vNodes;
 }
 
