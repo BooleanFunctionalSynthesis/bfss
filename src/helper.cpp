@@ -218,7 +218,7 @@ void parseOptions(int argc, char * argv[]) {
 
 	options.noUnate = options.noUnate || options.monoSkolem;
 
-	if (!optParser.count("fmcadSizeThres")) {
+	if (!optParser.count("fmcadSizeThresh")) {
 		options.fmcadSizeThreshold = FMCAD_SIZE_THRESH;
 	}
 	else if(options.fmcadSizeThreshold < 0) {
