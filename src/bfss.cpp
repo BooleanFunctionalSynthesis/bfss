@@ -14,7 +14,7 @@ using namespace std;
 vector<int> varsSInv;
 vector<int> varsXF, varsXS;
 vector<int> varsYF, varsYS; // to be eliminated
-int numOrigInputs, numX, numY;
+int numOrigInputs, numX = 0, numY = 0;
 Abc_Frame_t* pAbc;
 sat_solver* m_pSat;
 Cnf_Dat_t* m_FCnf;
@@ -47,23 +47,22 @@ int main(int argc, char * argv[]) {
 
 	Nnf_Man nnfNew(FAig);
 
-	Aig_Man_t* cloudAig = nnfNew.createAigWithClouds();
-	cout << "\n\nCloud Aig: " << endl;
-	printAig(cloudAig);
+	// Aig_Man_t* cloudAig = nnfNew.createAigWithClouds();
+	// cout << "\n\nCloud Aig: " << endl;
+	// printAig(cloudAig);
 
 	int numYforClouds = getNumY(options.varsOrder);
-	Aig_Man_t* multiCloudAig = nnfNew.createAigMultipleClouds(numYforClouds);
+	Aig_Man_t* SAig = nnfNew.createAigMultipleClouds(2*numYforClouds, CiCloudIth, CoIth);
+
 	cout << "\n\nMultiple Cloud Aig: " << endl;
 	printAig(multiCloudAig);
 
-	Aig_Man_t* normalAig = nnfNew.createAigWithoutClouds();
-	cout << "\n\nNormal Aig: " << endl;
-	printAig(normalAig);
+	// Aig_Man_t* normalAig = nnfNew.createAigWithoutClouds();
+	// cout << "\n\nNormal Aig: " << endl;
+	// printAig(normalAig);
 
 
 	numOrigInputs = nnfNew.getCiNum();
-	Aig_Man_t* SAig = nnfNew.createAigWithoutClouds();
-
 
 	vector<int> unate;
 	if(!options.noUnate) {

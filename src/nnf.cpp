@@ -324,15 +324,21 @@ Aig_Man_t* Nnf_Man::createAig(bool withCloudInputs) {
 // Objs are ordered as:
 // x1 x1' x2 x2' ... xn xn' ... c1.1 .. c1.2 .. c1.|Y| ... c2.1 .. c2.2 .. c2.|Y| ...
 // Note that (CioId != Id+1) for cloud nodes
-Aig_Man_t* Nnf_Man::createAigMultipleClouds(int numCloudSets) {
+Aig_Man_t* Nnf_Man::createAigMultipleClouds(int numCloudSets,
+	vector<vector<int>> CiCloudIth,
+	vector<vector<int>> CoIth) {
+
 	int nNodesMax = 1e5;
 	Aig_Man_t* pMan = Aig_ManStart(nNodesMax);
 
 	Aig_Obj_t* pObj;
 	vector<int> CiPosIth;
 	vector<int> CiNegIth;
-	vector<vector<int>> CiCloudIth(numCloudSets);
-	vector<vector<int>> CoIth(numCloudSets);
+
+	CoIth.clear();
+	CoIth.resize(numCloudSets);
+	CiCloudIth.clear();
+	CiCloudIth.resize(numCloudSets);
 
 	// Clear Id mappings
 	_origToNewNodeId.clear();
