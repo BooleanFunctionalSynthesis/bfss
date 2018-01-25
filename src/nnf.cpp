@@ -27,6 +27,11 @@ void Nnf_Obj::print()
     printf(" (refs = %3d)\n", Nnf_ObjRefs(this));
 }
 
+int Nnf_Obj::getNumRef()
+{
+	return pFanoutPos.size() + pFanoutNeg.size();
+}
+
 Nnf_Man::Nnf_Man() {
 	this->pConst1 = createNode(NNF_OBJ_CONST1);
 }

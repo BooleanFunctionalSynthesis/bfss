@@ -45,6 +45,7 @@ int main(int argc, char * argv[]) {
 	OUT("get FAig..." );
 	Aig_Man_t* FAig = Abc_NtkToDar(FNtk, 0, 0);
 
+
 	vector<int> unate;
 	if(!options.noUnate) {
 
@@ -64,7 +65,10 @@ int main(int argc, char * argv[]) {
 		unate.resize(numY, -1);
 		// find unates, substitute
 		cout << "checkUnateAll" << endl;
-		checkUnateAll(FAig, unate);
+
+		checkUnateSyntacticAll(FAig, unate);
+		substituteUnates(FAig, unate);
+		checkUnateSemanticAll(FAig, unate);
 		substituteUnates(FAig, unate);
 		cout << "Unates: ";
 		for (int i = 0; i < numY; ++i)

@@ -3086,8 +3086,31 @@ string getFileName(string s) {
 	return(s);
 }
 
+void checkUnateSyntacticAll(Aig_Man_t* FAig, vector<int>&unate) {
+	Nnf_Man nnfSyntatic(FAig);
+	assert(nnfSyntatic.getCiNum() == unate.size());
+
+	int numUnate = 0;
+	for(int i = 0; i < numY; ++i) {
+		int refPos = nnfSyntatic.getCiPos(varsYF[i])->getNumRef();
+		int refNeg = nnfSyntatic.getCiNeg(varsYF[i])->getNumRef();
+		if(refPos == 0) {
+			unate[i] = 0;
+			cout << "Var y" << i << " is negative unate (syntactic)" << endl;		
+		} else if(refNeg == 0) {
+			unate[i] = 1;
+			cout << "Var y" << i << " is positive unate (syntactic)" << endl;
+		} 
+		if (unate[i] != -1) {
+			numUnate++;
+		}
+	}
+	cout << "Found " << numUnate << " unates" << endl;
+	return;
+}
+
 // skolems[] = 1 (pos unate); 0 (neg unate); -1 (not unate)
-void checkUnateAll(Aig_Man_t* FAig, vector<int>&unate){
+void checkUnateSemanticAll(Aig_Man_t* FAig, vector<int>&unate) {
 	nodeIdtoN.resize(numOrigInputs);
 	for(int i = 0; i < numX; i++) {
 		nodeIdtoN[varsXF[i] - 1] = i;
@@ -3155,7 +3178,7 @@ void checkUnateAll(Aig_Man_t* FAig, vector<int>&unate){
 				status = sat_solver_solve(pSat, LA, LA+1, (ABC_INT64_T)0, (ABC_INT64_T)0, (ABC_INT64_T)0, (ABC_INT64_T)0);
 				if (status == l_False) {
 					unate[i] = 1;
-					cout << "Var y" << i << " is positive unate" << endl;
+					cout << "Var y" << i << " is positive unate (semantic)" << endl;
 					// sat_solver_push(pSat, toLitCond(SCnf->pVarNums[varsYF[i]-1],0));
 					addVarToSolver(pSat, SCnf->pVarNums[varsYF[i]-1], 1);
 					numUnate++;
@@ -3167,7 +3190,7 @@ void checkUnateAll(Aig_Man_t* FAig, vector<int>&unate){
 				LA[0] = toLitCond(getCnfCoVarNum(SCnf, FAig, negUnates[i]),1);
 				status = sat_solver_solve(pSat, LA, LA+1, (ABC_INT64_T)0, (ABC_INT64_T)0, (ABC_INT64_T)0, (ABC_INT64_T)0);
 				if (status == l_False) {
-					cout << "Var y" << i << " is negative unate" << endl;
+					cout << "Var y" << i << " is negative unate (semantic)" << endl;
 					unate[i] = 0;
 					// sat_solver_push(pSat, toLitCond(SCnf->pVarNums[varsYF[i]-1],1));
 					addVarToSolver(pSat, SCnf->pVarNums[varsYF[i]-1], 0);

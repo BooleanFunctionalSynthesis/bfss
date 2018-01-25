@@ -203,7 +203,8 @@ void			parseOptions(int argc, char * argv[]);
 void 			printK2Trend();
 void 			monoSkolem(Aig_Man_t*&pMan, vector<vector<int> > &r0, vector<vector<int> > &r1);
 string			getFileName(string s);
-void 			checkUnateAll(Aig_Man_t* FAig, vector<int>&unate);
+void 			checkUnateSyntacticAll(Aig_Man_t* FAig, vector<int>&unate);
+void 			checkUnateSemanticAll(Aig_Man_t* FAig, vector<int>&unate);
 void 			populateVars(Abc_Ntk_t* FNtk, string varsFile,
 					vector<int>& varsXF, vector<int>& varsYF,
 					map<string,int>& name2IdF, map<int,string>& id2NameF);

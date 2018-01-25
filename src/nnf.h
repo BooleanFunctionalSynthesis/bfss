@@ -31,6 +31,7 @@ public:
 	Nnf_Obj(int id);
 	Nnf_Obj(int id, Nnf_Type t);
 	void print();
+	int getNumRef();
 };
 
 class Nnf_Man {
