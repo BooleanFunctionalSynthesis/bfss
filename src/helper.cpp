@@ -3159,6 +3159,23 @@ void checkUnateAll(Aig_Man_t* FAig, vector<int>&unate){
 	Cnf_DataFree(SCnf);
 }
 
+int getNumY(string varsFile) {
+	string line;
+	int tempnumY = 0;
+	ifstream varsStream(varsFile);
+	if(!varsStream.is_open()) {
+		cout << "Var File " + varsFile + " does not exist!" << endl;
+		cerr << "Var File " + varsFile + " does not exist!" << endl;
+	}
+	assert(varsStream.is_open());
+	while (getline(varsStream, line)) {
+		if(line != "") {
+			tempnumY++;
+		}
+	}
+	return tempnumY;
+}
+
 void populateVars(Abc_Ntk_t* FNtk, string varsFile,
 	vector<int>& varsXF, vector<int>& varsYF,
 	map<string,int>& name2IdF, map<int,string>& id2NameF) {

@@ -118,6 +118,7 @@ string 			type2String(Aig_Type_t t);
 bool 			Equate(sat_solver *pSat, int varA, int varB);
 bool 			Xor(sat_solver *pSat, int varA, int varB);
 Abc_Ntk_t* 		getNtk(string pFileName, bool fraig);
+int 			getNumY(string varsFile);
 void 			populateVars(Abc_Ntk_t* FNtk, Nnf_Man& nnf, string varsFile,
 					vector<int>& varsXF, vector<int>& varsXS,
 					vector<int>& varsYF, vector<int>& varsYS,
