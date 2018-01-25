@@ -51,7 +51,9 @@ int main(int argc, char * argv[]) {
 	// cout << "\n\nCloud Aig: " << endl;
 	// printAig(cloudAig);
 
-	Aig_Man_t* SAig = nnfNew.createAigMultipleClouds(2*numY, CiCloudIth, CoIth);
+	int numYforClouds = getNumY(options.varsOrder);
+	Aig_Man_t* SAig = nnfNew.createAigMultipleClouds(2*numYforClouds, CiCloudIth, CoIth);
+
 	cout << "\n\nMultiple Cloud Aig: " << endl;
 	printAig(multiCloudAig);
 
