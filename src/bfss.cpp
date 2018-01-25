@@ -66,10 +66,18 @@ int main(int argc, char * argv[]) {
 		// find unates, substitute
 		cout << "checkUnateAll" << endl;
 
-		checkUnateSyntacticAll(FAig, unate);
+		int numSynUnates = 0;
+		int n;
+		while((n = checkUnateSyntacticAll(FAig, unate)) > 0) {
+			substituteUnates(FAig, unate);
+			numSynUnates += n;
+		}
+		int numSemUnates = checkUnateSemanticAll(FAig, unate);
 		substituteUnates(FAig, unate);
-		checkUnateSemanticAll(FAig, unate);
-		substituteUnates(FAig, unate);
+
+		cout << "Total Syntactic Unates: " << numSynUnates << endl;
+		cout << "Total Semantic  Unates: " << numSemUnates << endl;
+
 		cout << "Unates: ";
 		for (int i = 0; i < numY; ++i)
 			cout << unate[i] << " ";

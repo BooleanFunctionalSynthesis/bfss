@@ -3086,31 +3086,35 @@ string getFileName(string s) {
 	return(s);
 }
 
-void checkUnateSyntacticAll(Aig_Man_t* FAig, vector<int>&unate) {
+int checkUnateSyntacticAll(Aig_Man_t* FAig, vector<int>&unate) {
 	Nnf_Man nnfSyntatic(FAig);
-	assert(nnfSyntatic.getCiNum() == unate.size());
+	assert(nnfSyntatic.getCiNum() == numOrigInputs);
 
 	int numUnate = 0;
 	for(int i = 0; i < numY; ++i) {
-		int refPos = nnfSyntatic.getCiPos(varsYF[i])->getNumRef();
-		int refNeg = nnfSyntatic.getCiNeg(varsYF[i])->getNumRef();
-		if(refPos == 0) {
-			unate[i] = 0;
-			cout << "Var y" << i << " is negative unate (syntactic)" << endl;		
-		} else if(refNeg == 0) {
-			unate[i] = 1;
-			cout << "Var y" << i << " is positive unate (syntactic)" << endl;
-		} 
-		if (unate[i] != -1) {
-			numUnate++;
+		if (unate[i] == -1) {
+			int refPos = nnfSyntatic.getCiPos(varsYF[i] - 1)->getNumRef();
+			int refNeg = nnfSyntatic.getCiNeg(varsYF[i] - 1)->getNumRef();
+			if(refPos == 0) {
+				unate[i] = 0;
+				cout << "Var y" << i << " is negative unate (syntactic)" << endl;
+			} else if(refNeg == 0) {
+				unate[i] = 1;
+				cout << "Var y" << i << " is positive unate (syntactic)" << endl;
+			}
+			if (unate[i] != -1) {
+				numUnate++;
+			}
 		}
 	}
 	cout << "Found " << numUnate << " unates" << endl;
-	return;
+	return numUnate;
 }
 
 // skolems[] = 1 (pos unate); 0 (neg unate); -1 (not unate)
-void checkUnateSemanticAll(Aig_Man_t* FAig, vector<int>&unate) {
+int checkUnateSemanticAll(Aig_Man_t* FAig, vector<int>&unate) {
+	Aig_ManPrintStats(FAig);
+
 	nodeIdtoN.resize(numOrigInputs);
 	for(int i = 0; i < numX; i++) {
 		nodeIdtoN[varsXF[i] - 1] = i;
@@ -3162,7 +3166,7 @@ void checkUnateSemanticAll(Aig_Man_t* FAig, vector<int>&unate) {
 	Cnf_Dat_t* SCnf = Cnf_Derive(FAig, Aig_ManCoNum(FAig));
 	addCnfToSolver(pSat, SCnf);
 
-	int status, numUnate;
+	int status, numUnate, totalNumUnate = 0;
 	assert(unate.size()==numY);
 
 	// Unate Sat Calls
@@ -3199,11 +3203,14 @@ void checkUnateSemanticAll(Aig_Man_t* FAig, vector<int>&unate) {
 			}
 		}
 		cout << "Found " << numUnate << " unates" << endl;
+		totalNumUnate += numUnate;
 	}
 	while(numUnate > 0);
 
 	sat_solver_delete(pSat);
 	Cnf_DataFree(SCnf);
+
+	return totalNumUnate;
 }
 
 void populateVars(Abc_Ntk_t* FNtk, string varsFile,
@@ -3274,6 +3281,7 @@ void substituteUnates(Aig_Man_t* &pMan, vector<int>&unate) {
 	}
 	Aig_Obj_t* pAigObj = Aig_SubstituteVec(pMan, Aig_ManCo(pMan,0), varIdVec, funcVec);
 	Aig_ObjPatchFanin0(pMan, Aig_ManCo(pMan,0), pAigObj);
+	Aig_ManCleanup(pMan);
 
 	// Duplicate Aig to toposort nodes
 	Aig_Man_t* tempAig = pMan;
