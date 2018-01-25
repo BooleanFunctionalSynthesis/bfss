@@ -35,6 +35,8 @@ map<int, int> varNum2ID;
 map<int, int> varNum2R0R1;
 int solsJustFetched = 0;
 vector<bool> collapsedInto;
+vector<vector<int>> CiCloudIth;
+vector<vector<int>> CoIth;
 
 ////////////////////////////////////////////////////////////////////////
 ///                      HELPER FUNCTIONS                            ///
@@ -497,134 +499,162 @@ vector<Aig_Obj_t* > Aig_SubstituteVecVec(Aig_Man_t* pMan, Aig_Obj_t* initAig,
  */
 void initializeCompose(Aig_Man_t* SAig, vector<Aig_Obj_t* >& Fs,
 		vector<vector<int> >& r0, vector<vector<int> >& r1, vector<int>& unate) {
-	nodeIdtoN.resize(2*numOrigInputs);
-	for(int i = 0; i < numX; i++) {
-		nodeIdtoN[varsXS[i] - 1] = i;
-		nodeIdtoN[numOrigInputs + varsXS[i] - 1] = numOrigInputs + i;
-	}
-	for(int i = 0; i < numY; i++) {
-		nodeIdtoN[varsYS[i] - 1] = numX + i;
-		nodeIdtoN[numOrigInputs + varsYS[i] - 1] = numOrigInputs + numX + i;
-	}
 
-	vector<vector<Aig_Obj_t* > > funcVecVec;
-	vector<Aig_Obj_t* > retVec;
 	vector<Aig_Obj_t* > funcVec;
+	vector<int> varIdVec;
 
+	// F
 	funcVec.resize(0);
+	varIdVec.resize(0);
+	for(auto cloudInput: CiCloudIth[0]) {
+		varIdVec.push_back(cloudInput);
+		funcVec.push_back(Aig_ManConst1(SAig));
+	}
 	for(int i = 0; i < numX; ++i) {
+		varIdVec.push_back(varsXS[i]);
 		funcVec.push_back(Aig_ManObj(SAig, varsXS[i]));
 	}
 	for(int i = 0; i < numY; ++i) {
+		varIdVec.push_back(varsYS[i]);
 		funcVec.push_back(Aig_ManObj(SAig, varsYS[i]));
 	}
 	for(int i = 0; i < numX; ++i) {
+		varIdVec.push_back(numOrigInputs + varsXS[i]);
 		funcVec.push_back(Aig_Not(Aig_ManObj(SAig, varsXS[i])));
 	}
 	for(int i = 0; i < numY; ++i) {
+		varIdVec.push_back(numOrigInputs + varsYS[i]);
 		funcVec.push_back(Aig_Not(Aig_ManObj(SAig, varsYS[i])));
 	}
-	funcVecVec.push_back(funcVec);
+	Aig_Obj_t* F_Obj = Aig_SubstituteVec(SAig, Aig_ManCo(SAig,CoIth[0][0]), varIdVec, funcVec);
+	Fs[0] = Aig_ObjCreateCo(SAig, F_Obj);
 
+	// F'
 	funcVec.resize(0);
+	varIdVec.resize(0);
+	for(auto cloudInput: CiCloudIth[0]) {
+		varIdVec.push_back(cloudInput);
+		funcVec.push_back(Aig_ManConst1(SAig));
+	}
 	for(int i = 0; i < numX; ++i) {
+		varIdVec.push_back(varsXS[i]);
 		funcVec.push_back(Aig_ManObj(SAig, varsXS[i]));
 	}
 	for(int i = 0; i < numY; ++i) {
+		varIdVec.push_back(varsYS[i]);
 		funcVec.push_back(Aig_ManObj(SAig, numOrigInputs + varsYS[i]));
 	}
 	for(int i = 0; i < numX; ++i) {
+		varIdVec.push_back(numOrigInputs + varsXS[i]);
 		funcVec.push_back(Aig_Not(Aig_ManObj(SAig, varsXS[i])));
 	}
 	for(int i = 0; i < numY; ++i) {
+		varIdVec.push_back(numOrigInputs + varsYS[i]);
 		funcVec.push_back(Aig_Not(Aig_ManObj(SAig, numOrigInputs + varsYS[i])));
 	}
-	funcVecVec.push_back(funcVec);
+	Aig_Obj_t* F_prime_Obj = Aig_SubstituteVec(SAig, Aig_ManCo(SAig,CoIth[0][0]), varIdVec, funcVec);
+	Fs[1] = Aig_ObjCreateCo(SAig, F_prime_Obj);
 
+	// R0s
 	for(int i = 0; i < numY; ++i) {
 		funcVec.resize(0);
+		varIdVec.resize(0);
 		for(int j = 0; j < numX; j++) {
+			varIdVec.push_back(varsXS[i]);
 			funcVec.push_back(Aig_ManObj(SAig, varsXS[j]));
 		}
 		for(int j = 0; j < numY; j++) {
 			if(j < i) {
+				varIdVec.push_back(varsYS[i]);
 				funcVec.push_back(Aig_ManConst1(SAig));
 			} else if(j == i) {
+				varIdVec.push_back(varsYS[i]);
 				funcVec.push_back(Aig_ManConst0(SAig));
 			} else {
+				varIdVec.push_back(varsYS[i]);
 				funcVec.push_back(Aig_ManObj(SAig, varsYS[j]));
 			}
 		}
 		for(int j = 0; j < numX; j++) {
+			varIdVec.push_back(numOrigInputs + varsXS[i]);
 			funcVec.push_back(Aig_Not(Aig_ManObj(SAig, varsXS[j])));
 		}
 		for(int j = 0; j < numY; j++) {
 			if(j <= i) {
+				varIdVec.push_back(numOrigInputs + varsYS[i]);
 				funcVec.push_back(Aig_ManConst1(SAig));
 			} else {
+				varIdVec.push_back(numOrigInputs + varsYS[i]);
 				funcVec.push_back(Aig_Not(Aig_ManObj(SAig, varsYS[j])));
 			}
 		}
-		funcVecVec.push_back(funcVec);
+		assert(CoIth[i].size() == 1);
+		Aig_Obj_t* R0_Obj;
+		int CoNum = CoIth[i][0];
+		switch(unate[i]) {
+			case -1:
+				R0_Obj = Aig_SubstituteVec(SAig, Aig_ManCo(SAig,CoNum), varIdVec, funcVec);
+				break;
+			case 0:
+				R0_Obj = Aig_ManConst0(SAig);
+				break;
+			case 1:
+				R0_Obj = Aig_ManConst1(SAig);
+				break;
+		}
+		Aig_ObjPatchFanin0(SAig, Aig_ManCo(SAig,CoNum), R0_Obj);
+		r0[i].push_back(CoNum);
 	}
 
+	// R1s
 	for(int i = 0; i < numY; ++i) {
 		funcVec.resize(0);
+		varIdVec.resize(0);
 		for(int j = 0; j < numX; j++) {
+			varIdVec.push_back(varsXS[i]);
 			funcVec.push_back(Aig_ManObj(SAig, varsXS[j]));
 		}
 		for(int j = 0; j < numY; j++) {
 			if(j <= i) {
+				varIdVec.push_back(varsYS[i]);
 				funcVec.push_back(Aig_ManConst1(SAig));
 			} else {
+				varIdVec.push_back(varsYS[i]);
 				funcVec.push_back(Aig_ManObj(SAig, varsYS[j]));
 			}
 		}
 		for(int j = 0; j < numX; j++) {
+			varIdVec.push_back(numOrigInputs + varsXS[i]);
 			funcVec.push_back(Aig_Not(Aig_ManObj(SAig, varsXS[j])));
 		}
 		for(int j = 0; j < numY; j++) {
 			if(j < i) {
+				varIdVec.push_back(numOrigInputs + varsYS[i]);
 				funcVec.push_back(Aig_ManConst1(SAig));
 			} else if(j == i) {
+				varIdVec.push_back(numOrigInputs + varsYS[i]);
 				funcVec.push_back(Aig_ManConst0(SAig));
 			} else {
+				varIdVec.push_back(numOrigInputs + varsYS[i]);
 				funcVec.push_back(Aig_Not(Aig_ManObj(SAig, varsYS[j])));
 			}
 		}
-		funcVecVec.push_back(funcVec);
-	}
-
-	retVec = Aig_SubstituteVecVec(SAig, Aig_ManCo(SAig, 0), funcVecVec);
-	Fs[0] = Aig_ObjCreateCo(SAig, retVec[0]);
-	Fs[1] = Aig_ObjCreateCo(SAig, retVec[1]);
-	for(int i = 0; i < numY; i++) {
+		assert(CoIth[numY + i].size() == 1);
+		Aig_Obj_t* R1_Obj;
+		int CoNum = CoIth[numY + i][0];
 		switch(unate[i]) {
 			case -1:
-				Aig_ObjCreateCo(SAig, Aig_Not(retVec[2 + i]));
+				R1_Obj = Aig_SubstituteVec(SAig, Aig_ManCo(SAig,CoNum), varIdVec, funcVec);
 				break;
 			case 0:
-				Aig_ObjCreateCo(SAig, Aig_ManConst0(SAig));
+				R1_Obj = Aig_ManConst1(SAig);
 				break;
 			case 1:
-				Aig_ObjCreateCo(SAig, Aig_ManConst1(SAig));
+				R1_Obj = Aig_ManConst0(SAig);
 				break;
 		}
-		r0[i].push_back(Aig_ManCoNum(SAig) - 1);
-	}
-	for(int i = 0; i < numY; i++) {
-		switch(unate[i]) {
-			case -1:
-				Aig_ObjCreateCo(SAig, Aig_Not(retVec[2 + numY + i]));
-				break;
-			case 0:
-				Aig_ObjCreateCo(SAig, Aig_ManConst1(SAig));
-				break;
-			case 1:
-				Aig_ObjCreateCo(SAig, Aig_ManConst0(SAig));
-				break;
-		}
-		r1[i].push_back(Aig_ManCoNum(SAig) - 1);
+		Aig_ObjPatchFanin0(SAig, Aig_ManCo(SAig,CoNum), R1_Obj);
+		r1[i].push_back(CoNum);
 	}
 }
 

@@ -72,7 +72,9 @@ public:
 	void Nnf_ManTopoId();
 	Aig_Man_t* createAigWithClouds();
 	Aig_Man_t* createAigWithoutClouds();
-	Aig_Man_t* createAigMultipleClouds(int numCloudSets);
+	Aig_Man_t* createAigMultipleClouds(int numCloudSets,
+				vector<vector<int>> CiCloudIth,
+				vector<vector<int>> CoIth);
 };
 
 // ===========HELPER ROUTINES========
