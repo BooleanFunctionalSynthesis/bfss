@@ -1019,16 +1019,21 @@ bool getNextCEX(Aig_Man_t*&SAig, int& M, int& k1Level, int& k1MaxLevel, vector<v
 			cout << "k1Max: " << k1Max << "\tk2Max: " << k2Max << endl;
 			M = k2Max;
 			k1MaxLevel = k1Max;
-			vector<int> kFreq(numY, 0);
-			for(auto it: storedCEX_k1)
-				kFreq[it]++;
-			int maxFreqk1 = -1;
-			for(int i = 0; i < kFreq.size(); i++) {
-				if(maxFreqk1 < kFreq[i]) {
-					k1Level = i;
-					maxFreqk1 = kFreq[i];
-				}
-			}
+			// vector<int> kFreq(numY, 0);
+			// for(auto it: storedCEX_k1)
+			// 	kFreq[it]++;
+			// int maxFreqk1 = -1;
+			// for(int i = 0; i < kFreq.size(); i++) {
+			// 	if(maxFreqk1 < kFreq[i]) {
+			// 		k1Level = i;
+			// 		maxFreqk1 = kFreq[i];
+			// 	}
+			// }
+			k1Level = 0;
+			for (int i = 0; i < storedCEX_k2.size(); ++i)
+				if (storedCEX_k2[i] == k2Max and k1Level < storedCEX_k1[i])
+					k1Level = storedCEX_k1[i];
+
 			return true;
 		}
 
@@ -1666,7 +1671,7 @@ void updateAbsRef(Aig_Man_t*&pMan, int M, int k1Level, int k1MaxLevel, vector<ve
 
 	list<int> releventCEX;
 	for (int i = 0; i < storedCEX.size(); ++i) {
-		if(storedCEX_k1[i] == k1Level)
+		if(storedCEX_k2[i] == M and storedCEX_k1[i] == k1Level)
 			releventCEX.push_back(i);
 	}
 
@@ -1786,7 +1791,7 @@ void updateAbsRef(Aig_Man_t*&pMan, int M, int k1Level, int k1MaxLevel, vector<ve
 		int corrK2 = -1;
 		int k = fmcadPhaseStart;
 		for(int i = 0; i< storedCEX.size(); i++) {
-			if(storedCEX_k1[i] == k) {
+			if(storedCEX_k1[i] == k and storedCEX_k2[i] == M) {
 				if(corrK2 < storedCEX_k2[i]) {
 					corrK2 = storedCEX_k2[i];
 					cexIndex = i;
