@@ -1364,15 +1364,27 @@ Aig_Obj_t* satisfiesVec(Aig_Man_t* formula, const vector<int>& cex, const vector
 		evaluateAig(formula, cex);
 
 	OUT("satisfiesVec...");
+
+	Aig_Obj_t* currRet = NULL;
+	int currMinSupp = std::numeric_limits<int>::max();
+
 	for(int i = 0; i < coObjs.size(); i++) {
 		OUT("Accessing Co "<<coObjs[i]<<" Id "<< Aig_ManCo(formula,coObjs[i])->Id);
+
 		if(Aig_ManCo(formula,coObjs[i])->iData == 1) {
 			OUT("Satisfied ID " << Aig_ManCo(formula,coObjs[i])->Id);
-			return Aig_ManCo(formula,coObjs[i]);
+
+			vector<Aig_Obj_t* > tempSupp = Aig_SupportVec(formula, Aig_ManCo(formula,coObjs[i]));
+			int tempSuppLen = tempSupp.size();
+
+			if(tempSuppLen < currMinSupp) {
+				currMinSupp = tempSuppLen;
+				currRet = Aig_ManCo(formula,coObjs[i]);
+			}
 		}
 	}
 	OUT("Nothing satisfied");
-	return NULL;
+	return currRet;
 }
 
 /** Function
