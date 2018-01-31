@@ -500,13 +500,13 @@ vector<Aig_Obj_t* > Aig_SubstituteVecVec(Aig_Man_t* pMan, Aig_Obj_t* initAig,
 	vector<vector<Aig_Obj_t*> >& funcVecs) {
 	Aig_Obj_t* currFI;
 	currFI = Aig_ObjIsCo(Aig_Regular(initAig))? initAig->pFanin0: initAig;
-	for(int i = 0; i < numY; i++) {
+	for(int i = 0; i < funcVecs.size(); i++) {
 		for (int j = 0; j < funcVecs[i].size(); ++j) {
 			funcVecs[i][j] = Aig_ObjIsCo(Aig_Regular(funcVecs[i][j]))? funcVecs[i][j]->pFanin0: funcVecs[i][j];
 		}
 	}
 	vector<Aig_Obj_t* > afterCompose = Aig_ComposeVecVec(pMan, currFI, funcVecs);
-	for (int i = 0; i < numY; ++i) {
+	for (int i = 0; i < afterCompose.size(); ++i) {
 		assert(!Aig_ObjIsCo(Aig_Regular(afterCompose[i])));
 	}
 	return afterCompose;
