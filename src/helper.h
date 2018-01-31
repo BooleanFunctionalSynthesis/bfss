@@ -118,6 +118,8 @@ extern vector<vector<int> > k2Trend;
 extern double sat_solving_time;
 extern double verify_sat_solving_time;
 extern double reverse_sub_time;
+extern int F_SAigIndex;
+extern int FPrime_SAigIndex;
 
 int 			CommandExecute(Abc_Frame_t* pAbc, string cmd);
 vector<string> 	tokenize( const string& p_pcstStr, char delim );

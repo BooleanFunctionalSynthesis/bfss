@@ -48,6 +48,8 @@ map<int, int> varNum2ID;
 map<int, int> varNum2R0R1;
 int solsJustFetched = 0;
 vector<bool> collapsedInto;
+int F_SAigIndex = -1;
+int FPrime_SAigIndex = -1;
 
 ////////////////////////////////////////////////////////////////////////
 ///                      HELPER FUNCTIONS                            ///
@@ -845,8 +847,8 @@ pair<Cnf_Dat_t*,bool> buildErrorFormula(sat_solver* pSat, Aig_Man_t* SAig,
 	#endif
 
 	// assert F(X, Y) = false, F(X, Y') = true
-	allOk = allOk && addVarToSolver(pSat, SCnf->pVarNums[Aig_ManCo(SAig,1)->Id], 0);
-	allOk = allOk && addVarToSolver(pSat, SCnf->pVarNums[Aig_ManCo(SAig,2)->Id], 1);
+	allOk = allOk && addVarToSolver(pSat, SCnf->pVarNums[Aig_ManCo(SAig, F_SAigIndex)->Id], 0);
+	allOk = allOk && addVarToSolver(pSat, SCnf->pVarNums[Aig_ManCo(SAig, FPrime_SAigIndex)->Id], 1);
 
 	r0Andr1Vars.resize(numY);
 
@@ -903,7 +905,7 @@ bool callSATfindCEX(Aig_Man_t* SAig,vector<int>& cex,
 		}
 		evaluateAig(SAig,cex);
 
-		if(Aig_ManCo(SAig, 1)->iData != 1) { //CEX still spurious, return
+		if(Aig_ManCo(SAig, F_SAigIndex)->iData != 1) { //CEX still spurious, return
 			// cout << "CEX still spurious, returning..." << endl;
 			return true;
 		}
@@ -2037,8 +2039,8 @@ void checkSupportSanity(Aig_Man_t*pMan, vector<vector<int> > &r0, vector<vector<
 				assert(Aig_Support(pMan, Aig_ManCo(pMan, co_num), varsXS[i] + numOrigInputs) == false);
 	}
 
-	Aig_Obj_t* F_SAig = Aig_ManCo(pMan,1);
-	Aig_Obj_t* FPrime_SAig = Aig_ManCo(pMan,2);
+	Aig_Obj_t* F_SAig = Aig_ManCo(pMan,F_SAigIndex);
+	Aig_Obj_t* FPrime_SAig = Aig_ManCo(pMan,FPrime_SAigIndex);
 
 	for (int i = 0; i < numY; ++i) {
 		assert(Aig_Support(pMan, F_SAig, varsYS[i] + numOrigInputs) == false);
@@ -2128,7 +2130,7 @@ bool verifyResult(Aig_Man_t*&SAig, vector<vector<int> >& r0,
 		set<Aig_Obj_t*> redundantCos;
 		for(auto it:skolemAig)
 			requiredCOs.insert(Aig_ManCo(SAig,it)->Id);
-		requiredCOs.insert(Aig_ManCo(SAig,1)->Id);
+		requiredCOs.insert(Aig_ManCo(SAig,F_SAigIndex)->Id);
 		Aig_ManForEachCo( SAig, pAigObj, i) {
 			if(requiredCOs.find(pAigObj->Id)==requiredCOs.end()) {
 				redundantCos.insert(pAigObj);
@@ -2231,7 +2233,7 @@ bool verifyResult(Aig_Man_t*&SAig, vector<vector<int> >& r0,
 		cout << "Verifying Result..." << endl;
 
 	OUT("Final F Resubstitution...");
-	Aig_Obj_t* F = Aig_ManCo(SAig, (deleteCos?0:1));
+	Aig_Obj_t* F = Aig_ManCo(SAig, F_SAigIndex);
 	for(int i = 0; i < numY; i++) {
 		Aig_Obj_t* skolem_i = Aig_ObjChild0(Aig_ManCo(SAig,skolemAig[i]));
 		F = Aig_Substitute(SAig, F, varsYS[i], skolem_i);
@@ -2239,13 +2241,13 @@ bool verifyResult(Aig_Man_t*&SAig, vector<vector<int> >& r0,
 
 	OUT("F Id:     "<<Aig_Regular(F)->Id);
 	OUT("F compl:  "<<Aig_IsComplement(F));
-	OUT("Aig_ObjChild0(Aig_ManCo(SAig, (deleteCos?0:1))) Id:     "<<Aig_Regular(Aig_ObjChild0(Aig_ManCo(SAig, (deleteCos?0:1))))->Id);
-	OUT("Aig_ObjChild0(Aig_ManCo(SAig, (deleteCos?0:1))) compl:  "<<Aig_IsComplement(Aig_ObjChild0(Aig_ManCo(SAig, (deleteCos?0:1)))));
-	OUT("Aig_ObjChild0(Aig_ManCo(SAig, (deleteCos?0:1))):        "<<Aig_ObjChild0(Aig_ManCo(SAig, (deleteCos?0:1))));
+	OUT("Aig_ObjChild0(Aig_ManCo(SAig, F_SAigIndex)) Id:     "<<Aig_Regular(Aig_ObjChild0(Aig_ManCo(SAig, F_SAigIndex)))->Id);
+	OUT("Aig_ObjChild0(Aig_ManCo(SAig, F_SAigIndex)) compl:  "<<Aig_IsComplement(Aig_ObjChild0(Aig_ManCo(SAig, F_SAigIndex))));
+	OUT("Aig_ObjChild0(Aig_ManCo(SAig, F_SAigIndex)):        "<<Aig_ObjChild0(Aig_ManCo(SAig, F_SAigIndex)));
 
 
-	// F = Aig_Exor(SAig, F, Aig_ObjChild0(Aig_ManCo(SAig, (deleteCos?0:1))));
-	// F = Aig_XOR(SAig, F, Aig_ObjChild0(Aig_ManCo(SAig, (deleteCos?0:1))));
+	// F = Aig_Exor(SAig, F, Aig_ObjChild0(Aig_ManCo(SAig, 1)));
+	// F = Aig_XOR(SAig, F, Aig_ObjChild0(Aig_ManCo(SAig, 1)));
 	OUT("Aig_ManCoNum(SAig): "<<Aig_ManCoNum(SAig));
 
 	F = Aig_ObjCreateCo(SAig, F);
@@ -2267,7 +2269,7 @@ bool verifyResult(Aig_Man_t*&SAig, vector<vector<int> >& r0,
 
 	lit LA[3];
 	LA[0] = toLitCond(getCnfCoVarNum(FCnf, SAig, F_num),1);
-	LA[1] = toLitCond(getCnfCoVarNum(FCnf, SAig, (deleteCos?0:1)),0);
+	LA[1] = toLitCond(getCnfCoVarNum(FCnf, SAig, F_SAigIndex),0);
 
 	bool return_val;
 	start = std::chrono::steady_clock::now();
@@ -2678,7 +2680,7 @@ int filterAndPopulateK1Vec(Aig_Man_t* SAig, vector<vector<int> >&r0, vector<vect
 				cex[numX + i] = (int) (useR1AsSkolem[i] ^ r_i);
 			}
 			evaluateAig(SAig, cex);
-			spurious[index] = (bool)(Aig_ManCo(SAig, 1)->iData != 1);
+			spurious[index] = (bool)(Aig_ManCo(SAig, F_SAigIndex)->iData != 1);
 
 			if(spurious[index]) {
 				int k_max = (storedCEX_k2[index]==-1)?numY-1:storedCEX_k2[index];
@@ -2754,7 +2756,7 @@ int filterAndPopulateK1VecFast(Aig_Man_t* SAig, vector<vector<int> >&r0, vector<
 				cex[numX + i] = (int) (useR1AsSkolem[i] ^ r_i);
 				Aig_ManObj(SAig, varsYS[i])->iData = cex[numX + i];
 			}
-			spurious[index] = !evaluateAigAtNode(SAig,Aig_ManCo(SAig, 1));
+			spurious[index] = !evaluateAigAtNode(SAig,Aig_ManCo(SAig, F_SAigIndex));
 
 			if(spurious[index]) {
 				int k1_maxLim = (storedCEX_k2[index]==-1)?numY-1:storedCEX_k2[index];

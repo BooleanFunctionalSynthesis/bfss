@@ -164,6 +164,14 @@ int main(int argc, char * argv[]) {
 	clock_t compose_end = clock();
 	cout<< "Mega compose time: " <<double(compose_end-compose_start)/CLOCKS_PER_SEC << endl;
 
+	Aig_Obj_t* F_SAig = Fs[0];
+	Aig_Obj_t* FPrime_SAig = Fs[1];
+	Aig_ManSetCioIds(SAig);
+	F_SAigIndex = F_SAig->CioId;
+	FPrime_SAigIndex = FPrime_SAig->CioId;
+	cout << "F_SAigIndex: " << F_SAigIndex << endl;
+	cout << "FPrime_SAigIndex: " << FPrime_SAigIndex << endl;
+
 	// Pre-process R0/R1
 	k2Trend = vector<vector<int> >(numY+1, vector<int>(numY,0));
 	useR1AsSkolem = vector<bool>(numY,true);
@@ -182,19 +190,14 @@ int main(int argc, char * argv[]) {
 
 	m_pSat = sat_solver_new();
 	m_FCnf = Cnf_Derive(SAig, Aig_ManCoNum(SAig));
-	m_f = toLitCond(getCnfCoVarNum(m_FCnf, SAig, 1), 0);
+	m_f = toLitCond(getCnfCoVarNum(m_FCnf, SAig, F_SAigIndex), 0);
 	addCnfToSolver(m_pSat, m_FCnf);
 
-	Aig_Obj_t* F_SAig = Fs[0];
-	Aig_Obj_t* FPrime_SAig = Fs[1];
 	// cout << "checkSupportSanity(SAig, r0, r1)..."<<endl;
 	// checkSupportSanity(SAig, r0, r1);
 
 	// Patch 0th Output of SAig to F
-	pAigObj = Aig_ManCo(SAig,0);
-	F_SAig  = Aig_ManCo(SAig,1);
-	F_SAig  = Aig_ObjChild0(F_SAig);
-	Aig_ObjPatchFanin0(SAig, pAigObj, F_SAig);
+	Aig_ObjPatchFanin0(SAig, Aig_ManCo(SAig,0), Aig_ManConst0(SAig));
 
 	// #ifdef DEBUG_CHUNK // Print SAig
  //        cout << "\nSAig: " << endl;
