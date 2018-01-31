@@ -1364,15 +1364,27 @@ Aig_Obj_t* satisfiesVec(Aig_Man_t* formula, const vector<int>& cex, const vector
 		evaluateAig(formula, cex);
 
 	OUT("satisfiesVec...");
+
+	Aig_Obj_t* currRet = NULL;
+	int currMinSupp = std::numeric_limits<int>::max();
+
 	for(int i = 0; i < coObjs.size(); i++) {
 		OUT("Accessing Co "<<coObjs[i]<<" Id "<< Aig_ManCo(formula,coObjs[i])->Id);
+
 		if(Aig_ManCo(formula,coObjs[i])->iData == 1) {
 			OUT("Satisfied ID " << Aig_ManCo(formula,coObjs[i])->Id);
-			return Aig_ManCo(formula,coObjs[i]);
+
+			vector<Aig_Obj_t* > tempSupp = Aig_SupportVec(formula, Aig_ManCo(formula,coObjs[i]));
+			int tempSuppLen = tempSupp.size();
+
+			if(tempSuppLen < currMinSupp) {
+				currMinSupp = tempSuppLen;
+				currRet = Aig_ManCo(formula,coObjs[i]);
+			}
 		}
 	}
 	OUT("Nothing satisfied");
-	return NULL;
+	return currRet;
 }
 
 /** Function
@@ -1424,6 +1436,52 @@ bool Aig_Support_rec(Aig_Man_t* pMan, Aig_Obj_t* root, int inpNodeId, map<Aig_Ob
 bool Aig_Support(Aig_Man_t* pMan, Aig_Obj_t* root, int inpNodeId) {
 	map<Aig_Obj_t*,bool> memo;
 	return Aig_Support_rec(pMan,Aig_Regular(root),inpNodeId,memo);
+}
+
+void Aig_ConeSupportVecAndMark_rec(Aig_Obj_t * pObj, set<Aig_Obj_t *>&retSupport) {
+    assert(!Aig_IsComplement(pObj));
+    if(pObj == NULL || Aig_ObjIsMarkA(pObj)) {
+    	return;
+    }
+    else if(Aig_ObjIsConst1(pObj)) {
+    	Aig_ObjSetMarkA(pObj);
+    	return;
+    }
+    else if(Aig_ObjIsCi(pObj)) {
+    	Aig_ObjSetMarkA(pObj);
+		retSupport.insert(pObj);
+		return;
+    }
+
+    Aig_ConeSupportVecAndMark_rec(Aig_ObjFanin0(pObj), retSupport);
+    Aig_ConeSupportVecAndMark_rec(Aig_ObjFanin1(pObj), retSupport);
+
+    assert(!Aig_ObjIsMarkA(pObj)); // loop detection
+    Aig_ObjSetMarkA(pObj);
+    return;
+}
+
+void Aig_ConeSupportVecUnmark_rec(Aig_Obj_t * pObj) {
+    assert(!Aig_IsComplement(pObj));
+    if(pObj == NULL || !Aig_ObjIsMarkA(pObj)) {
+    	return;
+    }
+    else if(Aig_ObjIsConst1(pObj) || Aig_ObjIsCi(pObj)) {
+    	Aig_ObjClearMarkA(pObj);
+		return;
+    }
+    Aig_ConeSupportVecUnmark_rec(Aig_ObjFanin0(pObj));
+    Aig_ConeSupportVecUnmark_rec(Aig_ObjFanin1(pObj));
+    assert(Aig_ObjIsMarkA(pObj)); // loop detection
+    Aig_ObjClearMarkA(pObj);
+}
+
+vector<Aig_Obj_t *> Aig_SupportVec(Aig_Man_t* pMan, Aig_Obj_t* root) {
+    set<Aig_Obj_t *> retSupport;
+    Aig_ConeSupportVecUnmark_rec(Aig_Regular(root));
+    Aig_ConeSupportVecAndMark_rec(Aig_Regular(root), retSupport);
+    Aig_ConeSupportVecUnmark_rec(Aig_Regular(root));
+	return vector<Aig_Obj_t *>(retSupport.begin(), retSupport.end());
 }
 
 /** Function
@@ -3347,7 +3405,7 @@ int Aig_ConeCountWithConstAndMark_rec( Aig_Obj_t * pObj ) {
 		else
 	        return 0;
     }
-    Counter = 1 + Aig_ConeCountWithConstAndMark_rec( Aig_ObjFanin0(pObj) ) + 
+    Counter = 1 + Aig_ConeCountWithConstAndMark_rec( Aig_ObjFanin0(pObj) ) +
         Aig_ConeCountWithConstAndMark_rec( Aig_ObjFanin1(pObj) );
     assert( !Aig_ObjIsMarkA(pObj) ); // loop detection
     Aig_ObjSetMarkA( pObj );
@@ -3362,7 +3420,7 @@ void Aig_ConeWithConstUnmark_rec( Aig_Obj_t * pObj ) {
 			Aig_ObjClearMarkA( pObj );
 	    return;
     }
-    Aig_ConeWithConstUnmark_rec( Aig_ObjFanin0(pObj) ); 
+    Aig_ConeWithConstUnmark_rec( Aig_ObjFanin0(pObj) );
     Aig_ConeWithConstUnmark_rec( Aig_ObjFanin1(pObj) );
     assert( Aig_ObjIsMarkA(pObj) ); // loop detection
     Aig_ObjClearMarkA( pObj );
