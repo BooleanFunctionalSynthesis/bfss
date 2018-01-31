@@ -87,7 +87,7 @@ int main(int argc, char * argv[]) {
 	readQdimacsFile(qdFileName);
 	cout << "Finished readQdimacsFile" << endl;
 
-	// TODO: Propagate unary clauses
+	// Propagate unary clauses (and more)
 	findLitToProp();
 	cout << "Finished findLitToProp" << endl;
 	while(!litToPropagate.empty()) {
@@ -434,6 +434,20 @@ void findLitToProp() {
 			}
 		}
 	}
+
+	// findPureLiterals
+	for (auto var : varsY) {
+		if(existsAsPos[var].empty()) {
+			// set var = 0
+			cout << "PureNeg" << endl;
+			setConst(-var);
+		}
+		else if(existsAsNeg[var].empty()) {
+			// set var = 1
+			cout << "PurePos" << endl;
+			setConst(var);
+		}
+	}
 }
 
 void propagateLiteral(int lit) {
@@ -737,7 +751,7 @@ static inline void processBinaryClause(int clauseNum) {
 
 bool checkForCycles() {
 	vector<set<int> > graph(numVars+1);
-	
+
 	// Create Graph
 	for(auto it: depCONST) {
 		int var = abs(it);
@@ -766,7 +780,7 @@ bool checkForCycles() {
 	for (int i = 0; i < numVars + 1; ++i) {
 		if(DFS_startTime[i] == -1) {
 			if(DFS_checkForCycles(graph, i, DFS_startTime, DFS_endTime, DFS_currTime)) {
-				cout << i << endl;
+				cerr << i << endl;
 				return true;
 			}
 		}
@@ -811,7 +825,7 @@ void reduceDependencySizes() {
 				varsY.push_back(numVars);
 				assert(depFound.size() == numVars);
 				depFound.push_back(true);
-				
+
 				depAND[numVars] = vector<int>(it.second.begin()+start,it.second.begin()+end);
 				newV.push_back(numVars);
 
@@ -831,7 +845,7 @@ void reduceDependencySizes() {
 				varsY.push_back(numVars);
 				assert(depFound.size() == numVars);
 				depFound.push_back(true);
-				
+
 				depOR[numVars] = vector<int>(it.second.begin()+start,it.second.begin()+end);
 				newV.push_back(numVars);
 
@@ -851,7 +865,7 @@ void reduceDependencySizes() {
 				varsY.push_back(numVars);
 				assert(depFound.size() == numVars);
 				depFound.push_back(true);
-				
+
 				depXOR[numVars] = vector<int>(it.second.begin()+start,it.second.begin()+end);
 				newV.push_back(numVars);
 
