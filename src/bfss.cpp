@@ -44,6 +44,8 @@ int main(int argc, char * argv[]) {
 	Abc_Ntk_t* FNtk = getNtk(options.benchmark,true);
 	OUT("get FAig..." );
 	Aig_Man_t* FAig = Abc_NtkToDar(FNtk, 0, 0);
+	int removed_first = Aig_ManCleanup(FAig);
+	cout << "Removed " << removed_first << " in the first cleanup" << endl;
 
 
 	vector<int> unate;
