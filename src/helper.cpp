@@ -345,7 +345,7 @@ Abc_Ntk_t*  getNtk(string pFileName, bool fraig) {
 	map<string, int> name2Id;
 	int liftVal, cummulativeLift = 0;
 
-	initCmd = "cleanup; balance; rewrite -l; refactor -l; balance; rewrite -l; \
+	initCmd = "balance; rewrite -l; refactor -l; balance; rewrite -l; \
 						rewrite -lz; balance; refactor -lz; rewrite -lz; balance";
 
 	pAbc = Abc_FrameGetGlobalFrame();
