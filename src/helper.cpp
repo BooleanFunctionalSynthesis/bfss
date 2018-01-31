@@ -1426,6 +1426,52 @@ bool Aig_Support(Aig_Man_t* pMan, Aig_Obj_t* root, int inpNodeId) {
 	return Aig_Support_rec(pMan,Aig_Regular(root),inpNodeId,memo);
 }
 
+vector<Aig_Obj_t *> Aig_ConeSupportVecAndMark_rec(Aig_Obj_t * pObj) {
+    vector<Aig_Obj_t *> retSupport;
+    assert(!Aig_IsComplement(pObj));
+    if(!Aig_ObjIsNode(pObj) || Aig_ObjIsMarkA(pObj)) {
+		if(Aig_ObjIsCi(pObj)) {
+			if(Aig_ObjIsMarkA(pObj))
+				return {};
+			else {
+				Aig_ObjSetMarkA( pObj );	
+				retSupport.push_back(pObj);
+				return retSupport;
+			}
+		} else {
+	        return {};
+		}
+    }
+    vector<Aig_Obj_t *> lSupp = Aig_ConeSupportVecAndMark_rec(Aig_ObjFanin0(pObj));
+    vector<Aig_Obj_t *> rSupp = Aig_ConeSupportVecAndMark_rec(Aig_ObjFanin1(pObj));
+    retSupport = lSupp;;
+	retSupport.insert(retSupport.end(), rSupp.begin(), rSupp.end());
+    assert(!Aig_ObjIsMarkA(pObj)); // loop detection
+    Aig_ObjSetMarkA(pObj);
+    return retSupport;
+}
+
+void Aig_ConeSupportVecUnmark_rec(Aig_Obj_t * pObj) {
+    assert(!Aig_IsComplement(pObj));
+    if (!Aig_ObjIsNode(pObj) || !Aig_ObjIsMarkA(pObj)) {
+		if (Aig_ObjIsConst1(pObj)|| Aig_ObjIsCi(pObj))
+			Aig_ObjClearMarkA( pObj );
+	    return;
+    }
+    Aig_ConeSupportVecUnmark_rec(Aig_ObjFanin0(pObj)); 
+    Aig_ConeSupportVecUnmark_rec(Aig_ObjFanin1(pObj));
+    assert(Aig_ObjIsMarkA(pObj)); // loop detection
+    Aig_ObjClearMarkA(pObj);
+}
+
+vector<Aig_Obj_t *> Aig_SupportVec(Aig_Man_t* pMan, Aig_Obj_t* root) {
+    vector<Aig_Obj_t *> retSupport;
+    retSupport = Aig_ConeSupportVecAndMark_rec(Aig_Regular(root));
+    Aig_ConeSupportVecUnmark_rec(Aig_Regular(root));
+	return retSupport;
+}
+
+
 /** Function
  * Returns And of Aig1 and Aig2
  * @param pMan      [in]        Aig Manager
