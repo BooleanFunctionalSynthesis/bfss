@@ -2052,7 +2052,7 @@ bool verifyResult(Aig_Man_t*&SAig, vector<vector<int> >& r0,
 	double avg_before = 0;
 	for(auto it : skolemAig) {
 		pAigObj = Aig_ObjChild0(Aig_ManCo(SAig, it));
-		numAND = Aig_DagSize(pAigObj);
+		numAND = Aig_DagSizeWithConst(pAigObj);
 		avg_before += numAND;
 		if(max_before < numAND)
 			max_before = numAND;
@@ -2148,7 +2148,7 @@ bool verifyResult(Aig_Man_t*&SAig, vector<vector<int> >& r0,
 	double avg_after = 0;
 	for(auto it : skolemAig) {
 		pAigObj = Aig_ObjChild0(Aig_ManCo(SAig, it));
-		numAND = Aig_DagSize(pAigObj);
+		numAND = Aig_DagSizeWithConst(pAigObj);
 		avg_after += numAND;
 		if(max_after < numAND)
 			max_after = numAND;
@@ -3329,4 +3329,48 @@ void printAig(Aig_Man_t* pMan) {
 	Aig_ManForEachObj( pMan, pAigObj, i )
 	    Aig_ObjPrintVerbose( pAigObj, 1 ), printf( "\n" );
 	cout << endl;
+}
+
+int Aig_ConeCountWithConstAndMark_rec( Aig_Obj_t * pObj ) {
+    int Counter;
+    assert( !Aig_IsComplement(pObj) );
+    if (!Aig_ObjIsNode(pObj) || Aig_ObjIsMarkA(pObj) )
+    {
+		if (Aig_ObjIsConst1(pObj) || Aig_ObjIsCi(pObj)) {
+			if(Aig_ObjIsMarkA(pObj))
+				return 0;
+			else {
+				Aig_ObjSetMarkA( pObj );
+				return 1;
+			}
+		}
+		else
+	        return 0;
+    }
+    Counter = 1 + Aig_ConeCountWithConstAndMark_rec( Aig_ObjFanin0(pObj) ) + 
+        Aig_ConeCountWithConstAndMark_rec( Aig_ObjFanin1(pObj) );
+    assert( !Aig_ObjIsMarkA(pObj) ); // loop detection
+    Aig_ObjSetMarkA( pObj );
+    return Counter;
+}
+
+void Aig_ConeWithConstUnmark_rec( Aig_Obj_t * pObj ) {
+    assert( !Aig_IsComplement(pObj) );
+    if ( !Aig_ObjIsNode(pObj) || !Aig_ObjIsMarkA(pObj) )
+    {
+		if (Aig_ObjIsConst1(pObj)|| Aig_ObjIsCi(pObj))
+			Aig_ObjClearMarkA( pObj );
+	    return;
+    }
+    Aig_ConeWithConstUnmark_rec( Aig_ObjFanin0(pObj) ); 
+    Aig_ConeWithConstUnmark_rec( Aig_ObjFanin1(pObj) );
+    assert( Aig_ObjIsMarkA(pObj) ); // loop detection
+    Aig_ObjClearMarkA( pObj );
+}
+
+int Aig_DagSizeWithConst( Aig_Obj_t * pObj ) {
+    int Counter;
+    Counter = Aig_ConeCountWithConstAndMark_rec( Aig_Regular(pObj) );
+    Aig_ConeWithConstUnmark_rec( Aig_Regular(pObj) );
+    return Counter;
 }
