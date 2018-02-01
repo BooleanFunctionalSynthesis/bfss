@@ -81,6 +81,8 @@ void parseOptions(int argc, char * argv[]) {
 		("verify", "Veify computed skolem functions", cxxopts::value<bool>(options.verify))
 		("noUnate", "Don't find and substitute unates", cxxopts::value<bool>(options.noUnate))
 		("fmcadSizeThresh", "Size after which to turn off fmcad (default: " STR(FMCAD_SIZE_THRESH) ")", cxxopts::value<int>(options.fmcadSizeThreshold), "N")
+		("unateTimeout", "Timeout for unate checks (default: " STR(UNATE_TIMEOUT) ")", cxxopts::value<int>(options.unateTimeout), "N")
+		("checkSatOnly", "Exit if SAT", cxxopts::value<bool>(options.checkSatOnly))
 		("positional",
 			"Positional arguments: these are the arguments that are entered "
 			"without an option", cxxopts::value<std::vector<string>>())
@@ -229,6 +231,15 @@ void parseOptions(int argc, char * argv[]) {
 		exit(0);
 	}
 
+	if (!optParser.count("unateTimeout")) {
+		options.unateTimeout = UNATE_TIMEOUT;
+	}
+	else if(options.unateTimeout < 0) {
+		cerr << endl << "Error: Unate timeout must be non-negative" << endl << endl;
+		cout << optParser.help({"", "Group"}) << std::endl;
+		exit(0);
+	}
+
 	optionsOriginal = options;
 
 	unigen_argv[1] = (char*)((new string("--samples="+to_string(options.numSamples)))->c_str());
@@ -258,6 +269,8 @@ void parseOptions(int argc, char * argv[]) {
 	cout << "\t verify:               " << options.verify << endl;
 	cout << "\t noUnate:              " << options.noUnate << endl;
 	cout << "\t fmcadSizeThreshold:   " << options.fmcadSizeThreshold << endl;
+	cout << "\t unateTimeout:         " << options.unateTimeout << endl;
+	cout << "\t checkSatOnly:         " << options.checkSatOnly << endl;
 	cout << "}" << endl;
 }
 
@@ -2578,10 +2591,29 @@ int unigen_call(string fname, int nSamples, int nThreads) {
 		pthread_cond_wait(&CMSat::statCondVar, &CMSat::stat_lock);
 	pthread_mutex_unlock(&CMSat::stat_lock);
 
+	printf("ApproxMC #CEX (Sci.):   =%d*2^%d\n", CMSat::CUSP::approxmcBase, CMSat::CUSP::approxmcExpo);
+	printf("ApproxMC #CEX (Dec.):   %f\n", CMSat::CUSP::approxmcBase*pow(2.0,CMSat::CUSP::approxmcExpo));
+	printf("Badness Ratio (Sci.):   =%d*2^%d\n", CMSat::CUSP::approxmcBase, CMSat::CUSP::approxmcExpo - numX);
+	printf("Badness Ratio (Dec.):   %f\n", CMSat::CUSP::approxmcBase*pow(2.0,CMSat::CUSP::approxmcExpo - numX));
+
 	switch(CMSat::CUSP::initStat) {
 		case CMSat::initialStatus::unsat: return 0;
 		case CMSat::initialStatus::tooLittle: return -1;
-		case CMSat::initialStatus::sat: return 1;
+		case CMSat::initialStatus::sat:
+			if(options.checkSatOnly) {
+				cout << "SAT, Terminating Unigen prematurely" << endl;
+				CMSat::CUSP::prematureKill = true;
+				pthread_join(unigen_threadId, NULL);
+
+				pthread_mutex_lock(&CMSat::mu_lock);
+				CMSat::CUSP::unigenRunning = false;
+				pthread_cond_signal(&CMSat::lilCondVar);
+				pthread_mutex_unlock(&CMSat::mu_lock);
+				unigen_threadId = -1;
+
+				exit(0);
+			}
+		return 1;
 	}
 
 	// control cannot reach here
@@ -3180,6 +3212,10 @@ int checkUnateSyntacticAll(Aig_Man_t* FAig, vector<int>&unate) {
 int checkUnateSemanticAll(Aig_Man_t* FAig, vector<int>&unate) {
 	Aig_ManPrintStats(FAig);
 
+	auto unate_start = std::chrono::steady_clock::now();
+	auto unate_end = std::chrono::steady_clock::now();
+	auto unate_run_time = std::chrono::duration_cast<std::chrono::microseconds>(unate_end - unate_start).count()/1000000.0;
+
 	nodeIdtoN.resize(numOrigInputs);
 	for(int i = 0; i < numX; i++) {
 		nodeIdtoN[varsXF[i] - 1] = i;
@@ -3269,6 +3305,13 @@ int checkUnateSemanticAll(Aig_Man_t* FAig, vector<int>&unate) {
 		}
 		cout << "Found " << numUnate << " unates" << endl;
 		totalNumUnate += numUnate;
+
+		unate_end = std::chrono::steady_clock::now();
+		unate_run_time = std::chrono::duration_cast<std::chrono::microseconds>(unate_end - unate_start).count()/1000000.0;
+		if(numUnate > 0 and unate_run_time >= options.unateTimeout) {
+			cout << "checkUnateSemanticAll Timed Out" << endl;
+			break;
+		}
 	}
 	while(numUnate > 0);
 

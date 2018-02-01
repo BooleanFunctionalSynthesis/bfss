@@ -67,6 +67,7 @@ int main(int argc, char * argv[]) {
 		unate.resize(numY, -1);
 		// find unates, substitute
 		cout << "checkUnateAll" << endl;
+		auto unate_start = std::chrono::steady_clock::now();
 
 		int numSynUnates = 0;
 		int n;
@@ -77,8 +78,11 @@ int main(int argc, char * argv[]) {
 		int numSemUnates = checkUnateSemanticAll(FAig, unate);
 		substituteUnates(FAig, unate);
 
+		auto unate_end = std::chrono::steady_clock::now();
+		auto unate_run_time = std::chrono::duration_cast<std::chrono::microseconds>(unate_end - unate_start).count()/1000000.0;
 		cout << "Total Syntactic Unates: " << numSynUnates << endl;
 		cout << "Total Semantic  Unates: " << numSemUnates << endl;
+		cout << "Total Unate Run-Time:   " << unate_run_time << endl;
 
 		cout << "Unates: ";
 		for (int i = 0; i < numY; ++i)

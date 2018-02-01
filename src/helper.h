@@ -60,6 +60,7 @@ using namespace ABC_NAMESPACE;
 #define UNIGEN_THRESHOLD 	0.3
 #define WAIT_SAMPLES_DEF 	110
 #define FMCAD_SIZE_THRESH	1e6
+#define UNATE_TIMEOUT		3600
 
 // #define DEBUG
 // #define DEBUG_CHUNK
@@ -97,6 +98,8 @@ struct optionStruct {
 	bool 	verify;
 	bool 	noUnate;
 	int 	fmcadSizeThreshold;
+	int 	unateTimeout;
+	bool 	checkSatOnly;
 };
 
 extern vector<int> varsSInv;
