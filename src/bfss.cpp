@@ -111,6 +111,23 @@ int main(int argc, char * argv[]) {
 	// cout << "\n\nNormal Aig: " << endl;
 	// printAig(normalAig);
 
+	/*
+	nnfNew.print();
+	cout << "Checking wDNNF" << endl;
+	bool isWDNNF = nnfNew.isWDNNF();
+	if(isWDNNF) {
+		cout << "********************************" << endl;
+		cout << "** In wDNNF!" << endl;
+		cout << "** Will Predict Exact Skolem Fns" << endl;
+		cout << "********************************" << endl;
+	}
+	else {
+		cout << "********************************" << endl;
+		cout << "** Not wDNNF :(" << endl;
+		cout << "********************************" << endl;
+	}
+	exit(0);
+	*/
 
 	numOrigInputs = nnfNew.getCiNum();
 	Aig_Man_t* SAig = nnfNew.createAigWithoutClouds();

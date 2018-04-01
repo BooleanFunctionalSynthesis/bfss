@@ -27,6 +27,7 @@ public:
 	bool fMarkA;
 	int iData;
 	void* pData;
+	bool isWDNNF();
 
 	Nnf_Obj(int id);
 	Nnf_Obj(int id, Nnf_Type t);
@@ -66,6 +67,7 @@ public:
 	Nnf_Obj* const1();
 	
 	// Routines
+	bool isWDNNF();
 	void pushBubblesDown(Nnf_Obj* nObj);
 	void print();
 	void Nnf_ManDfs_rec(Nnf_Obj * pObj, vector<Nnf_Obj*> &vNodes);

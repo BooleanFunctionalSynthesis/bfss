@@ -1,7 +1,7 @@
 #include "nnf.h"
 
 Nnf_Obj::Nnf_Obj(int id) : Nnf_Obj(id, NNF_OBJ_NONE) {};
-Nnf_Obj::Nnf_Obj(int id, Nnf_Type t) : Id(id), Type(t), neg(NULL), pFanin0(NULL), pFanin1(NULL), AigNum(-1), fMarkA(false) {};
+Nnf_Obj::Nnf_Obj(int id, Nnf_Type t) : Id(id), Type(t), neg(NULL), pFanin0(NULL), pFanin1(NULL), AigNum(-1), fMarkA(false), pData(NULL) {};
 
 void Nnf_Obj::print()
 {
@@ -119,6 +119,7 @@ void Nnf_Man::parse_aig(Aig_Man_t* pSrc) {
 	for (int i = 1; i < _allNodes.size(); ++i) {
 		if(_allNodes[i] != NULL)
 			delete _allNodes[i];
+			_allNodes[i] = NULL;
 	}
 	_allNodes.resize(1);
 	_inputs_pos.clear();
@@ -428,6 +429,7 @@ Aig_Man_t* Nnf_Man::createAigMultipleClouds(int numCloudSets) {
 
 	for(auto node: _allNodes) {
 		delete (vector<Aig_Obj_t*>*)node->pData;
+		node->pData = NULL;
 	}
 
 	return pMan;
@@ -563,6 +565,118 @@ void Nnf_Man::Nnf_ManTopoId() {
 		it->Id = currId++;
     _allNodes = vNodes;
     return;
+}
+
+bool Nnf_Man::isWDNNF() {
+	// Recursive calls
+
+	// Unmark all nodes
+	for(auto it: _allNodes) {
+	    Nnf_ObjClearMarkA(it);
+	    it->pData = NULL;
+	}
+
+	cout << "Const1 and Inputs" << endl;
+	// Const1 and Inputs
+	this->const1()->pData = new set<int>();
+	this->const1()->iData = 1;
+	Nnf_ObjSetMarkA(this->const1());
+	for (int i = 0; i < this->getCiNum(); ++i) {
+		_inputs_pos[i]->pData = new set<int>{i};
+		_inputs_neg[i]->pData = new set<int>{-i};
+		_inputs_pos[i]->iData = 1;
+		_inputs_neg[i]->iData = 1;
+		Nnf_ObjSetMarkA(_inputs_pos[i]);
+		Nnf_ObjSetMarkA(_inputs_neg[i]);
+	}
+
+	assert(_outputs.size() == 1);
+	cout << "_outputs.front()->isWDNNF()" << endl;
+	bool result = _outputs.front()->isWDNNF();
+
+	cout << "Unmark all nodes, Free Memory" << endl;
+	// Unmark all nodes, Free Memory
+	for(auto it: _allNodes) {
+	    Nnf_ObjClearMarkA(it);
+		if(it->pData != NULL) {
+			delete (set<int>*) it->pData;
+			it->pData = NULL;
+		}
+	}
+
+	return result;
+}
+
+bool Nnf_Obj::isWDNNF() {
+	// Recursive calls
+	// Store Support in pData as set<int>
+	// Store isWDNNF in iData, return
+
+	if(Nnf_ObjIsMarkA(this)) {
+		return this->iData == 1;
+	}
+	Nnf_ObjSetMarkA(this);
+
+	bool res;
+	switch(this->Type) {
+		case Nnf_Type::NNF_OBJ_NONE:
+		case Nnf_Type::NNF_OBJ_CONST1:
+		case Nnf_Type::NNF_OBJ_CI_POS:
+		case Nnf_Type::NNF_OBJ_CI_NEG:
+			assert(false); // Handled Earlier
+
+		case Nnf_Type::NNF_OBJ_CO:
+			res = Nnf_ObjFanin0(this)->isWDNNF();
+			this->print(); cout << "Returned " << res << endl;
+			return res;
+
+		case Nnf_Type::NNF_OBJ_OR:
+			res = Nnf_ObjFanin0(this)->isWDNNF() and Nnf_ObjFanin1(this)->isWDNNF();
+			if(res) {
+				set<int>* s0 = (set<int>*) Nnf_ObjFanin0(this)->pData;
+				set<int>* s1 = (set<int>*) Nnf_ObjFanin1(this)->pData;
+				auto supp = new set<int>();
+				set_union (s0->begin(), s0->end(),
+							s1->begin(), s1->end(),
+							inserter(*supp, supp->begin()));
+				this->pData = supp;
+			}
+			this->print(); cout << "Returned " << res << endl;
+			return res;
+
+		case Nnf_Type::NNF_OBJ_AND:
+			res = Nnf_ObjFanin0(this)->isWDNNF() and Nnf_ObjFanin1(this)->isWDNNF();
+			if(res) {
+				set<int>* s0 = (set<int>*) Nnf_ObjFanin0(this)->pData;
+				set<int>* s1 = (set<int>*) Nnf_ObjFanin1(this)->pData;
+				// Check wDNNF violation
+				for(auto lit:*s0) {
+					if(s1->find(-lit) != s1->end()) {
+						res = false;
+						break;
+					}
+				}
+				if(!res) {
+					cout << "wDNNF violation: ";
+					this->print();
+					cout << endl;
+				}
+			}
+			if(res) {
+				set<int>* s0 = (set<int>*) Nnf_ObjFanin0(this)->pData;
+				set<int>* s1 = (set<int>*) Nnf_ObjFanin1(this)->pData;
+				auto supp = new set<int>();
+				set_union (s0->begin(), s0->end(),
+							s1->begin(), s1->end(),
+							inserter(*supp, supp->begin()));
+				this->pData = supp;
+			}
+			this->print(); cout << "Returned " << res << endl;
+			return res;
+	}
+
+	// Should not reach here
+	assert(false);
 }
 
 Nnf_Type SwitchAndOrType(Nnf_Type t) {
