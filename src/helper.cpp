@@ -3286,8 +3286,8 @@ int checkUnateSemanticAll(Aig_Man_t* FAig, vector<int>&unate) {
 				if (status == l_False) {
 					unate[i] = 1;
 					cout << "Var y" << i << " (" << varsYF[i] << ") is positive unate (semantic)" << endl;
-					// sat_solver_push(pSat, toLitCond(SCnf->pVarNums[varsYF[i]-1],0));
-					addVarToSolver(pSat, SCnf->pVarNums[varsYF[i]-1], 1);
+					// sat_solver_push(pSat, toLitCond(SCnf->pVarNums[varsYF[i]],0));
+					addVarToSolver(pSat, SCnf->pVarNums[varsYF[i]], 1);
 					numUnate++;
 				}
 			}
@@ -3299,8 +3299,8 @@ int checkUnateSemanticAll(Aig_Man_t* FAig, vector<int>&unate) {
 				if (status == l_False) {
 					cout << "Var y" << i << " (" << varsYF[i] << ") is negative unate (semantic)" << endl;
 					unate[i] = 0;
-					// sat_solver_push(pSat, toLitCond(SCnf->pVarNums[varsYF[i]-1],1));
-					addVarToSolver(pSat, SCnf->pVarNums[varsYF[i]-1], 0);
+					// sat_solver_push(pSat, toLitCond(SCnf->pVarNums[varsYF[i]],1));
+					addVarToSolver(pSat, SCnf->pVarNums[varsYF[i]], 0);
 					numUnate++;
 				}
 			}
