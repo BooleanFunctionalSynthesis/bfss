@@ -568,6 +568,12 @@ void Nnf_Man::Nnf_ManTopoId() {
 }
 
 bool Nnf_Man::isWDNNF() {
+	vector<int> varsY(this->getCiNum());
+	iota(varsY.begin(), varsY.end(), 0);
+	return this->isWDNNF(varsY);
+}
+
+bool Nnf_Man::isWDNNF(vector<int>& varsY) {
 	// Recursive calls
 
 	// Unmark all nodes
@@ -582,12 +588,16 @@ bool Nnf_Man::isWDNNF() {
 	this->const1()->iData = 1;
 	Nnf_ObjSetMarkA(this->const1());
 	for (int i = 0; i < this->getCiNum(); ++i) {
-		_inputs_pos[i]->pData = new set<int>{i};
-		_inputs_neg[i]->pData = new set<int>{-i};
+		_inputs_pos[i]->pData = new set<int>();
+		_inputs_neg[i]->pData = new set<int>();
 		_inputs_pos[i]->iData = 1;
 		_inputs_neg[i]->iData = 1;
 		Nnf_ObjSetMarkA(_inputs_pos[i]);
 		Nnf_ObjSetMarkA(_inputs_neg[i]);
+	}
+	for (auto i:varsY) {
+		((set<int>*)(_inputs_pos[i]->pData))->insert(i);
+		((set<int>*)(_inputs_neg[i]->pData))->insert(-i);
 	}
 
 	assert(_outputs.size() == 1);
@@ -627,7 +637,8 @@ bool Nnf_Obj::isWDNNF() {
 
 		case Nnf_Type::NNF_OBJ_CO:
 			res = Nnf_ObjFanin0(this)->isWDNNF();
-			this->print(); cout << "Returned " << res << endl;
+			this->iData = res?1:0;
+			cout << res << " from "; this->print();
 			return res;
 
 		case Nnf_Type::NNF_OBJ_OR:
@@ -641,7 +652,8 @@ bool Nnf_Obj::isWDNNF() {
 							inserter(*supp, supp->begin()));
 				this->pData = supp;
 			}
-			this->print(); cout << "Returned " << res << endl;
+			this->iData = res?1:0;
+			cout << res << " from "; this->print();
 			return res;
 
 		case Nnf_Type::NNF_OBJ_AND:
@@ -671,7 +683,8 @@ bool Nnf_Obj::isWDNNF() {
 							inserter(*supp, supp->begin()));
 				this->pData = supp;
 			}
-			this->print(); cout << "Returned " << res << endl;
+			this->iData = res?1:0;
+			cout << res << " from "; this->print();
 			return res;
 	}
 

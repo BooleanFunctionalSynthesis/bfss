@@ -3194,10 +3194,10 @@ int checkUnateSyntacticAll(Aig_Man_t* FAig, vector<int>&unate) {
 			int refNeg = nnfSyntatic.getCiNeg(varsYF[i] - 1)->getNumRef();
 			if(refPos == 0) {
 				unate[i] = 0;
-				cout << "Var y" << i << " is negative unate (syntactic)" << endl;
+				cout << "Var y" << i << " (" << varsYF[i] << ") is negative unate (syntactic)" << endl;
 			} else if(refNeg == 0) {
 				unate[i] = 1;
-				cout << "Var y" << i << " is positive unate (syntactic)" << endl;
+				cout << "Var y" << i << " (" << varsYF[i] << ") is positive unate (syntactic)" << endl;
 			}
 			if (unate[i] != -1) {
 				numUnate++;
@@ -3283,7 +3283,7 @@ int checkUnateSemanticAll(Aig_Man_t* FAig, vector<int>&unate) {
 				status = sat_solver_solve(pSat, LA, LA+1, (ABC_INT64_T)0, (ABC_INT64_T)0, (ABC_INT64_T)0, (ABC_INT64_T)0);
 				if (status == l_False) {
 					unate[i] = 1;
-					cout << "Var y" << i << " is positive unate (semantic)" << endl;
+					cout << "Var y" << i << " (" << varsYF[i] << ") is positive unate (semantic)" << endl;
 					// sat_solver_push(pSat, toLitCond(SCnf->pVarNums[varsYF[i]-1],0));
 					addVarToSolver(pSat, SCnf->pVarNums[varsYF[i]-1], 1);
 					numUnate++;
@@ -3295,7 +3295,7 @@ int checkUnateSemanticAll(Aig_Man_t* FAig, vector<int>&unate) {
 				LA[0] = toLitCond(getCnfCoVarNum(SCnf, FAig, negUnates[i]),1);
 				status = sat_solver_solve(pSat, LA, LA+1, (ABC_INT64_T)0, (ABC_INT64_T)0, (ABC_INT64_T)0, (ABC_INT64_T)0);
 				if (status == l_False) {
-					cout << "Var y" << i << " is negative unate (semantic)" << endl;
+					cout << "Var y" << i << " (" << varsYF[i] << ") is negative unate (semantic)" << endl;
 					unate[i] = 0;
 					// sat_solver_push(pSat, toLitCond(SCnf->pVarNums[varsYF[i]-1],1));
 					addVarToSolver(pSat, SCnf->pVarNums[varsYF[i]-1], 0);

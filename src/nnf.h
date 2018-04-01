@@ -65,9 +65,10 @@ public:
 	Nnf_Obj* createCo(Nnf_Obj* pDriver);
 	Nnf_Obj* const0();
 	Nnf_Obj* const1();
-	
+
 	// Routines
 	bool isWDNNF();
+	bool isWDNNF(vector<int>& varsY);
 	void pushBubblesDown(Nnf_Obj* nObj);
 	void print();
 	void Nnf_ManDfs_rec(Nnf_Obj * pObj, vector<Nnf_Obj*> &vNodes);
