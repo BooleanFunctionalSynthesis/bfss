@@ -80,6 +80,8 @@ void parseOptions(int argc, char * argv[]) {
 		("noRevSub", "Don't reverse substitute", cxxopts::value<bool>(options.noRevSub))
 		("verify", "Veify computed skolem functions", cxxopts::value<bool>(options.verify))
 		("noUnate", "Don't find and substitute unates", cxxopts::value<bool>(options.noUnate))
+		("noSyntacticUnate", "Don't use Syntactic unateness checks", cxxopts::value<bool>(options.noSyntacticUnate))
+		("noSemanticUnate", "Don't use Semantic unateness checks", cxxopts::value<bool>(options.noSemanticUnate))
 		("fmcadSizeThresh", "Size after which to turn off fmcad (default: " STR(FMCAD_SIZE_THRESH) ")", cxxopts::value<int>(options.fmcadSizeThreshold), "N")
 		("unateTimeout", "Timeout for unate checks (default: " STR(UNATE_TIMEOUT) ")", cxxopts::value<int>(options.unateTimeout), "N")
 		("checkSatOnly", "Exit if SAT", cxxopts::value<bool>(options.checkSatOnly))

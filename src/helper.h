@@ -97,6 +97,8 @@ struct optionStruct {
 	bool 	noRevSub;
 	bool 	verify;
 	bool 	noUnate;
+	bool 	noSyntacticUnate;
+	bool 	noSemanticUnate;
 	int 	fmcadSizeThreshold;
 	int 	unateTimeout;
 	bool 	checkSatOnly;

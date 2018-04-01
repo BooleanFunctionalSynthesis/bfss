@@ -71,11 +71,16 @@ int main(int argc, char * argv[]) {
 
 		int numSynUnates = 0;
 		int n;
-		while((n = checkUnateSyntacticAll(FAig, unate)) > 0) {
-			substituteUnates(FAig, unate);
-			numSynUnates += n;
+		if(!options.noSyntacticUnate) {
+			while((n = checkUnateSyntacticAll(FAig, unate)) > 0) {
+				substituteUnates(FAig, unate);
+				numSynUnates += n;
+			}
 		}
-		int numSemUnates = checkUnateSemanticAll(FAig, unate);
+		int numSemUnates = 0;
+		if(!options.noSemanticUnate) {
+			numSemUnates = checkUnateSemanticAll(FAig, unate);
+		}
 		substituteUnates(FAig, unate);
 
 		auto unate_end = std::chrono::steady_clock::now();
