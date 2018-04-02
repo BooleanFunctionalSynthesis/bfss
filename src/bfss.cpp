@@ -51,6 +51,8 @@ int main(int argc, char * argv[]) {
 	vector<int> unate;
 	if(!options.noUnate) {
 
+		cout << "\n\nChecking Unates..." << endl;
+
 		varsXF.clear();
 		varsYF.clear();
 		name2IdF.clear();
@@ -65,12 +67,10 @@ int main(int argc, char * argv[]) {
 		cout << "numY " << numY << endl;
 
 		unate.resize(numY, -1);
-		// find unates, substitute
-		cout << "checkUnateAll" << endl;
 		auto unate_start = std::chrono::steady_clock::now();
 
-		int numSynUnates = 0;
-		int n;
+		// find unates, substitute
+		int n, numSynUnates = 0;
 		if(!options.noSyntacticUnate) {
 			while((n = checkUnateSyntacticAll(FAig, unate)) > 0) {
 				substituteUnates(FAig, unate);
@@ -80,8 +80,8 @@ int main(int argc, char * argv[]) {
 		int numSemUnates = 0;
 		if(!options.noSemanticUnate) {
 			numSemUnates = checkUnateSemanticAll(FAig, unate);
+			substituteUnates(FAig, unate);
 		}
-		substituteUnates(FAig, unate);
 
 		auto unate_end = std::chrono::steady_clock::now();
 		auto unate_run_time = std::chrono::duration_cast<std::chrono::microseconds>(unate_end - unate_start).count()/1000000.0;
@@ -125,10 +125,38 @@ int main(int argc, char * argv[]) {
 					varsYF, varsYS,
 					name2IdF, id2NameF);
 
+	if(options.noUnate) unate.resize(numY, -1);
+
 	cout << "numX " << numX << endl;
 	cout << "numY " << numY << endl;
 	cout << "numUnate " << numY - count(unate.begin(), unate.end(), -1) << endl;
 	cout << "numOrigInputs " << numOrigInputs << endl;
+
+	#ifdef DEBUG_CHUNK // Print varsXS, varsYS
+		cout << "varsXF: " << endl;
+		for(auto it : varsXF)
+		    cout << it << " ";
+		cout<<endl;
+		cout << "varsYF: " << endl;
+		for(auto it : varsYF)
+		    cout << it << " ";
+		cout<<endl;
+
+		cout << "varsXS: " << endl;
+		for(auto it : varsXS)
+			cout << it << " ";
+		cout<<endl;
+		cout << "varsYS: " << endl;
+		for(auto it : varsYS)
+			cout << it << " ";
+		cout<<endl;
+	#endif
+
+	assert(numX + numY == numOrigInputs);
+
+	OUT("Cleaning up...");
+	int removed = Aig_ManCleanup(SAig);
+	OUT("Removed "<<removed<<" nodes");
 
 	if(options.checkWDNNF) {
 		// populate varsYNNF: vector of input numbers
@@ -157,38 +185,6 @@ int main(int argc, char * argv[]) {
 		}
 	}
 
-	unate.resize(numY, -1);
-
-	#ifdef DEBUG_CHUNK // Print varsXS, varsYS
-		// cout << "varsXF: " << endl;
-		// for(auto it : varsXF)
-		//     cout << it << " ";
-		// cout<<endl;
-		// cout << "varsYF: " << endl;
-		// for(auto it : varsYF)
-		//     cout << it << " ";
-		// cout<<endl;
-
-		cout << "varsXS: " << endl;
-		for(auto it : varsXS)
-			cout << it << " ";
-		cout<<endl;
-		cout << "varsYS: " << endl;
-		for(auto it : varsYS)
-			cout << it << " ";
-		cout<<endl;
-	#endif
-
-	assert(numX + numY == numOrigInputs);
-
-	OUT("Cleaning up...");
-	int removed = Aig_ManCleanup(SAig);
-	OUT("Removed "<<removed<<" nodes");
-
-
-	// // @TODO: ============ DELETE THIS ===========
-	// exit(0);
-
 	// Fs[0] - F_SAig      will always be Aig_ManCo( ... , 1)
 	// Fs[1] - FPrime_SAig will always be Aig_ManCo( ... , 2)
 	vector<Aig_Obj_t* > Fs(2);
@@ -207,10 +203,6 @@ int main(int argc, char * argv[]) {
 	cout << "F_SAigIndex: " << F_SAigIndex << endl;
 	cout << "FPrime_SAigIndex: " << FPrime_SAigIndex << endl;
 
-	// Pre-process R0/R1
-	k2Trend = vector<vector<int> >(numY+1, vector<int>(numY,0));
-	useR1AsSkolem = vector<bool>(numY,true);
-
 	if(options.monoSkolem) {
 		monoSkolem(SAig, r0, r1);
 		main_end = std::chrono::steady_clock::now();
@@ -223,34 +215,38 @@ int main(int argc, char * argv[]) {
 		return 1;
 	}
 
+	// Patch 0th Output of SAig (is taking un-necessary size)
+	Aig_ObjPatchFanin0(SAig, Aig_ManCo(SAig,0), Aig_ManConst0(SAig));
+
+	// Global Optimization: Used in dinfing k2Max
 	m_pSat = sat_solver_new();
 	m_FCnf = Cnf_Derive(SAig, Aig_ManCoNum(SAig));
 	m_f = toLitCond(getCnfCoVarNum(m_FCnf, SAig, F_SAigIndex), 0);
 	addCnfToSolver(m_pSat, m_FCnf);
 
-	// cout << "checkSupportSanity(SAig, r0, r1)..."<<endl;
-	// checkSupportSanity(SAig, r0, r1);
+	#ifdef DEBUG_CHUNK // Print SAig, checkSupportSanity
+		cout << "\nSAig: " << endl;
+		Abc_NtkForEachObj(SNtk,pAbcObj,i)
+			cout <<"SAig Node "<<i<<": " << Abc_ObjName(pAbcObj) << endl;
 
-	// Patch 0th Output of SAig to F
-	Aig_ObjPatchFanin0(SAig, Aig_ManCo(SAig,0), Aig_ManConst0(SAig));
+		cout << "\nSAig: " << endl;
+		Aig_ManForEachObj( SAig, pAigObj, i )
+			Aig_ObjPrintVerbose( pAigObj, 1 ), printf( "\n" );
 
-	// #ifdef DEBUG_CHUNK // Print SAig
- //        cout << "\nSAig: " << endl;
- //        Abc_NtkForEachObj(SNtk,pAbcObj,i)
- //            cout <<"SAig Node "<<i<<": " << Abc_ObjName(pAbcObj) << endl;
-
- //        cout << "\nSAig: " << endl;
- //        Aig_ManForEachObj( SAig, pAigObj, i )
- //            Aig_ObjPrintVerbose( pAigObj, 1 ), printf( "\n" );
- //    #endif
+		cout << "checkSupportSanity(SAig, r0, r1)..."<<endl;
+		checkSupportSanity(SAig, r0, r1);
+	#endif
 	cout << "Created SAig..." << endl;
 	cout << endl;
 
 	options.c1 = (options.c1 >= numY)? numY - 1 : options.c1;
 	options.c2 = (options.c2 >= numY)? numY - 1 : options.c2;
 
-	initializeAddR1R0toR();
+	// Pre-process R0/R1
+	k2Trend = vector<vector<int> >(numY+1, vector<int>(numY,0));
+	useR1AsSkolem = vector<bool>(numY,true);
 
+	initializeAddR1R0toR();
 	if(options.proactiveProp)
 		switch(options.skolemType) {
 			case (sType::skolemR0): propagateR0Cofactors(SAig,r0,r1); break;
@@ -259,9 +255,6 @@ int main(int argc, char * argv[]) {
 		}
 	chooseR_(SAig,r0,r1);
 	cout << endl;
-
-	// cout << "checkSupportSanity(SAig, r0, r1)..."<<endl;
-	// checkSupportSanity(SAig, r0, r1);
 
 	Aig_ManPrintStats( SAig );
 	cout << "Compressing SAig..." << endl;
@@ -315,8 +308,6 @@ int main(int argc, char * argv[]) {
 		Aig_ManForEachObj( SAig, pAigObj, i )
 			Aig_ObjPrintVerbose( pAigObj, 1 ), printf( "\n" );
 	#endif
-
-
 
 	// printK2Trend();
 

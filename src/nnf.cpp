@@ -37,24 +37,24 @@ Nnf_Man::Nnf_Man() {
 }
 
 Nnf_Man::Nnf_Man(Aig_Man_t* pSrc) : Nnf_Man() {
-	cout <<"\n\nInitially" << endl;
+	// cout <<"\n\nInitially" << endl;
 	// print();
 
 	int rem = Aig_ManCleanup(pSrc);
-	cout << "\n\nRemoved " << rem << " nodes during cleanup" << endl;
+	cout << "Removed " << rem << " nodes during NNF cleanup" << endl;
 
-	cout <<"\n\nParsing..." << endl;
+	// cout <<"\n\nParsing..." << endl;
 	parse_aig(pSrc);
 
-	cout <<"\n\nParsed Aig" << endl;
+	// cout <<"\n\nParsed Aig" << endl;
 	// print();
 	makeNnf();
 
-	cout <<"\n\nPushed Bubbles down" << endl;
+	// cout <<"\n\nPushed Bubbles down" << endl;
 	// print();
 	Nnf_ManTopoId();
 
-	cout <<"\n\nTopo-sorted" << endl;
+	// cout <<"\n\nTopo-sorted" << endl;
 	// print();
 }
 
@@ -582,7 +582,6 @@ bool Nnf_Man::isWDNNF(vector<int>& varsY) {
 	    it->pData = NULL;
 	}
 
-	cout << "Const1 and Inputs" << endl;
 	// Const1 and Inputs
 	this->const1()->pData = new set<int>();
 	this->const1()->iData = 1;
@@ -601,10 +600,8 @@ bool Nnf_Man::isWDNNF(vector<int>& varsY) {
 	}
 
 	assert(_outputs.size() == 1);
-	cout << "_outputs.front()->isWDNNF()" << endl;
 	bool result = _outputs.front()->isWDNNF();
 
-	cout << "Unmark all nodes, Free Memory" << endl;
 	// Unmark all nodes, Free Memory
 	for(auto it: _allNodes) {
 	    Nnf_ObjClearMarkA(it);
@@ -638,7 +635,7 @@ bool Nnf_Obj::isWDNNF() {
 		case Nnf_Type::NNF_OBJ_CO:
 			res = Nnf_ObjFanin0(this)->isWDNNF();
 			this->iData = res?1:0;
-			cout << res << " from "; this->print();
+			// cout << res << " from "; this->print();
 			return res;
 
 		case Nnf_Type::NNF_OBJ_OR:
@@ -653,7 +650,7 @@ bool Nnf_Obj::isWDNNF() {
 				this->pData = supp;
 			}
 			this->iData = res?1:0;
-			cout << res << " from "; this->print();
+			// cout << res << " from "; this->print();
 			return res;
 
 		case Nnf_Type::NNF_OBJ_AND:
@@ -684,7 +681,7 @@ bool Nnf_Obj::isWDNNF() {
 				this->pData = supp;
 			}
 			this->iData = res?1:0;
-			cout << res << " from "; this->print();
+			// cout << res << " from "; this->print();
 			return res;
 	}
 
