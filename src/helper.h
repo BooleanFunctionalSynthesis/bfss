@@ -102,6 +102,7 @@ struct optionStruct {
 	int 	fmcadSizeThreshold;
 	int 	unateTimeout;
 	bool 	checkSatOnly;
+	bool 	checkWDNNF;
 };
 
 extern vector<int> varsSInv;

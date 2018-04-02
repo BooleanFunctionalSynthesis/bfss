@@ -130,29 +130,31 @@ int main(int argc, char * argv[]) {
 	cout << "numUnate " << numY - count(unate.begin(), unate.end(), -1) << endl;
 	cout << "numOrigInputs " << numOrigInputs << endl;
 
-	// populate varsYNNF: vector of input numbers
-	vector<int> varsYNNF;
-	for(auto y:varsYF) {
-		int i;
-		for (i = 0; i < nnfNew.getCiNum(); ++i)
-			if(nnfNew.getCiPos(i)->OrigAigId == y)
-				break;
-		assert(i != nnfNew.getCiNum());
-		varsYNNF.push_back(i);
-	}
+	if(options.checkWDNNF) {
+		// populate varsYNNF: vector of input numbers
+		vector<int> varsYNNF;
+		for(auto y:varsYF) {
+			int i;
+			for (i = 0; i < nnfNew.getCiNum(); ++i)
+				if(nnfNew.getCiPos(i)->OrigAigId == y)
+					break;
+			assert(i != nnfNew.getCiNum());
+			varsYNNF.push_back(i);
+		}
 
-	cout << "Checking wDNNF" << endl;
-	bool isWDNNF = nnfNew.isWDNNF(varsYNNF);
-	if(isWDNNF) {
-		cout << "********************************" << endl;
-		cout << "** In wDNNF!" << endl;
-		cout << "** Will Predict Exact Skolem Fns" << endl;
-		cout << "********************************" << endl;
-	}
-	else {
-		cout << "********************************" << endl;
-		cout << "** Not wDNNF :(" << endl;
-		cout << "********************************" << endl;
+		cout << "Checking wDNNF" << endl;
+		bool isWDNNF = nnfNew.isWDNNF(varsYNNF);
+		if(isWDNNF) {
+			cout << "********************************" << endl;
+			cout << "** In wDNNF!" << endl;
+			cout << "** Will Predict Exact Skolem Fns" << endl;
+			cout << "********************************" << endl;
+		}
+		else {
+			cout << "********************************" << endl;
+			cout << "** Not wDNNF :(" << endl;
+			cout << "********************************" << endl;
+		}
 	}
 
 	unate.resize(numY, -1);

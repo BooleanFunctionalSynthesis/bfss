@@ -85,6 +85,7 @@ void parseOptions(int argc, char * argv[]) {
 		("fmcadSizeThresh", "Size after which to turn off fmcad (default: " STR(FMCAD_SIZE_THRESH) ")", cxxopts::value<int>(options.fmcadSizeThreshold), "N")
 		("unateTimeout", "Timeout for unate checks (default: " STR(UNATE_TIMEOUT) ")", cxxopts::value<int>(options.unateTimeout), "N")
 		("checkSatOnly", "Exit if SAT", cxxopts::value<bool>(options.checkSatOnly))
+		("checkWDNNF", "check if wDNNF", cxxopts::value<bool>(options.checkWDNNF))
 		("positional",
 			"Positional arguments: these are the arguments that are entered "
 			"without an option", cxxopts::value<std::vector<string>>())
