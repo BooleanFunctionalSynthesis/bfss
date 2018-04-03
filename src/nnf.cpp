@@ -32,7 +32,7 @@ int Nnf_Obj::getNumRef()
 	return pFanoutPos.size() + pFanoutNeg.size();
 }
 
-Nnf_Man::Nnf_Man() {
+Nnf_Man::Nnf_Man() : pName("No_Name") {
 	this->pConst1 = createNode(NNF_OBJ_CONST1);
 }
 
@@ -114,6 +114,9 @@ void Nnf_Man::parse_aig(Aig_Man_t* pSrc) {
 	int i;
 	Aig_Obj_t* pObj, *f0, *f1;
 	Nnf_Obj* nObj;
+
+	if(pSrc->pName)
+		this->pName = string(pSrc->pName);
 
 	// Delete Current Nodes
 	for (int i = 1; i < _allNodes.size(); ++i) {
@@ -255,6 +258,9 @@ Aig_Man_t* Nnf_Man::createAigWithoutClouds() {return createAig(false);}
 Aig_Man_t* Nnf_Man::createAig(bool withCloudInputs) {
 	int nNodesMax = 1e5;
 	Aig_Man_t* pMan = Aig_ManStart(nNodesMax);
+
+	// Save Name
+	pMan->pName = Abc_UtilStrsav((char*)this->pName.c_str());
 
 	Aig_Obj_t* pObj;
 	vector<int> CiPosIth;

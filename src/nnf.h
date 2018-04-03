@@ -36,6 +36,7 @@ public:
 };
 
 class Nnf_Man {
+	string pName;
 	vector<Nnf_Obj*> _inputs_pos;
 	vector<Nnf_Obj*> _inputs_neg;
 	vector<Nnf_Obj*> _outputs;
