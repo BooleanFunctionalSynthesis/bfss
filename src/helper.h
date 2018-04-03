@@ -109,6 +109,7 @@ extern vector<int> varsSInv;
 extern vector<int> varsXF, varsXS;
 extern vector<int> varsYF, varsYS; // to be eliminated
 extern int numOrigInputs, numX, numY;
+extern vector<string> varsNameX, varsNameY;
 extern Abc_Frame_t* pAbc;
 extern sat_solver* m_pSat;
 extern Cnf_Dat_t* m_FCnf;

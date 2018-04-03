@@ -3400,6 +3400,7 @@ void substituteUnates(Aig_Man_t* &pMan, vector<int>&unate) {
 	Aig_ManStop(tempAig);
 }
 
+// Assumes skolemAig[...] correspond to varsYS[...]
 void saveSkolems(Aig_Man_t* SAig, vector<int>& skolemAig) {
 	assert(skolemAig.size() == numY);
 
@@ -3418,6 +3419,10 @@ void saveSkolems(Aig_Man_t* SAig, vector<int>& skolemAig) {
 	// 	}
 	// }
 
+	int i;
+	Abc_Obj_t* pObj;
+
+	// Specify Ci/Co to pick
 	Vec_Ptr_t * vPis = Vec_PtrAlloc(numX);
 	Vec_Ptr_t * vPos = Vec_PtrAlloc(numY);
 	for(auto it:varsXS) {
@@ -3427,10 +3432,32 @@ void saveSkolems(Aig_Man_t* SAig, vector<int>& skolemAig) {
 		Vec_PtrPush(vPos, Aig_ManCo(SAig,it));
 	}
 
-	cout << "Saving skolems..." << endl;
+	// Get partial Aig, Ntk
 	Aig_Man_t* outAig = Aig_ManDupSimpleDfsPart(SAig, vPis, vPos);
-	Aig_ManDumpVerilog(outAig, (char*)options.outFName.c_str());
-	cout << "Saved skolems to " << options.outFName << endl;
+	Abc_Ntk_t* outNtk = Abc_NtkFromAigPhase(outAig);
+
+	// Unset and Set Input, Output Names
+	string ntkName = getFileName(options.benchmark)+"_skolem";
+	Abc_NtkSetName(outNtk, Abc_UtilStrsav((char*)(ntkName).c_str()));
+	Nm_ManFree(outNtk->pManName);
+	outNtk->pManName = Nm_ManCreate(200);
+
+	Abc_NtkForEachCi(outNtk, pObj, i) {
+		Abc_ObjAssignName(pObj, (char*)varsNameX[i].c_str(), NULL);
+	}
+	Abc_NtkForEachCo(outNtk, pObj, i) {
+		Abc_ObjAssignName(pObj, (char*)varsNameY[i].c_str(), NULL);
+	}
+
+	// Write to verilog
+	Abc_FrameSetCurrentNetwork(pAbc, outNtk);
+	string command = "write "+options.outFName;
+	if (Cmd_CommandExecute(pAbc, (char*)command.c_str())) {
+		cerr << "Could not write result to verilog file" << endl;
+	}
+	else {
+		cout << "Saved skolems to " << options.outFName << endl;
+	}
 }
 
 void printAig(Aig_Man_t* pMan) {

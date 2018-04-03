@@ -15,6 +15,7 @@ vector<int> varsSInv;
 vector<int> varsXF, varsXS;
 vector<int> varsYF, varsYS; // to be eliminated
 int numOrigInputs, numX, numY;
+vector<string> varsNameX, varsNameY;
 Abc_Frame_t* pAbc;
 sat_solver* m_pSat;
 Cnf_Dat_t* m_FCnf;
@@ -153,6 +154,14 @@ int main(int argc, char * argv[]) {
 	#endif
 
 	assert(numX + numY == numOrigInputs);
+
+	// Populate Input Name Vectors (Same for SAig and FAig)
+	assert(varsNameX.empty());
+	assert(varsNameY.empty());
+	for(auto id:varsXF)
+		varsNameX.push_back(id2NameF[id]);
+	for(auto id:varsYF)
+		varsNameY.push_back(id2NameF[id]);
 
 	OUT("Cleaning up...");
 	int removed = Aig_ManCleanup(SAig);
