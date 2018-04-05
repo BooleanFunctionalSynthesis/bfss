@@ -43,6 +43,23 @@ int main(int argc, char * argv[]) {
 
 	OUT("get FNtk..." );
 	Abc_Ntk_t* FNtk = getNtk(options.benchmark,true);
+
+	cout << "Creating BDD..." << endl;
+	auto bdd_start = std::chrono::steady_clock::now();
+	// Abc_NtkBuildGlobalBdds(FNtk, int fBddSizeMax, int fDropInternal, int fReorder, int fVerbose );
+	DdManager* dd = (DdManager*)Abc_NtkBuildGlobalBdds(FNtk, 1e10, 1, 1, 1);
+	cout << "Created BDD!" << endl;
+
+	auto bdd_end = std::chrono::steady_clock::now();
+	auto bdd_run_time = std::chrono::duration_cast<std::chrono::microseconds>(bdd_end - bdd_start).count()/1000000.0;
+	cout << "Time taken:   " << bdd_run_time << endl;
+	cout << "BDD Size:     " << Cudd_DagSize((DdNode*)Abc_ObjGlobalBdd(Abc_NtkCo(FNtk,0))) << endl;
+
+
+	exit(0);
+
+
+
 	OUT("get FAig..." );
 	Aig_Man_t* FAig = Abc_NtkToDar(FNtk, 0, 0);
 	int removed_first = Aig_ManCleanup(FAig);

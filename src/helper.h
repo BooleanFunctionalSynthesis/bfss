@@ -31,6 +31,7 @@ extern "C" {
 #include "opt/mfs/mfs.h"
 #include "opt/mfs/mfsInt.h"
 #include "bool/kit/kit.h"
+#include "bdd/cudd/cudd.h"
 }
 namespace ABC_NAMESPACE {
 	extern "C" {
