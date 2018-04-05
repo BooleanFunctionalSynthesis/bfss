@@ -51,6 +51,7 @@ class Nnf_Man {
 public:
 	Nnf_Man();
 	Nnf_Man(Aig_Man_t* pSrc);
+	Nnf_Man(DdManager* ddMan, DdNode* FddNode);
 	~Nnf_Man();
 
 	// Getters
@@ -78,6 +79,12 @@ public:
 	Aig_Man_t* createAigWithClouds();
 	Aig_Man_t* createAigWithoutClouds();
 	Aig_Man_t* createAigMultipleClouds(int numCloudSets);
+	Nnf_Obj* bdd2nnf_rec(DdNode* FddNode, map<DdNode*, Nnf_Obj*>&cache);
+	bool checkIsNnf();
+	bool checkIsNnf_rec(Nnf_Obj* pObj);
+
+	Nnf_Obj* Nnf_And(Nnf_Obj* left, Nnf_Obj* right);
+	Nnf_Obj* Nnf_Or(Nnf_Obj* left, Nnf_Obj* right);
 };
 
 // ===========HELPER ROUTINES========
@@ -92,7 +99,8 @@ static inline int        Nnf_ObjRefsNeg(Nnf_Obj * pObj)     { return pObj->pFano
 static inline int        Nnf_ObjRefs(Nnf_Obj * pObj)        { return Nnf_ObjRefsPos(pObj) + Nnf_ObjRefsNeg(pObj);}
 static inline Nnf_Type   Nnf_ObjType(Nnf_Obj * pObj)        { return (Nnf_Type)pObj->Type;         }
 static inline bool       Nnf_ObjIsNone(Nnf_Obj * pObj)      { return pObj->Type == NNF_OBJ_NONE;   }
-static inline bool       Nnf_ObjIsConst1(Nnf_Obj * pObj)    { assert(!Nnf_IsComplement(pObj)); return pObj->Type == NNF_OBJ_CONST1;}
+static inline bool       Nnf_ObjIsConst1(Nnf_Obj * pObj)    { return pObj->Type == NNF_OBJ_CONST1;}
+static inline bool       Nnf_ObjIsConst0(Nnf_Obj * pObj)    { return Nnf_ObjIsConst1(Nnf_Regular(pObj)) && Nnf_IsComplement(pObj);}
 static inline bool       Nnf_ObjIsCiPos(Nnf_Obj * pObj)     { return pObj->Type == NNF_OBJ_CI_POS; }
 static inline bool       Nnf_ObjIsCiNeg(Nnf_Obj * pObj)     { return pObj->Type == NNF_OBJ_CI_NEG; }
 static inline bool       Nnf_ObjIsCi(Nnf_Obj * pObj)        { return Nnf_ObjIsCiPos(pObj) or Nnf_ObjIsCiNeg(pObj);}

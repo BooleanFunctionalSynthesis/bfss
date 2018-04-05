@@ -19,6 +19,7 @@
 #define ABC_NAMESPACE NS_ABC
 
 extern "C" {
+#include "misc/util/abc_global.h"
 #include "base/abc/abc.h"
 #include "base/main/mainInt.h"
 #include "base/cmd/cmd.h"
@@ -31,6 +32,7 @@ extern "C" {
 #include "opt/mfs/mfs.h"
 #include "opt/mfs/mfsInt.h"
 #include "bool/kit/kit.h"
+#include "bdd/cudd/cuddInt.h"
 #include "bdd/cudd/cudd.h"
 }
 namespace ABC_NAMESPACE {
@@ -71,6 +73,13 @@ using namespace ABC_NAMESPACE;
 #else
 	#define OUT( x )
 #endif
+
+typedef std::chrono::time_point<std::chrono::steady_clock> chrono_steady_time;
+#define TIME_NOW			 std::chrono::steady_clock::now()
+#define TIME_MEASURE_START   helper_time_measure_start = TIME_NOW;
+#define TIME_MEASURE_ELAPSED (std::chrono::duration_cast<std::chrono::microseconds>(TIME_NOW-helper_time_measure_start).count()/1000000.0)
+extern  chrono_steady_time helper_time_measure_start;
+extern  chrono_steady_time main_time_start;
 
 class  edge;
 class  node;
@@ -172,6 +181,7 @@ Aig_Obj_t* 		projectPi(Aig_Man_t* pMan, const vector<int> &cex, const int m);
 void 			updateAbsRef(Aig_Man_t*&pMan, int M, int k1Level, int k1MaxLevel, vector<vector<int> > &r0, vector<vector<int> > &r1);
 Aig_Man_t* 		compressAig(Aig_Man_t* SAig);
 Aig_Man_t* 		compressAigByNtk(Aig_Man_t* SAig);
+Aig_Man_t* 		compressAigByNtkMultiple(Aig_Man_t* SAig, int times);
 void 			checkSupportSanity(Aig_Man_t*pMan, vector<vector<int> > &r0, vector<vector<int> > &r1);
 Aig_Obj_t* 		OR_rec(Aig_Man_t* SAig, vector<int>& nodes, int start, int end);
 Aig_Obj_t* 		newOR(Aig_Man_t* SAig, vector<int>& nodes);
@@ -223,6 +233,8 @@ void 			substituteUnates(Aig_Man_t* &pMan, vector<int>&unate);
 void 			saveSkolems(Aig_Man_t* SAig, vector<int>& r_Aigs);
 void 			printAig(Aig_Man_t* pMan);
 int 			Aig_DagSizeWithConst(Aig_Obj_t * pObj);
+void			printBDDNode(DdManager* ddMan, DdNode* obj);
+void			printBDD(DdManager* ddMan, DdNode* f);
 
 template<class T>
 void print(T v) {

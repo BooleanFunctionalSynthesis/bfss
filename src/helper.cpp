@@ -436,11 +436,15 @@ void populateVars(Abc_Ntk_t* FNtk, Nnf_Man& nnf, string varsFile,
 
 	OUT( "Populating varsXS varsYS..." );
 	for(auto it : varsXF) {
-		varsXS.push_back(nnf.getNewAigNodeID(it));
+		// cout << "nnf.getNewAigNodeID: " << it << "->" << nnf.getNewAigNodeID(it) << endl;
+		// varsXS.push_back(nnf.getNewAigNodeID(it));
+		varsXS.push_back(it);
 		assert(varsXS.back() != -1);
 	}
 	for(auto it : varsYF) {
-		varsYS.push_back(nnf.getNewAigNodeID(it));
+		// cout << "nnf.getNewAigNodeID: " << it << "->" << nnf.getNewAigNodeID(it) << endl;
+		// varsYS.push_back(nnf.getNewAigNodeID(it));
+		varsYS.push_back(it);
 		assert(varsYS.back() != -1);
 	}
 
@@ -2028,6 +2032,59 @@ Aig_Man_t* compressAigByNtk(Aig_Man_t* SAig) {
 	return temp;
 }
 
+
+/** Function
+ * Compresses Aig by converting it to an Ntk and performing a bunch of steps on it.
+ * Deletes SAig and returns a compressed version
+ * @param SAig      [in]        Aig to be compressed
+ * @param times     [in]        Number of compression cycles to be run
+ */
+Aig_Man_t* compressAigByNtkMultiple(Aig_Man_t* SAig, int times) {
+	Aig_Man_t* temp;
+	string command;
+
+	OUT("Cleaning up...");
+	int removed = Aig_ManCleanup(SAig);
+	cout << "Removed " << removed <<" nodes" << endl;
+
+	// SAig =  Dar_ManCompress2(temp = SAig, 1, 1, 26, 1, 0);
+	// Aig_ManStop(temp);
+
+	Abc_Ntk_t * SNtk = Abc_NtkFromAigPhase(SAig);
+	Abc_FrameSetCurrentNetwork(pAbc, SNtk);
+
+	// TODO: FIX
+	assert(options.evalAigAtNode);
+	command = "rewrite -lz; refactor -l;";
+
+	cout << "balancing..." << endl;
+	if (Cmd_CommandExecute(pAbc, "balance;")) {
+		cout << "Cannot preprocess SNtk" << endl;
+		return NULL;
+	}
+
+	for (int i = 0; i < times; ++i)	{
+		cout << "cycle " << i << ": " << command;
+		TIME_MEASURE_START
+		if (Cmd_CommandExecute(pAbc, (char*)command.c_str())) {
+			cout << "Cannot preprocess SNtk, took " << TIME_MEASURE_ELAPSED << endl;
+			return NULL;
+		}
+		cout << "took " << TIME_MEASURE_ELAPSED << endl;
+	}
+
+	cout << "balancing..." << endl;
+	if (Cmd_CommandExecute(pAbc, "balance;")) {
+		cout << "Cannot preprocess SNtk" << endl;
+		return NULL;
+	}
+
+	SNtk = Abc_FrameReadNtk(pAbc);
+	temp = Abc_NtkToDar(SNtk, 0, 0);
+	Aig_ManStop(SAig);
+	return temp;
+}
+
 /** Function
  * Checks and asserts expected support invariants for r0 r1 F_SAig and FPrime_Saig
  * @param SAig      [in]        Aig to be compressed
@@ -3310,7 +3367,7 @@ int checkUnateSemanticAll(Aig_Man_t* FAig, vector<int>&unate) {
 		totalNumUnate += numUnate;
 
 		unate_end = std::chrono::steady_clock::now();
-		unate_run_time = std::chrono::duration_cast<std::chrono::microseconds>(unate_end - unate_start).count()/1000000.0;
+		unate_run_time = std::chrono::duration_cast<std::chrono::microseconds>(unate_end - main_time_start).count()/1000000.0;
 		if(numUnate > 0 and unate_run_time >= options.unateTimeout) {
 			cout << "checkUnateSemanticAll Timed Out" << endl;
 			break;
@@ -3511,4 +3568,26 @@ int Aig_DagSizeWithConst( Aig_Obj_t * pObj ) {
     Counter = Aig_ConeCountWithConstAndMark_rec( Aig_Regular(pObj) );
     Aig_ConeWithConstUnmark_rec( Aig_Regular(pObj) );
     return Counter;
+}
+
+void printBDDNode(DdManager* ddMan, DdNode* obj) {
+	assert(!Cudd_IsComplement(obj));
+	printf("Node %d : ", obj->Id);
+
+	if (Cudd_IsConstant(obj))
+		printf("constant %f", Cudd_V(obj));
+	else
+		printf("ite(v%d, %d%s, %d%s)", obj->index,
+			Cudd_Regular(Cudd_T(obj))->Id, (Cudd_IsComplement(Cudd_T(obj))? "\'" : " "),
+			Cudd_Regular(Cudd_E(obj))->Id, (Cudd_IsComplement(Cudd_E(obj))? "\'" : " "));
+
+	printf(" (refs = %3d)\n", obj->ref);
+}
+
+void printBDD(DdManager* ddMan, DdNode* f) {
+	DdGen *gen;
+	DdNode *node;
+	Cudd_ForeachNode(ddMan, f, gen, node) {
+		printBDDNode(ddMan, node);
+	}
 }

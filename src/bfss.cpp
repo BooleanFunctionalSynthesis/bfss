@@ -23,6 +23,8 @@ lit m_f;
 double sat_solving_time = 0;
 double verify_sat_solving_time = 0;
 double reverse_sub_time = 0;
+chrono_steady_time helper_time_measure_start = TIME_NOW;
+chrono_steady_time main_time_start = TIME_NOW;
 
 ////////////////////////////////////////////////////////////////////////
 ///                            MAIN                                  ///
@@ -37,34 +39,17 @@ int main(int argc, char * argv[]) {
 
 	parseOptions(argc, argv);
 
-	auto main_start = std::chrono::steady_clock::now();
-	auto main_end = std::chrono::steady_clock::now();
+	main_time_start = TIME_NOW;
+	auto main_end = TIME_NOW;
 	double total_main_time;
 
 	OUT("get FNtk..." );
 	Abc_Ntk_t* FNtk = getNtk(options.benchmark,true);
 
-	cout << "Creating BDD..." << endl;
-	auto bdd_start = std::chrono::steady_clock::now();
-	// Abc_NtkBuildGlobalBdds(FNtk, int fBddSizeMax, int fDropInternal, int fReorder, int fVerbose );
-	DdManager* dd = (DdManager*)Abc_NtkBuildGlobalBdds(FNtk, 1e10, 1, 1, 1);
-	cout << "Created BDD!" << endl;
-
-	auto bdd_end = std::chrono::steady_clock::now();
-	auto bdd_run_time = std::chrono::duration_cast<std::chrono::microseconds>(bdd_end - bdd_start).count()/1000000.0;
-	cout << "Time taken:   " << bdd_run_time << endl;
-	cout << "BDD Size:     " << Cudd_DagSize((DdNode*)Abc_ObjGlobalBdd(Abc_NtkCo(FNtk,0))) << endl;
-
-
-	exit(0);
-
-
-
 	OUT("get FAig..." );
 	Aig_Man_t* FAig = Abc_NtkToDar(FNtk, 0, 0);
 	int removed_first = Aig_ManCleanup(FAig);
 	cout << "Removed " << removed_first << " in the first cleanup" << endl;
-
 
 	vector<int> unate;
 	if(!options.noUnate) {
@@ -85,7 +70,7 @@ int main(int argc, char * argv[]) {
 		cout << "numY " << numY << endl;
 
 		unate.resize(numY, -1);
-		auto unate_start = std::chrono::steady_clock::now();
+		auto unate_start = TIME_NOW;
 
 		// find unates, substitute
 		int n, numSynUnates = 0;
@@ -101,7 +86,7 @@ int main(int argc, char * argv[]) {
 			substituteUnates(FAig, unate);
 		}
 
-		auto unate_end = std::chrono::steady_clock::now();
+		auto unate_end = TIME_NOW;
 		auto unate_run_time = std::chrono::duration_cast<std::chrono::microseconds>(unate_end - unate_start).count()/1000000.0;
 		cout << "Total Syntactic Unates: " << numSynUnates << endl;
 		cout << "Total Semantic  Unates: " << numSemUnates << endl;
@@ -120,7 +105,25 @@ int main(int argc, char * argv[]) {
 	}
 
 
-	Nnf_Man nnfNew(FAig);
+	// ************************
+	// Creating BDD Start
+	Abc_Ntk_t* FNtkSmall = Abc_NtkFromAigPhase(FAig);
+	cout << "Creating BDD..." << endl;
+	TIME_MEASURE_START
+	// Abc_NtkBuildGlobalBdds(FNtkSmall, int fBddSizeMax, int fDropInternal, int fReorder, int fVerbose );
+	DdManager* ddMan = (DdManager*)Abc_NtkBuildGlobalBdds(FNtkSmall, 1e10, 1, 1, 1);
+	auto bdd_end = TIME_NOW;
+	cout << "Created BDD!" << endl;
+	DdNode* FddNode = (DdNode*)Abc_ObjGlobalBdd(Abc_NtkCo(FNtkSmall,0));
+	cout << "Time taken:   " << TIME_MEASURE_ELAPSED << endl;
+	cout << "BDD Size:     " << Cudd_DagSize(FddNode) << endl;
+	assert(ddMan->size == Abc_NtkCiNum(FNtkSmall));
+	// Creating BDD End
+	// **************************
+
+	Nnf_Man nnfNew(ddMan, FddNode);
+	cout << "Created NNF from BDD" << endl;
+	// Nnf_Man nnfNew(FAig);
 
 	// Aig_Man_t* cloudAig = nnfNew.createAigWithClouds();
 	// cout << "\n\nCloud Aig: " << endl;
@@ -184,6 +187,7 @@ int main(int argc, char * argv[]) {
 	int removed = Aig_ManCleanup(SAig);
 	OUT("Removed "<<removed<<" nodes");
 
+	bool isWDNNF = false;
 	if(options.checkWDNNF) {
 		// populate varsYNNF: vector of input numbers
 		vector<int> varsYNNF;
@@ -197,7 +201,7 @@ int main(int argc, char * argv[]) {
 		}
 
 		cout << "Checking wDNNF" << endl;
-		bool isWDNNF = nnfNew.isWDNNF(varsYNNF);
+		isWDNNF = nnfNew.isWDNNF(varsYNNF);
 		if(isWDNNF) {
 			cout << "********************************" << endl;
 			cout << "** In wDNNF!" << endl;
@@ -231,8 +235,8 @@ int main(int argc, char * argv[]) {
 
 	if(options.monoSkolem) {
 		monoSkolem(SAig, r0, r1);
-		main_end = std::chrono::steady_clock::now();
-		total_main_time = std::chrono::duration_cast<std::chrono::microseconds>(main_end - main_start).count()/1000000.0;
+		main_end = TIME_NOW;
+		total_main_time = std::chrono::duration_cast<std::chrono::microseconds>(main_end - main_time_start).count()/1000000.0;
 		cout << "Found Skolem Functions" << endl;
 		cout<< "Total main time: (monoskolem)   " << total_main_time << endl;
 		chooseR_(SAig,r0,r1);
@@ -284,7 +288,7 @@ int main(int argc, char * argv[]) {
 
 	Aig_ManPrintStats( SAig );
 	cout << "Compressing SAig..." << endl;
-	SAig = compressAigByNtk(SAig);
+	SAig = compressAigByNtkMultiple(SAig, 2);
 	assert(SAig != NULL);
 	Aig_ManPrintStats( SAig );
 	#ifdef DEBUG_CHUNK // Print SAig, checkSupportSanity
@@ -300,33 +304,38 @@ int main(int argc, char * argv[]) {
 	int M = -1;
 	int k1Level = -1;
 	int k1MaxLevel = -1;
-
-	// CEGAR Loop
-	cout << "Starting CEGAR Loop..."<<endl;
 	int numloops = 0;
-	// while(callSATfindCEX(SAig, cex, r0, r1)) {
-	while(getNextCEX(SAig, M, k1Level, k1MaxLevel, r0, r1)) {
-		OUT("Iter " << numloops << ":\tFound CEX!");
-		// cout<<'.'<<flush;
-		// evaluateAig(SAig, cex);
-		#ifdef DEBUG_CHUNK
-			checkCexSanity(SAig, cex, r0, r1);
-		#endif
-		updateAbsRef(SAig, M, k1Level, k1MaxLevel, r0, r1);
-		numloops++;
 
-		if(numloops % 50 == 0) {
-			cout << numloops;
-			cout << endl;
-			Aig_ManPrintStats( SAig );
-			cout << "Compressing SAig..." << endl;
-			SAig = compressAigByNtk(SAig);
-			// SAig = compressAig(SAig);
-			assert(SAig != NULL);
-			Aig_ManPrintStats( SAig );
-		}
+	if(isWDNNF) {
+		cout << "In WDNNF, Skipping CEGAR Loop..."<<endl;
 	}
-	cout<<endl;
+	else {
+		// CEGAR Loop
+		cout << "Starting CEGAR Loop..."<<endl;
+		// while(callSATfindCEX(SAig, cex, r0, r1)) {
+		while(getNextCEX(SAig, M, k1Level, k1MaxLevel, r0, r1)) {
+			OUT("Iter " << numloops << ":\tFound CEX!");
+			// cout<<'.'<<flush;
+			// evaluateAig(SAig, cex);
+			#ifdef DEBUG_CHUNK
+				checkCexSanity(SAig, cex, r0, r1);
+			#endif
+			updateAbsRef(SAig, M, k1Level, k1MaxLevel, r0, r1);
+			numloops++;
+
+			if(numloops % 50 == 0) {
+				cout << numloops;
+				cout << endl;
+				Aig_ManPrintStats( SAig );
+				cout << "Compressing SAig..." << endl;
+				SAig = compressAigByNtk(SAig);
+				// SAig = compressAig(SAig);
+				assert(SAig != NULL);
+				Aig_ManPrintStats( SAig );
+			}
+		}
+		cout<<endl;
+	}
 
 
 	#ifdef DEBUG_CHUNK // Print SAig
@@ -347,8 +356,8 @@ int main(int argc, char * argv[]) {
 	cout << endl;
 
 
-	main_end = std::chrono::steady_clock::now();
-	total_main_time = std::chrono::duration_cast<std::chrono::microseconds>(main_end - main_start).count()/1000000.0;
+	main_end = TIME_NOW;
+	total_main_time = std::chrono::duration_cast<std::chrono::microseconds>(main_end - main_time_start).count()/1000000.0;
 	cout<< "Total main time:         " << total_main_time << endl;
 	cout<< "Total SAT solving time:  " << sat_solving_time << endl;
 	cout<< "Total Dead time:         " << CMSat::CUSP::totalDeadTime << endl;

@@ -58,11 +58,140 @@ Nnf_Man::Nnf_Man(Aig_Man_t* pSrc) : Nnf_Man() {
 	// print();
 }
 
+Nnf_Man::Nnf_Man(DdManager* ddMan, DdNode* FddNode) : Nnf_Man() {
+	// First Create All Leaves (Input Nodes)
+	int numCi = Cudd_ReadSize(ddMan);
+	for (int i = 0; i < numCi; ++i) {
+		Nnf_Obj* ci = this->createCi();
+		ci->OrigAigId = i+1;	// @TODO: FIX!
+	}
+
+	// Recursively convert to nnf
+	map<DdNode*, Nnf_Obj*> cache;
+	Nnf_Obj* head = this->bdd2nnf_rec(FddNode, cache);
+	this->createCo(head);
+
+	// Check isNNF
+	assert(this->checkIsNnf());
+}
+
+bool Nnf_Man::checkIsNnf() {
+	// Unmark all nodes
+	for(auto it: _allNodes)
+		Nnf_ObjClearMarkA(it);
+
+	bool res = true;
+	for(auto it:_outputs) {
+		if(!checkIsNnf_rec(it)) {
+			res = false;
+			break;
+		}
+	}
+
+	// Unmark all nodes
+	for(auto it: _allNodes)
+	Nnf_ObjClearMarkA(it);
+
+	return res;
+}
+
+bool Nnf_Man::checkIsNnf_rec(Nnf_Obj* pObj) {
+	if(Nnf_ObjIsMarkA(pObj))
+		return true;
+	Nnf_ObjSetMarkA(pObj);
+
+	if(Nnf_IsComplement(pObj)) {
+		assert(!Nnf_ObjIsConst0(pObj));
+		return false;
+	}
+	else if(Nnf_ObjIsConst1(pObj)
+		or Nnf_ObjIsCiPos(pObj)
+		or Nnf_ObjIsCiNeg(pObj)) {
+		return true;
+	}
+	else if(Nnf_ObjIsCo(pObj)) {
+		return this->checkIsNnf_rec(Nnf_ObjFanin0(pObj));
+	}
+	else if(Nnf_ObjIsAnd(pObj) or Nnf_ObjIsOr(pObj)) {
+		return (this->checkIsNnf_rec(Nnf_ObjFanin0(pObj))
+			and this->checkIsNnf_rec(Nnf_ObjFanin1(pObj)));
+	}
+	else
+		assert(false);
+}
+
+Nnf_Obj* Nnf_Man::bdd2nnf_rec(DdNode* FddNode, map<DdNode*, Nnf_Obj*>&cache) {
+
+	if(cache.count(FddNode) > 0)
+		return cache[FddNode];
+
+	Nnf_Obj* res;
+
+	if Cudd_IsConstant(FddNode) {
+		bool isConst1 = Cudd_V(FddNode);
+		if(isConst1) // res = 1-node;
+			res = Nnf_NotCond(this->const1(), Cudd_IsComplement(FddNode));
+		else // res = 0-node;
+			res = Nnf_NotCond(this->const0(), Cudd_IsComplement(FddNode));
+	} else {
+
+		// Find NNF variable corresponding to FddNode
+		int varNum = Cudd_Regular(FddNode)->index;
+		Nnf_Obj* Xi = this->getCiPos(varNum);
+		Nnf_Obj* Xi_bar = this->getCiNeg(varNum);
+
+		if(Cudd_IsComplement(FddNode)) {
+			// res = (-tc and Xi) or (-ec and -Xi)
+			Nnf_Obj* tc = this->bdd2nnf_rec(Cudd_Not(Cudd_T(FddNode)), cache);
+			Nnf_Obj* ec = this->bdd2nnf_rec(Cudd_Not(Cudd_E(FddNode)), cache);
+			res = Nnf_Or(Nnf_And(tc, Xi), Nnf_And(ec, Xi_bar));
+		}
+		else {
+			// res = (tc and Xi) or (ec and -Xi)
+			Nnf_Obj* tc = this->bdd2nnf_rec(Cudd_T(FddNode), cache);
+			Nnf_Obj* ec = this->bdd2nnf_rec(Cudd_E(FddNode), cache);
+			res = Nnf_Or(Nnf_And(tc, Xi), Nnf_And(ec, Xi_bar));
+		}
+	}
+
+	// printf("bdd2nnf_rec %s%d -> ",(Cudd_IsComplement(FddNode)?"-":" "),Cudd_Regular(FddNode)->Id);
+	// cout << (Nnf_IsComplement(res)?"-":" ");
+	// Nnf_Regular(res)->print();
+	cache[FddNode] = res;
+	return res;
+}
+
 Nnf_Man::~Nnf_Man() {
 	for(auto it: _allNodes) {
 		if(it!=NULL)
 			delete it;
 	}
+}
+
+Nnf_Obj* Nnf_Man::Nnf_And(Nnf_Obj* left, Nnf_Obj* right) {
+	if(Nnf_ObjIsConst1(left)) return right;
+	if(Nnf_ObjIsConst1(right)) return left;
+	if(Nnf_ObjIsConst0(left)) return this->const0();
+	if(Nnf_ObjIsConst0(right)) return this->const0();
+
+	Nnf_Obj* newNode = this->createNode(NNF_OBJ_AND);
+	NNf_ObjSetFanin0(newNode, left);
+	NNf_ObjSetFanin1(newNode, right);
+
+	return newNode;
+}
+
+Nnf_Obj* Nnf_Man::Nnf_Or(Nnf_Obj* left, Nnf_Obj* right) {
+	if(Nnf_ObjIsConst1(left)) return this->const1();
+	if(Nnf_ObjIsConst1(right)) return this->const1();
+	if(Nnf_ObjIsConst0(left)) return right;
+	if(Nnf_ObjIsConst0(right)) return left;
+
+	Nnf_Obj* newNode = this->createNode(NNF_OBJ_OR);
+	NNf_ObjSetFanin0(newNode, left);
+	NNf_ObjSetFanin1(newNode, right);
+
+	return newNode;
 }
 
 Nnf_Obj* Nnf_Man::getCiPos(int i) {return _inputs_pos[i];}
