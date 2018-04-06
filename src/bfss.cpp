@@ -14,12 +14,12 @@ using namespace std;
 vector<int> varsSInv;
 vector<int> varsXF, varsXS;
 vector<int> varsYF, varsYS; // to be eliminated
-int numOrigInputs, numX, numY;
+int numOrigInputs = 0, numX = 0, numY = 0;
 vector<string> varsNameX, varsNameY;
-Abc_Frame_t* pAbc;
-sat_solver* m_pSat;
-Cnf_Dat_t* m_FCnf;
-lit m_f;
+Abc_Frame_t* pAbc = NULL;
+sat_solver* m_pSat = NULL;
+Cnf_Dat_t* m_FCnf = NULL;
+lit m_f = 0;
 double sat_solving_time = 0;
 double verify_sat_solving_time = 0;
 double reverse_sub_time = 0;
@@ -215,6 +215,12 @@ int main(int argc, char * argv[]) {
 		}
 	}
 
+	Aig_ManPrintStats( SAig );
+	cout << "Compressing SAig..." << endl;
+	SAig = compressAigByNtkMultiple(SAig, 3);
+	assert(SAig != NULL);
+	Aig_ManPrintStats( SAig );
+
 	// Fs[0] - F_SAig      will always be Aig_ManCo( ... , 1)
 	// Fs[1] - FPrime_SAig will always be Aig_ManCo( ... , 2)
 	vector<Aig_Obj_t* > Fs(2);
@@ -249,10 +255,12 @@ int main(int argc, char * argv[]) {
 	Aig_ObjPatchFanin0(SAig, Aig_ManCo(SAig,0), Aig_ManConst0(SAig));
 
 	// Global Optimization: Used in dinfing k2Max
-	m_pSat = sat_solver_new();
-	m_FCnf = Cnf_Derive(SAig, Aig_ManCoNum(SAig));
-	m_f = toLitCond(getCnfCoVarNum(m_FCnf, SAig, F_SAigIndex), 0);
-	addCnfToSolver(m_pSat, m_FCnf);
+	if(!isWDNNF) {
+		m_pSat = sat_solver_new();
+		m_FCnf = Cnf_Derive(SAig, Aig_ManCoNum(SAig));
+		m_f = toLitCond(getCnfCoVarNum(m_FCnf, SAig, F_SAigIndex), 0);
+		addCnfToSolver(m_pSat, m_FCnf);
+	}
 
 	#ifdef DEBUG_CHUNK // Print SAig, checkSupportSanity
 		cout << "\nSAig: " << endl;
@@ -365,8 +373,8 @@ int main(int argc, char * argv[]) {
 	assert(verifyResult(SAig, r0, r1, 0));
 	cout<< "Verify SAT solving time: " << verify_sat_solving_time << endl;
 
-	sat_solver_delete(m_pSat);
-	Cnf_DataFree(m_FCnf);
+	if(m_pSat!=NULL) sat_solver_delete(m_pSat);
+	if(m_FCnf!=NULL) Cnf_DataFree(m_FCnf);
 
 	// Stop ABC
 	Abc_Stop();
