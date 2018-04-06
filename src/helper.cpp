@@ -2275,10 +2275,12 @@ bool verifyResult(Aig_Man_t*&SAig, vector<vector<int> >& r0,
 			assert(Aig_ObjIsCo(Aig_Regular(curr))==false);
 		}
 		Aig_ObjPatchFanin0(SAig, Aig_ManCo(SAig, skolemAig[i]), curr);
+		int removed = Aig_ManCleanup(SAig);
+		cout << "Removed " << removed <<" nodes" << endl;
 		if(iter%30 == 0) {
 			Aig_ManPrintStats( SAig );
 			cout << "Compressing SAig..." << endl;
-			SAig = compressAigByNtkMultiple(SAig, 2);
+			SAig = compressAigByNtkMultiple(SAig, 1);
 			assert(SAig != NULL);
 			Aig_ManPrintStats( SAig );
 		}
