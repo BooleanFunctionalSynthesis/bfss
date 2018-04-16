@@ -113,6 +113,7 @@ struct optionStruct {
 	int 	unateTimeout;
 	bool 	checkSatOnly;
 	bool 	checkWDNNF;
+	bool 	useBDD;
 };
 
 extern vector<int> varsSInv;

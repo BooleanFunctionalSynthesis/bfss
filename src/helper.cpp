@@ -86,6 +86,7 @@ void parseOptions(int argc, char * argv[]) {
 		("unateTimeout", "Timeout for unate checks (default: " STR(UNATE_TIMEOUT) ")", cxxopts::value<int>(options.unateTimeout), "N")
 		("checkSatOnly", "Exit if SAT", cxxopts::value<bool>(options.checkSatOnly))
 		("checkWDNNF", "check if wDNNF", cxxopts::value<bool>(options.checkWDNNF))
+		("useBDD", "Build NNF from BDD", cxxopts::value<bool>(options.useBDD))
 		("positional",
 			"Positional arguments: these are the arguments that are entered "
 			"without an option", cxxopts::value<std::vector<string>>())
@@ -274,6 +275,7 @@ void parseOptions(int argc, char * argv[]) {
 	cout << "\t fmcadSizeThreshold:   " << options.fmcadSizeThreshold << endl;
 	cout << "\t unateTimeout:         " << options.unateTimeout << endl;
 	cout << "\t checkSatOnly:         " << options.checkSatOnly << endl;
+	cout << "\t useBDD:               " << options.useBDD << endl;
 	cout << "}" << endl;
 }
 

@@ -105,25 +105,31 @@ int main(int argc, char * argv[]) {
 	}
 
 
-	// ************************
-	// Creating BDD Start
-	Abc_Ntk_t* FNtkSmall = Abc_NtkFromAigPhase(FAig);
-	cout << "Creating BDD..." << endl;
-	TIME_MEASURE_START
-	// Abc_NtkBuildGlobalBdds(FNtkSmall, int fBddSizeMax, int fDropInternal, int fReorder, int fVerbose );
-	DdManager* ddMan = (DdManager*)Abc_NtkBuildGlobalBdds(FNtkSmall, 1e10, 1, 1, 1);
-	auto bdd_end = TIME_NOW;
-	cout << "Created BDD!" << endl;
-	DdNode* FddNode = (DdNode*)Abc_ObjGlobalBdd(Abc_NtkCo(FNtkSmall,0));
-	cout << "Time taken:   " << TIME_MEASURE_ELAPSED << endl;
-	cout << "BDD Size:     " << Cudd_DagSize(FddNode) << endl;
-	assert(ddMan->size == Abc_NtkCiNum(FNtkSmall));
-	// Creating BDD End
-	// **************************
-
-	Nnf_Man nnfNew(ddMan, FddNode);
-	cout << "Created NNF from BDD" << endl;
-	// Nnf_Man nnfNew(FAig);
+	Nnf_Man nnfNew;
+	if(options.useBDD) {
+		// ************************
+		// Creating BDD Start
+		Abc_Ntk_t* FNtkSmall = Abc_NtkFromAigPhase(FAig);
+		cout << "Creating BDD..." << endl;
+		TIME_MEASURE_START
+		// Abc_NtkBuildGlobalBdds(FNtkSmall, int fBddSizeMax, int fDropInternal, int fReorder, int fVerbose );
+		DdManager* ddMan = (DdManager*)Abc_NtkBuildGlobalBdds(FNtkSmall, 1e10, 1, 1, 1);
+		auto bdd_end = TIME_NOW;
+		cout << "Created BDD!" << endl;
+		DdNode* FddNode = (DdNode*)Abc_ObjGlobalBdd(Abc_NtkCo(FNtkSmall,0));
+		cout << "Time taken:   " << TIME_MEASURE_ELAPSED << endl;
+		cout << "BDD Size:     " << Cudd_DagSize(FddNode) << endl;
+		assert(ddMan->size == Abc_NtkCiNum(FNtkSmall));
+		// Creating BDD End
+		// **************************
+		
+		nnfNew = Nnf_Man(ddMan, FddNode);
+		cout << "Created NNF from BDD" << endl;
+	}
+	else {
+		nnfNew = Nnf_Man(FAig);
+		cout << "Created NNF from FAig" << endl;
+	}
 
 	// Aig_Man_t* cloudAig = nnfNew.createAigWithClouds();
 	// cout << "\n\nCloud Aig: " << endl;
