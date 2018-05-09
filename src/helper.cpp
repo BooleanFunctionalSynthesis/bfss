@@ -2276,11 +2276,16 @@ bool verifyResult(Aig_Man_t*&SAig, vector<vector<int> >& r0,
 			assert(skolemAig[i]!=NULL);
 			assert(Aig_ObjIsCo(Aig_Regular(curr))==false);
 		}
-		Aig_ObjCreateCo(SAig,curr);
-		skolemAig[i] = Aig_ManCoNum(SAig)-1;
-		assert(skolemAig[i]!=NULL);
-		if(iter%30 == 0)
-			SAig = compressAigByNtk(SAig);
+		Aig_ObjPatchFanin0(SAig, Aig_ManCo(SAig, skolemAig[i]), curr);
+		int removed = Aig_ManCleanup(SAig);
+		cout << "Removed " << removed <<" nodes" << endl;
+		if(iter%30 == 0) {
+			Aig_ManPrintStats( SAig );
+			cout << "Compressing SAig..." << endl;
+			SAig = compressAigByNtkMultiple(SAig, 1);
+			assert(SAig != NULL);
+			Aig_ManPrintStats( SAig );
+		}
 	}
 	// SAig = compressAigByNtk(SAig);
 	// Calculating Total reverse-substituted Size
