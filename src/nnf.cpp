@@ -37,6 +37,17 @@ Nnf_Man::Nnf_Man() : pName("No_Name") {
 }
 
 Nnf_Man::Nnf_Man(Aig_Man_t* pSrc) : Nnf_Man() {
+	init(pSrc);
+}
+
+Nnf_Man::Nnf_Man(DdManager* ddMan, DdNode* FddNode) : Nnf_Man() {
+	init(ddMan, FddNode);
+}
+
+void Nnf_Man::init(Aig_Man_t* pSrc) {
+	assert(_allNodes.size()==1);
+	assert(getCiNum()==0);
+	assert(getCoNum()==0);
 	// cout <<"\n\nInitially" << endl;
 	// print();
 
@@ -58,7 +69,10 @@ Nnf_Man::Nnf_Man(Aig_Man_t* pSrc) : Nnf_Man() {
 	// print();
 }
 
-Nnf_Man::Nnf_Man(DdManager* ddMan, DdNode* FddNode) : Nnf_Man() {
+void Nnf_Man::init(DdManager* ddMan, DdNode* FddNode) {
+	assert(_allNodes.size()==1);
+	assert(getCiNum()==0);
+	assert(getCoNum()==0);
 	// First Create All Leaves (Input Nodes)
 	int numCi = Cudd_ReadSize(ddMan);
 	for (int i = 0; i < numCi; ++i) {

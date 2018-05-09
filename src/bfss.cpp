@@ -3,7 +3,6 @@
 ///                        DECLARATIONS                              ///
 ////////////////////////////////////////////////////////////////////////
 #include "helper.h"
-// #include "formula.h"
 #include "nnf.h"
 
 using namespace std;
@@ -123,11 +122,11 @@ int main(int argc, char * argv[]) {
 		// Creating BDD End
 		// **************************
 		
-		nnfNew = Nnf_Man(ddMan, FddNode);
+		nnfNew.init(ddMan, FddNode);
 		cout << "Created NNF from BDD" << endl;
 	}
 	else {
-		nnfNew = Nnf_Man(FAig);
+		nnfNew.init(FAig);
 		cout << "Created NNF from FAig" << endl;
 	}
 

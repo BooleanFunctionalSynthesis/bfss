@@ -52,6 +52,8 @@ public:
 	Nnf_Man();
 	Nnf_Man(Aig_Man_t* pSrc);
 	Nnf_Man(DdManager* ddMan, DdNode* FddNode);
+	void init(Aig_Man_t* pSrc);
+	void init(DdManager* ddMan, DdNode* FddNode);
 	~Nnf_Man();
 
 	// Getters
