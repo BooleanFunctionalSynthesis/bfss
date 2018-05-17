@@ -13,12 +13,13 @@
 #include <sstream>
 #include <ctime>
 #include <signal.h>
-#include "cmsat/Main.h"
+#include "cusp.h"
 #include "cxxopts.hpp"
 
-using namespace std;
+#define ABC_NAMESPACE NS_ABC
 
 extern "C" {
+#include "misc/util/abc_global.h"
 #include "base/abc/abc.h"
 #include "base/main/mainInt.h"
 #include "base/cmd/cmd.h"
@@ -31,9 +32,18 @@ extern "C" {
 #include "opt/mfs/mfs.h"
 #include "opt/mfs/mfsInt.h"
 #include "bool/kit/kit.h"
-Aig_Man_t * Abc_NtkToDar(Abc_Ntk_t * pNtk, int fExors, int fRegisters);
-Abc_Ntk_t * Abc_NtkFromAigPhase(Aig_Man_t * pMan);
+#include "bdd/cudd/cuddInt.h"
+#include "bdd/cudd/cudd.h"
 }
+namespace ABC_NAMESPACE {
+	extern "C" {
+	Aig_Man_t * Abc_NtkToDar(Abc_Ntk_t * pNtk, int fExors, int fRegisters);
+	Abc_Ntk_t * Abc_NtkFromAigPhase(Aig_Man_t * pMan);
+	}
+}
+
+using namespace std;
+using namespace ABC_NAMESPACE;
 
 #define STR_HELPER(X)		#X
 #define STR(X)				STR_HELPER(X)
@@ -53,6 +63,7 @@ Abc_Ntk_t * Abc_NtkFromAigPhase(Aig_Man_t * pMan);
 #define UNIGEN_THRESHOLD 	0.3
 #define WAIT_SAMPLES_DEF 	110
 #define FMCAD_SIZE_THRESH	1e6
+#define UNATE_TIMEOUT		3600
 
 // #define DEBUG
 // #define DEBUG_CHUNK
@@ -62,6 +73,13 @@ Abc_Ntk_t * Abc_NtkFromAigPhase(Aig_Man_t * pMan);
 #else
 	#define OUT( x )
 #endif
+
+typedef std::chrono::time_point<std::chrono::steady_clock> chrono_steady_time;
+#define TIME_NOW			 std::chrono::steady_clock::now()
+#define TIME_MEASURE_START   helper_time_measure_start = TIME_NOW;
+#define TIME_MEASURE_ELAPSED (std::chrono::duration_cast<std::chrono::microseconds>(TIME_NOW-helper_time_measure_start).count()/1000000.0)
+extern  chrono_steady_time helper_time_measure_start;
+extern  chrono_steady_time main_time_start;
 
 class  edge;
 class  node;
@@ -89,13 +107,20 @@ struct optionStruct {
 	bool 	noRevSub;
 	bool 	verify;
 	bool 	noUnate;
+	bool 	noSyntacticUnate;
+	bool 	noSemanticUnate;
 	int 	fmcadSizeThreshold;
+	int 	unateTimeout;
+	bool 	checkSatOnly;
+	bool 	checkWDNNF;
+	bool 	useBDD;
 };
 
 extern vector<int> varsSInv;
 extern vector<int> varsXF, varsXS;
 extern vector<int> varsYF, varsYS; // to be eliminated
 extern int numOrigInputs, numX, numY;
+extern vector<string> varsNameX, varsNameY;
 extern Abc_Frame_t* pAbc;
 extern sat_solver* m_pSat;
 extern Cnf_Dat_t* m_FCnf;
@@ -113,7 +138,8 @@ extern double verify_sat_solving_time;
 extern double reverse_sub_time;
 extern vector<vector<int>> CiCloudIth;
 extern vector<vector<int>> CoIth;
-
+extern int F_SAigIndex;
+extern int FPrime_SAigIndex;
 
 int 			CommandExecute(Abc_Frame_t* pAbc, string cmd);
 vector<string> 	tokenize( const string& p_pcstStr, char delim );
@@ -129,6 +155,8 @@ void 			populateVars(Abc_Ntk_t* FNtk, Nnf_Man& nnf, string varsFile,
 Aig_Obj_t* 		Aig_SubstituteConst(Aig_Man_t* pMan, Aig_Obj_t* initAig, int varId, int one);
 Aig_Obj_t* 		Aig_Substitute(Aig_Man_t* pMan, Aig_Obj_t* initAig, int varId, Aig_Obj_t* func);
 void			initializeCompose(Aig_Man_t* SAig, vector<Aig_Obj_t* >& Fs,
+					vector<vector<int> >& r0, vector<vector<int> >& r1, vector<int>& unate);
+void			initializeComposeCloudInputs(Aig_Man_t* SAig, vector<Aig_Obj_t* >& Fs,
 					vector<vector<int> >& r0, vector<vector<int> >& r1, vector<int>& unate);
 bool 			addVarToSolver(sat_solver* pSat, int varNum, int val);
 int 			getCnfCoVarNum(Cnf_Dat_t* cnf, Aig_Man_t* aig, int nthCo);
@@ -150,6 +178,7 @@ Aig_Obj_t* 		satisfiesVec(Aig_Man_t* formula, const vector<int>& cex, const vect
 Aig_Obj_t* 		generalize(Aig_Man_t*pMan, vector<int> cex, const vector<int>& rl);
 bool 			Aig_Support_rec(Aig_Man_t* pMan, Aig_Obj_t* root, int inpNodeId, map<Aig_Obj_t*,bool>& memo);
 bool 			Aig_Support(Aig_Man_t* pMan, Aig_Obj_t* root, int inpNodeId);
+vector<Aig_Obj_t *> Aig_SupportVec(Aig_Man_t* pMan, Aig_Obj_t* root);
 Aig_Obj_t* 		Aig_AndAigs(Aig_Man_t* pMan, Aig_Obj_t* Aig1, Aig_Obj_t* Aig2);
 Aig_Obj_t* 		Aig_OrAigs(Aig_Man_t* pMan, Aig_Obj_t* Aig1, Aig_Obj_t* Aig2) ;
 Aig_Obj_t* 		AND_rec(Aig_Man_t* SAig, vector<Aig_Obj_t* >& nodes, int start, int end);
@@ -158,6 +187,7 @@ Aig_Obj_t* 		projectPi(Aig_Man_t* pMan, const vector<int> &cex, const int m);
 void 			updateAbsRef(Aig_Man_t*&pMan, int M, int k1Level, int k1MaxLevel, vector<vector<int> > &r0, vector<vector<int> > &r1);
 Aig_Man_t* 		compressAig(Aig_Man_t* SAig);
 Aig_Man_t* 		compressAigByNtk(Aig_Man_t* SAig);
+Aig_Man_t* 		compressAigByNtkMultiple(Aig_Man_t* SAig, int times);
 void 			checkSupportSanity(Aig_Man_t*pMan, vector<vector<int> > &r0, vector<vector<int> > &r1);
 Aig_Obj_t* 		OR_rec(Aig_Man_t* SAig, vector<int>& nodes, int start, int end);
 Aig_Obj_t* 		newOR(Aig_Man_t* SAig, vector<int>& nodes);
@@ -200,13 +230,17 @@ void			parseOptions(int argc, char * argv[]);
 void 			printK2Trend();
 void 			monoSkolem(Aig_Man_t*&pMan, vector<vector<int> > &r0, vector<vector<int> > &r1);
 string			getFileName(string s);
-void 			checkUnateAll(Aig_Man_t* FAig, vector<int>&unate);
+int 			checkUnateSyntacticAll(Aig_Man_t* FAig, vector<int>&unate);
+int 			checkUnateSemanticAll(Aig_Man_t* FAig, vector<int>&unate);
 void 			populateVars(Abc_Ntk_t* FNtk, string varsFile,
 					vector<int>& varsXF, vector<int>& varsYF,
 					map<string,int>& name2IdF, map<int,string>& id2NameF);
 void 			substituteUnates(Aig_Man_t* &pMan, vector<int>&unate);
 void 			saveSkolems(Aig_Man_t* SAig, vector<int>& r_Aigs);
 void 			printAig(Aig_Man_t* pMan);
+int 			Aig_DagSizeWithConst(Aig_Obj_t * pObj);
+void			printBDDNode(DdManager* ddMan, DdNode* obj);
+void			printBDD(DdManager* ddMan, DdNode* f);
 
 template<class T>
 void print(T v) {

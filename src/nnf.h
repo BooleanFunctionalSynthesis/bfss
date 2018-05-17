@@ -27,13 +27,16 @@ public:
 	bool fMarkA;
 	int iData;
 	void* pData;
+	bool isWDNNF();
 
 	Nnf_Obj(int id);
 	Nnf_Obj(int id, Nnf_Type t);
 	void print();
+	int getNumRef();
 };
 
 class Nnf_Man {
+	string pName;
 	vector<Nnf_Obj*> _inputs_pos;
 	vector<Nnf_Obj*> _inputs_neg;
 	vector<Nnf_Obj*> _outputs;
@@ -48,6 +51,9 @@ class Nnf_Man {
 public:
 	Nnf_Man();
 	Nnf_Man(Aig_Man_t* pSrc);
+	Nnf_Man(DdManager* ddMan, DdNode* FddNode);
+	void init(Aig_Man_t* pSrc);
+	void init(DdManager* ddMan, DdNode* FddNode);
 	~Nnf_Man();
 
 	// Getters
@@ -63,8 +69,10 @@ public:
 	Nnf_Obj* createCo(Nnf_Obj* pDriver);
 	Nnf_Obj* const0();
 	Nnf_Obj* const1();
-	
+
 	// Routines
+	bool isWDNNF();
+	bool isWDNNF(vector<int>& varsY);
 	void pushBubblesDown(Nnf_Obj* nObj);
 	void print();
 	void Nnf_ManDfs_rec(Nnf_Obj * pObj, vector<Nnf_Obj*> &vNodes);
@@ -75,6 +83,12 @@ public:
 	Aig_Man_t* createAigMultipleClouds(int numCloudSets,
 				vector<vector<int>> CiCloudIth,
 				vector<vector<int>> CoIth);
+	Nnf_Obj* bdd2nnf_rec(DdNode* FddNode, map<DdNode*, Nnf_Obj*>&cache);
+	bool checkIsNnf();
+	bool checkIsNnf_rec(Nnf_Obj* pObj);
+
+	Nnf_Obj* Nnf_And(Nnf_Obj* left, Nnf_Obj* right);
+	Nnf_Obj* Nnf_Or(Nnf_Obj* left, Nnf_Obj* right);
 };
 
 // ===========HELPER ROUTINES========
@@ -89,7 +103,8 @@ static inline int        Nnf_ObjRefsNeg(Nnf_Obj * pObj)     { return pObj->pFano
 static inline int        Nnf_ObjRefs(Nnf_Obj * pObj)        { return Nnf_ObjRefsPos(pObj) + Nnf_ObjRefsNeg(pObj);}
 static inline Nnf_Type   Nnf_ObjType(Nnf_Obj * pObj)        { return (Nnf_Type)pObj->Type;         }
 static inline bool       Nnf_ObjIsNone(Nnf_Obj * pObj)      { return pObj->Type == NNF_OBJ_NONE;   }
-static inline bool       Nnf_ObjIsConst1(Nnf_Obj * pObj)    { assert(!Nnf_IsComplement(pObj)); return pObj->Type == NNF_OBJ_CONST1;}
+static inline bool       Nnf_ObjIsConst1(Nnf_Obj * pObj)    { return pObj->Type == NNF_OBJ_CONST1;}
+static inline bool       Nnf_ObjIsConst0(Nnf_Obj * pObj)    { return Nnf_ObjIsConst1(Nnf_Regular(pObj)) && Nnf_IsComplement(pObj);}
 static inline bool       Nnf_ObjIsCiPos(Nnf_Obj * pObj)     { return pObj->Type == NNF_OBJ_CI_POS; }
 static inline bool       Nnf_ObjIsCiNeg(Nnf_Obj * pObj)     { return pObj->Type == NNF_OBJ_CI_NEG; }
 static inline bool       Nnf_ObjIsCi(Nnf_Obj * pObj)        { return Nnf_ObjIsCiPos(pObj) or Nnf_ObjIsCiNeg(pObj);}

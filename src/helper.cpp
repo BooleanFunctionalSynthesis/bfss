@@ -2,6 +2,8 @@
 // #include "formula.h"
 #include "nnf.h"
 
+using namespace ABC_NAMESPACE;
+
 vector<vector<int> > storedCEX;
 vector<int> storedCEX_k1;
 vector<int> storedCEX_k2;
@@ -25,11 +27,22 @@ vector<vector<int> > k2Trend;
 vector<vector<bool> > storedCEX_r0Sat;
 vector<vector<bool> > storedCEX_r1Sat;
 int exhaustiveCollapsedTill = 0;
-int unigen_argc = 15;
-char* unigen_argv[] = {"./unigen", "--samples=2200", "--threads=4", "--kappa=0.638", \
-						"--pivotUniGen=27.0", "--maxTotalTime=72000", "--startIteration=0", \
-						"--maxLoopTime=3000", "--tApproxMC=1", "--pivotAC=60", "--gaussuntil=400", \
-						"--verbosity=0", "--multisample", UNIGEN_DIMAC_FNAME, UNIGEN_MODEL_FPATH};
+// int unigen_argc = 15;
+// int unigen_samples_argnum = 1;
+// int unigen_threads_argnum = 2;
+// int unigen_cnfname_argnum = 13;
+// char* unigen_argv[] = {"./unigen", "--samples=2200", "--threads=4", "--kappa=0.638", \
+// 						"--pivotUniGen=27.0", "--maxTotalTime=72000", "--startIteration=0", \
+// 						"--maxLoopTime=3000", "--tApproxMC=1", "--pivotAC=60", "--gaussuntil=400", \
+// 						"--verbosity=0", "--multisample", UNIGEN_DIMAC_FNAME, UNIGEN_MODEL_FPATH};
+int unigen_argc = 8;
+int unigen_samples_argnum = 1;
+int unigen_threads_argnum = 2;
+int unigen_cnfname_argnum = 7;
+char* unigen_argv[] = {"./scalmc", "--samples=2200", "--threads=4", "--kappa=0.638", \
+						"--startIteration=0", \
+						"--tApproxMC=1", "--pivotAC=60", \
+						UNIGEN_DIMAC_FNAME};
 pthread_t unigen_threadId = -1;
 map<int, int> varNum2ID;
 map<int, int> varNum2R0R1;
@@ -37,6 +50,8 @@ int solsJustFetched = 0;
 vector<bool> collapsedInto;
 vector<vector<int>> CiCloudIth;
 vector<vector<int>> CoIth;
+int F_SAigIndex = -1;
+int FPrime_SAigIndex = -1;
 
 ////////////////////////////////////////////////////////////////////////
 ///                      HELPER FUNCTIONS                            ///
@@ -67,7 +82,13 @@ void parseOptions(int argc, char * argv[]) {
 		("noRevSub", "Don't reverse substitute", cxxopts::value<bool>(options.noRevSub))
 		("verify", "Veify computed skolem functions", cxxopts::value<bool>(options.verify))
 		("noUnate", "Don't find and substitute unates", cxxopts::value<bool>(options.noUnate))
+		("noSyntacticUnate", "Don't use Syntactic unateness checks", cxxopts::value<bool>(options.noSyntacticUnate))
+		("noSemanticUnate", "Don't use Semantic unateness checks", cxxopts::value<bool>(options.noSemanticUnate))
 		("fmcadSizeThresh", "Size after which to turn off fmcad (default: " STR(FMCAD_SIZE_THRESH) ")", cxxopts::value<int>(options.fmcadSizeThreshold), "N")
+		("unateTimeout", "Timeout for unate checks (default: " STR(UNATE_TIMEOUT) ")", cxxopts::value<int>(options.unateTimeout), "N")
+		("checkSatOnly", "Exit if SAT", cxxopts::value<bool>(options.checkSatOnly))
+		("checkWDNNF", "check if wDNNF", cxxopts::value<bool>(options.checkWDNNF))
+		("useBDD", "Build NNF from BDD", cxxopts::value<bool>(options.useBDD))
 		("positional",
 			"Positional arguments: these are the arguments that are entered "
 			"without an option", cxxopts::value<std::vector<string>>())
@@ -207,6 +228,24 @@ void parseOptions(int argc, char * argv[]) {
 
 	options.noUnate = options.noUnate || options.monoSkolem;
 
+	if (!optParser.count("fmcadSizeThresh")) {
+		options.fmcadSizeThreshold = FMCAD_SIZE_THRESH;
+	}
+	else if(options.fmcadSizeThreshold < 0) {
+		cerr << endl << "Error: FMCAD Size threshold must be non-negative" << endl << endl;
+		cout << optParser.help({"", "Group"}) << std::endl;
+		exit(0);
+	}
+
+	if (!optParser.count("unateTimeout")) {
+		options.unateTimeout = UNATE_TIMEOUT;
+	}
+	else if(options.unateTimeout < 0) {
+		cerr << endl << "Error: Unate timeout must be non-negative" << endl << endl;
+		cout << optParser.help({"", "Group"}) << std::endl;
+		exit(0);
+	}
+
 	optionsOriginal = options;
 
 	unigen_argv[1] = (char*)((new string("--samples="+to_string(options.numSamples)))->c_str());
@@ -215,13 +254,13 @@ void parseOptions(int argc, char * argv[]) {
 
 	cout << "Configuration: " << endl;
 	cout << "{" << endl;
-	cout << "\t proactiveProp:        " << options.proactiveProp << endl;
-	cout << "\t useABCSolver:         " << options.useABCSolver << endl;
-	cout << "\t out:                  " << options.outFName << endl;
-	cout << "\t evalAigAtNode:        " << options.evalAigAtNode << endl;
 	cout << "\t benchmark:            " << options.benchmark << endl;
 	cout << "\t varsOrder:            " << options.varsOrder << endl;
+	cout << "\t out:                  " << options.outFName << endl;
 	cout << "\t skolemType:           " << options.skolemType << endl;
+	cout << "\t useABCSolver:         " << options.useABCSolver << endl;
+	cout << "\t evalAigAtNode:        " << options.evalAigAtNode << endl;
+	cout << "\t proactiveProp:        " << options.proactiveProp << endl;
 	cout << "\t numSamples:           " << options.numSamples << endl;
 	cout << "\t numThreads:           " << options.numThreads << endl;
 	cout << "\t initCollapseParam:    " << options.c1 << endl;
@@ -235,6 +274,10 @@ void parseOptions(int argc, char * argv[]) {
 	cout << "\t noRevSub:             " << options.noRevSub << endl;
 	cout << "\t verify:               " << options.verify << endl;
 	cout << "\t noUnate:              " << options.noUnate << endl;
+	cout << "\t fmcadSizeThreshold:   " << options.fmcadSizeThreshold << endl;
+	cout << "\t unateTimeout:         " << options.unateTimeout << endl;
+	cout << "\t checkSatOnly:         " << options.checkSatOnly << endl;
+	cout << "\t useBDD:               " << options.useBDD << endl;
 	cout << "}" << endl;
 }
 
@@ -397,11 +440,15 @@ void populateVars(Abc_Ntk_t* FNtk, Nnf_Man& nnf, string varsFile,
 
 	OUT( "Populating varsXS varsYS..." );
 	for(auto it : varsXF) {
-		varsXS.push_back(nnf.getNewAigNodeID(it));
+		// cout << "nnf.getNewAigNodeID: " << it << "->" << nnf.getNewAigNodeID(it) << endl;
+		// varsXS.push_back(nnf.getNewAigNodeID(it));
+		varsXS.push_back(it);
 		assert(varsXS.back() != -1);
 	}
 	for(auto it : varsYF) {
-		varsYS.push_back(nnf.getNewAigNodeID(it));
+		// cout << "nnf.getNewAigNodeID: " << it << "->" << nnf.getNewAigNodeID(it) << endl;
+		// varsYS.push_back(nnf.getNewAigNodeID(it));
+		varsYS.push_back(it);
 		assert(varsYS.back() != -1);
 	}
 
@@ -477,13 +524,13 @@ vector<Aig_Obj_t* > Aig_SubstituteVecVec(Aig_Man_t* pMan, Aig_Obj_t* initAig,
 	vector<vector<Aig_Obj_t*> >& funcVecs) {
 	Aig_Obj_t* currFI;
 	currFI = Aig_ObjIsCo(Aig_Regular(initAig))? initAig->pFanin0: initAig;
-	for(int i = 0; i < numY; i++) {
+	for(int i = 0; i < funcVecs.size(); i++) {
 		for (int j = 0; j < funcVecs[i].size(); ++j) {
 			funcVecs[i][j] = Aig_ObjIsCo(Aig_Regular(funcVecs[i][j]))? funcVecs[i][j]->pFanin0: funcVecs[i][j];
 		}
 	}
 	vector<Aig_Obj_t* > afterCompose = Aig_ComposeVecVec(pMan, currFI, funcVecs);
-	for (int i = 0; i < numY; ++i) {
+	for (int i = 0; i < afterCompose.size(); ++i) {
 		assert(!Aig_ObjIsCo(Aig_Regular(afterCompose[i])));
 	}
 	return afterCompose;
@@ -497,7 +544,7 @@ vector<Aig_Obj_t* > Aig_SubstituteVecVec(Aig_Man_t* pMan, Aig_Obj_t* initAig,
  * @param r0   [out]        Underapproximates the Cannot-be-0 sets
  * @param r1   [out]        Underapproximates the Cannot-be-1 sets
  */
-void initializeCompose(Aig_Man_t* SAig, vector<Aig_Obj_t* >& Fs,
+void initializeComposeCloudInputs(Aig_Man_t* SAig, vector<Aig_Obj_t* >& Fs,
 		vector<vector<int> >& r0, vector<vector<int> >& r1, vector<int>& unate) {
 
 	vector<Aig_Obj_t* > funcVec;
@@ -655,6 +702,147 @@ void initializeCompose(Aig_Man_t* SAig, vector<Aig_Obj_t* >& Fs,
 		}
 		Aig_ObjPatchFanin0(SAig, Aig_ManCo(SAig,CoNum), R1_Obj);
 		r1[i].push_back(CoNum);
+	}
+}
+
+
+/** Function
+ * Composes inputs of SAig with appropriate delta and gamma, makes the resulting
+ * objects COs and stores them in r0 and r1.
+ * @param SAig [in out]     Aig Manager
+ * @param r0   [out]        Underapproximates the Cannot-be-0 sets
+ * @param r1   [out]        Underapproximates the Cannot-be-1 sets
+ */
+void initializeCompose(Aig_Man_t* SAig, vector<Aig_Obj_t* >& Fs,
+		vector<vector<int> >& r0, vector<vector<int> >& r1, vector<int>& unate) {
+	nodeIdtoN.resize(2*numOrigInputs);
+	for(int i = 0; i < numX; i++) {
+		nodeIdtoN[varsXS[i] - 1] = i;
+		nodeIdtoN[numOrigInputs + varsXS[i] - 1] = numOrigInputs + i;
+	}
+	for(int i = 0; i < numY; i++) {
+		nodeIdtoN[varsYS[i] - 1] = numX + i;
+		nodeIdtoN[numOrigInputs + varsYS[i] - 1] = numOrigInputs + numX + i;
+	}
+
+	vector<vector<Aig_Obj_t* > > funcVecVec;
+	vector<Aig_Obj_t* > retVec;
+	vector<Aig_Obj_t* > funcVec;
+
+	funcVec.resize(0);
+	for(int i = 0; i < numX; ++i) {
+		funcVec.push_back(Aig_ManObj(SAig, varsXS[i]));
+	}
+	for(int i = 0; i < numY; ++i) {
+		funcVec.push_back(Aig_ManObj(SAig, varsYS[i]));
+	}
+	for(int i = 0; i < numX; ++i) {
+		funcVec.push_back(Aig_Not(Aig_ManObj(SAig, varsXS[i])));
+	}
+	for(int i = 0; i < numY; ++i) {
+		funcVec.push_back(Aig_Not(Aig_ManObj(SAig, varsYS[i])));
+	}
+	funcVecVec.push_back(funcVec);
+
+	funcVec.resize(0);
+	for(int i = 0; i < numX; ++i) {
+		funcVec.push_back(Aig_ManObj(SAig, varsXS[i]));
+	}
+	for(int i = 0; i < numY; ++i) {
+		funcVec.push_back(Aig_ManObj(SAig, numOrigInputs + varsYS[i]));
+	}
+	for(int i = 0; i < numX; ++i) {
+		funcVec.push_back(Aig_Not(Aig_ManObj(SAig, varsXS[i])));
+	}
+	for(int i = 0; i < numY; ++i) {
+		funcVec.push_back(Aig_Not(Aig_ManObj(SAig, numOrigInputs + varsYS[i])));
+	}
+	funcVecVec.push_back(funcVec);
+
+	for(int i = 0; i < numY; ++i) {
+		funcVec.resize(0);
+		for(int j = 0; j < numX; j++) {
+			funcVec.push_back(Aig_ManObj(SAig, varsXS[j]));
+		}
+		for(int j = 0; j < numY; j++) {
+			if(j < i) {
+				funcVec.push_back(Aig_ManConst1(SAig));
+			} else if(j == i) {
+				funcVec.push_back(Aig_ManConst0(SAig));
+			} else {
+				funcVec.push_back(Aig_ManObj(SAig, varsYS[j]));
+			}
+		}
+		for(int j = 0; j < numX; j++) {
+			funcVec.push_back(Aig_Not(Aig_ManObj(SAig, varsXS[j])));
+		}
+		for(int j = 0; j < numY; j++) {
+			if(j <= i) {
+				funcVec.push_back(Aig_ManConst1(SAig));
+			} else {
+				funcVec.push_back(Aig_Not(Aig_ManObj(SAig, varsYS[j])));
+			}
+		}
+		funcVecVec.push_back(funcVec);
+	}
+
+	for(int i = 0; i < numY; ++i) {
+		funcVec.resize(0);
+		for(int j = 0; j < numX; j++) {
+			funcVec.push_back(Aig_ManObj(SAig, varsXS[j]));
+		}
+		for(int j = 0; j < numY; j++) {
+			if(j <= i) {
+				funcVec.push_back(Aig_ManConst1(SAig));
+			} else {
+				funcVec.push_back(Aig_ManObj(SAig, varsYS[j]));
+			}
+		}
+		for(int j = 0; j < numX; j++) {
+			funcVec.push_back(Aig_Not(Aig_ManObj(SAig, varsXS[j])));
+		}
+		for(int j = 0; j < numY; j++) {
+			if(j < i) {
+				funcVec.push_back(Aig_ManConst1(SAig));
+			} else if(j == i) {
+				funcVec.push_back(Aig_ManConst0(SAig));
+			} else {
+				funcVec.push_back(Aig_Not(Aig_ManObj(SAig, varsYS[j])));
+			}
+		}
+		funcVecVec.push_back(funcVec);
+	}
+
+	retVec = Aig_SubstituteVecVec(SAig, Aig_ManCo(SAig, 0), funcVecVec);
+	Fs[0] = Aig_ObjCreateCo(SAig, retVec[0]);
+	Fs[1] = Aig_ObjCreateCo(SAig, retVec[1]);
+	for(int i = 0; i < numY; i++) {
+		switch(unate[i]) {
+			case -1:
+				Aig_ObjCreateCo(SAig, Aig_Not(retVec[2 + i]));
+				break;
+			case 0:
+				Aig_ObjCreateCo(SAig, Aig_ManConst0(SAig));
+				break;
+			case 1:
+				Aig_ObjCreateCo(SAig, Aig_ManConst1(SAig));
+				break;
+		}
+		r0[i].push_back(Aig_ManCoNum(SAig) - 1);
+	}
+	for(int i = 0; i < numY; i++) {
+		switch(unate[i]) {
+			case -1:
+				Aig_ObjCreateCo(SAig, Aig_Not(retVec[2 + numY + i]));
+				break;
+			case 0:
+				Aig_ObjCreateCo(SAig, Aig_ManConst1(SAig));
+				break;
+			case 1:
+				Aig_ObjCreateCo(SAig, Aig_ManConst0(SAig));
+				break;
+		}
+		r1[i].push_back(Aig_ManCoNum(SAig) - 1);
 	}
 }
 
@@ -852,8 +1040,8 @@ pair<Cnf_Dat_t*,bool> buildErrorFormula(sat_solver* pSat, Aig_Man_t* SAig,
 	#endif
 
 	// assert F(X, Y) = false, F(X, Y') = true
-	allOk = allOk && addVarToSolver(pSat, SCnf->pVarNums[Aig_ManCo(SAig,1)->Id], 0);
-	allOk = allOk && addVarToSolver(pSat, SCnf->pVarNums[Aig_ManCo(SAig,2)->Id], 1);
+	allOk = allOk && addVarToSolver(pSat, SCnf->pVarNums[Aig_ManCo(SAig, F_SAigIndex)->Id], 0);
+	allOk = allOk && addVarToSolver(pSat, SCnf->pVarNums[Aig_ManCo(SAig, FPrime_SAigIndex)->Id], 1);
 
 	r0Andr1Vars.resize(numY);
 
@@ -910,7 +1098,7 @@ bool callSATfindCEX(Aig_Man_t* SAig,vector<int>& cex,
 		}
 		evaluateAig(SAig,cex);
 
-		if(Aig_ManCo(SAig, 1)->iData != 1) { //CEX still spurious, return
+		if(Aig_ManCo(SAig, F_SAigIndex)->iData != 1) { //CEX still spurious, return
 			// cout << "CEX still spurious, returning..." << endl;
 			return true;
 		}
@@ -1024,16 +1212,21 @@ bool getNextCEX(Aig_Man_t*&SAig, int& M, int& k1Level, int& k1MaxLevel, vector<v
 			cout << "k1Max: " << k1Max << "\tk2Max: " << k2Max << endl;
 			M = k2Max;
 			k1MaxLevel = k1Max;
-			vector<int> kFreq(numY, 0);
-			for(auto it: storedCEX_k1)
-				kFreq[it]++;
-			int maxFreqk1 = -1;
-			for(int i = 0; i < kFreq.size(); i++) {
-				if(maxFreqk1 < kFreq[i]) {
-					k1Level = i;
-					maxFreqk1 = kFreq[i];
-				}
-			}
+			// vector<int> kFreq(numY, 0);
+			// for(auto it: storedCEX_k1)
+			// 	kFreq[it]++;
+			// int maxFreqk1 = -1;
+			// for(int i = 0; i < kFreq.size(); i++) {
+			// 	if(maxFreqk1 < kFreq[i]) {
+			// 		k1Level = i;
+			// 		maxFreqk1 = kFreq[i];
+			// 	}
+			// }
+			k1Level = 0;
+			for (int i = 0; i < storedCEX_k2.size(); ++i)
+				if (storedCEX_k2[i] == k2Max and k1Level < storedCEX_k1[i])
+					k1Level = storedCEX_k1[i];
+
 			return true;
 		}
 
@@ -1048,7 +1241,7 @@ bool getNextCEX(Aig_Man_t*&SAig, int& M, int& k1Level, int& k1MaxLevel, vector<v
 
 bool populateCEX(Aig_Man_t* SAig,
 	vector<vector<int> > &r0, vector<vector<int> > &r1) {
-	if(!CMSat::Main::unigenRunning && CMSat::Main::getSolutionMapSize() == 0) {
+	if(!CMSat::CUSP::unigenRunning && CMSat::CUSP::getSolutionMapSize() == 0) {
 		if(populateStoredCEX(SAig, r0, r1, true)) {
 			// Add to numCEX
 			numCEX += storedCEX.size();
@@ -1075,19 +1268,19 @@ bool populateCEX(Aig_Man_t* SAig,
 	else {
 		cout << "PACratio:           " << 0 << endl;
 	}
-	if(finSize < solsJustFetched*options.unigenThreshold and CMSat::Main::unigenRunning) {
+	if(finSize < solsJustFetched*options.unigenThreshold and CMSat::CUSP::unigenRunning) {
 		cout << "PACratio too low, Terminating Unigen prematurely" << endl;
-		CMSat::Main::prematureKill = true;
+		CMSat::CUSP::prematureKill = true;
 		pthread_join(unigen_threadId, NULL);
 
 		pthread_mutex_lock(&CMSat::mu_lock);
-		CMSat::Main::unigenRunning = false;
+		CMSat::CUSP::unigenRunning = false;
 		pthread_cond_signal(&CMSat::lilCondVar);
 		pthread_mutex_unlock(&CMSat::mu_lock);
 		unigen_threadId = -1;
 	}
 
-	// if(!CMSat::Main::unigenRunning && CMSat::Main::getSolutionMapSize() == 0) {
+	// if(!CMSat::CUSP::unigenRunning && CMSat::CUSP::getSolutionMapSize() == 0) {
 	// 	if(populateStoredCEX(SAig, r0, r1, false)) {
 	// 		// Add to numCEX
 	// 		numCEX += storedCEX.size();
@@ -1371,15 +1564,27 @@ Aig_Obj_t* satisfiesVec(Aig_Man_t* formula, const vector<int>& cex, const vector
 		evaluateAig(formula, cex);
 
 	OUT("satisfiesVec...");
+
+	Aig_Obj_t* currRet = NULL;
+	int currMinSupp = std::numeric_limits<int>::max();
+
 	for(int i = 0; i < coObjs.size(); i++) {
 		OUT("Accessing Co "<<coObjs[i]<<" Id "<< Aig_ManCo(formula,coObjs[i])->Id);
+
 		if(Aig_ManCo(formula,coObjs[i])->iData == 1) {
 			OUT("Satisfied ID " << Aig_ManCo(formula,coObjs[i])->Id);
-			return Aig_ManCo(formula,coObjs[i]);
+
+			vector<Aig_Obj_t* > tempSupp = Aig_SupportVec(formula, Aig_ManCo(formula,coObjs[i]));
+			int tempSuppLen = tempSupp.size();
+
+			if(tempSuppLen < currMinSupp) {
+				currMinSupp = tempSuppLen;
+				currRet = Aig_ManCo(formula,coObjs[i]);
+			}
 		}
 	}
 	OUT("Nothing satisfied");
-	return NULL;
+	return currRet;
 }
 
 /** Function
@@ -1431,6 +1636,52 @@ bool Aig_Support_rec(Aig_Man_t* pMan, Aig_Obj_t* root, int inpNodeId, map<Aig_Ob
 bool Aig_Support(Aig_Man_t* pMan, Aig_Obj_t* root, int inpNodeId) {
 	map<Aig_Obj_t*,bool> memo;
 	return Aig_Support_rec(pMan,Aig_Regular(root),inpNodeId,memo);
+}
+
+void Aig_ConeSupportVecAndMark_rec(Aig_Obj_t * pObj, set<Aig_Obj_t *>&retSupport) {
+    assert(!Aig_IsComplement(pObj));
+    if(pObj == NULL || Aig_ObjIsMarkA(pObj)) {
+    	return;
+    }
+    else if(Aig_ObjIsConst1(pObj)) {
+    	Aig_ObjSetMarkA(pObj);
+    	return;
+    }
+    else if(Aig_ObjIsCi(pObj)) {
+    	Aig_ObjSetMarkA(pObj);
+		retSupport.insert(pObj);
+		return;
+    }
+
+    Aig_ConeSupportVecAndMark_rec(Aig_ObjFanin0(pObj), retSupport);
+    Aig_ConeSupportVecAndMark_rec(Aig_ObjFanin1(pObj), retSupport);
+
+    assert(!Aig_ObjIsMarkA(pObj)); // loop detection
+    Aig_ObjSetMarkA(pObj);
+    return;
+}
+
+void Aig_ConeSupportVecUnmark_rec(Aig_Obj_t * pObj) {
+    assert(!Aig_IsComplement(pObj));
+    if(pObj == NULL || !Aig_ObjIsMarkA(pObj)) {
+    	return;
+    }
+    else if(Aig_ObjIsConst1(pObj) || Aig_ObjIsCi(pObj)) {
+    	Aig_ObjClearMarkA(pObj);
+		return;
+    }
+    Aig_ConeSupportVecUnmark_rec(Aig_ObjFanin0(pObj));
+    Aig_ConeSupportVecUnmark_rec(Aig_ObjFanin1(pObj));
+    assert(Aig_ObjIsMarkA(pObj)); // loop detection
+    Aig_ObjClearMarkA(pObj);
+}
+
+vector<Aig_Obj_t *> Aig_SupportVec(Aig_Man_t* pMan, Aig_Obj_t* root) {
+    set<Aig_Obj_t *> retSupport;
+    Aig_ConeSupportVecUnmark_rec(Aig_Regular(root));
+    Aig_ConeSupportVecAndMark_rec(Aig_Regular(root), retSupport);
+    Aig_ConeSupportVecUnmark_rec(Aig_Regular(root));
+	return vector<Aig_Obj_t *>(retSupport.begin(), retSupport.end());
 }
 
 /** Function
@@ -1613,7 +1864,7 @@ void updateAbsRef(Aig_Man_t*&pMan, int M, int k1Level, int k1MaxLevel, vector<ve
 
 	list<int> releventCEX;
 	for (int i = 0; i < storedCEX.size(); ++i) {
-		if(storedCEX_k1[i] == k1Level)
+		if(storedCEX_k2[i] == M and storedCEX_k1[i] == k1Level)
 			releventCEX.push_back(i);
 	}
 
@@ -1733,7 +1984,7 @@ void updateAbsRef(Aig_Man_t*&pMan, int M, int k1Level, int k1MaxLevel, vector<ve
 		int corrK2 = -1;
 		int k = fmcadPhaseStart;
 		for(int i = 0; i< storedCEX.size(); i++) {
-			if(storedCEX_k1[i] == k) {
+			if(storedCEX_k1[i] == k and storedCEX_k2[i] == M) {
 				if(corrK2 < storedCEX_k2[i]) {
 					corrK2 = storedCEX_k2[i];
 					cexIndex = i;
@@ -1954,6 +2205,59 @@ Aig_Man_t* compressAigByNtk(Aig_Man_t* SAig) {
 	return temp;
 }
 
+
+/** Function
+ * Compresses Aig by converting it to an Ntk and performing a bunch of steps on it.
+ * Deletes SAig and returns a compressed version
+ * @param SAig      [in]        Aig to be compressed
+ * @param times     [in]        Number of compression cycles to be run
+ */
+Aig_Man_t* compressAigByNtkMultiple(Aig_Man_t* SAig, int times) {
+	Aig_Man_t* temp;
+	string command;
+
+	OUT("Cleaning up...");
+	int removed = Aig_ManCleanup(SAig);
+	cout << "Removed " << removed <<" nodes" << endl;
+
+	// SAig =  Dar_ManCompress2(temp = SAig, 1, 1, 26, 1, 0);
+	// Aig_ManStop(temp);
+
+	Abc_Ntk_t * SNtk = Abc_NtkFromAigPhase(SAig);
+	Abc_FrameSetCurrentNetwork(pAbc, SNtk);
+
+	// TODO: FIX
+	assert(options.evalAigAtNode);
+	command = "rewrite -lz; refactor -l;";
+
+	cout << "balancing..." << endl;
+	if (Cmd_CommandExecute(pAbc, "balance;")) {
+		cout << "Cannot preprocess SNtk" << endl;
+		return NULL;
+	}
+
+	for (int i = 0; i < times; ++i)	{
+		cout << "cycle " << i << ": " << command;
+		TIME_MEASURE_START
+		if (Cmd_CommandExecute(pAbc, (char*)command.c_str())) {
+			cout << "Cannot preprocess SNtk, took " << TIME_MEASURE_ELAPSED << endl;
+			return NULL;
+		}
+		cout << "took " << TIME_MEASURE_ELAPSED << endl;
+	}
+
+	cout << "balancing..." << endl;
+	if (Cmd_CommandExecute(pAbc, "balance;")) {
+		cout << "Cannot preprocess SNtk" << endl;
+		return NULL;
+	}
+
+	SNtk = Abc_FrameReadNtk(pAbc);
+	temp = Abc_NtkToDar(SNtk, 0, 0);
+	Aig_ManStop(SAig);
+	return temp;
+}
+
 /** Function
  * Checks and asserts expected support invariants for r0 r1 F_SAig and FPrime_Saig
  * @param SAig      [in]        Aig to be compressed
@@ -1986,8 +2290,8 @@ void checkSupportSanity(Aig_Man_t*pMan, vector<vector<int> > &r0, vector<vector<
 				assert(Aig_Support(pMan, Aig_ManCo(pMan, co_num), varsXS[i] + numOrigInputs) == false);
 	}
 
-	Aig_Obj_t* F_SAig = Aig_ManCo(pMan,1);
-	Aig_Obj_t* FPrime_SAig = Aig_ManCo(pMan,2);
+	Aig_Obj_t* F_SAig = Aig_ManCo(pMan,F_SAigIndex);
+	Aig_Obj_t* FPrime_SAig = Aig_ManCo(pMan,FPrime_SAigIndex);
 
 	for (int i = 0; i < numY; ++i) {
 		assert(Aig_Support(pMan, F_SAig, varsYS[i] + numOrigInputs) == false);
@@ -2059,7 +2363,7 @@ bool verifyResult(Aig_Man_t*&SAig, vector<vector<int> >& r0,
 	double avg_before = 0;
 	for(auto it : skolemAig) {
 		pAigObj = Aig_ObjChild0(Aig_ManCo(SAig, it));
-		numAND = Aig_DagSize(pAigObj);
+		numAND = Aig_DagSizeWithConst(pAigObj);
 		avg_before += numAND;
 		if(max_before < numAND)
 			max_before = numAND;
@@ -2077,7 +2381,7 @@ bool verifyResult(Aig_Man_t*&SAig, vector<vector<int> >& r0,
 		set<Aig_Obj_t*> redundantCos;
 		for(auto it:skolemAig)
 			requiredCOs.insert(Aig_ManCo(SAig,it)->Id);
-		requiredCOs.insert(Aig_ManCo(SAig,1)->Id);
+		requiredCOs.insert(Aig_ManCo(SAig,F_SAigIndex)->Id);
 		Aig_ManForEachCo( SAig, pAigObj, i) {
 			if(requiredCOs.find(pAigObj->Id)==requiredCOs.end()) {
 				redundantCos.insert(pAigObj);
@@ -2143,11 +2447,16 @@ bool verifyResult(Aig_Man_t*&SAig, vector<vector<int> >& r0,
 			assert(skolemAig[i]!=NULL);
 			assert(Aig_ObjIsCo(Aig_Regular(curr))==false);
 		}
-		Aig_ObjCreateCo(SAig,curr);
-		skolemAig[i] = Aig_ManCoNum(SAig)-1;
-		assert(skolemAig[i]!=NULL);
-		if(iter%30 == 0)
-			SAig = compressAigByNtk(SAig);
+		Aig_ObjPatchFanin0(SAig, Aig_ManCo(SAig, skolemAig[i]), curr);
+		int removed = Aig_ManCleanup(SAig);
+		cout << "Removed " << removed <<" nodes" << endl;
+		if(iter%30 == 0) {
+			Aig_ManPrintStats( SAig );
+			cout << "Compressing SAig..." << endl;
+			SAig = compressAigByNtkMultiple(SAig, 1);
+			assert(SAig != NULL);
+			Aig_ManPrintStats( SAig );
+		}
 	}
 	// SAig = compressAigByNtk(SAig);
 	// Calculating Total reverse-substituted Size
@@ -2155,7 +2464,7 @@ bool verifyResult(Aig_Man_t*&SAig, vector<vector<int> >& r0,
 	double avg_after = 0;
 	for(auto it : skolemAig) {
 		pAigObj = Aig_ObjChild0(Aig_ManCo(SAig, it));
-		numAND = Aig_DagSize(pAigObj);
+		numAND = Aig_DagSizeWithConst(pAigObj);
 		avg_after += numAND;
 		if(max_after < numAND)
 			max_after = numAND;
@@ -2180,7 +2489,7 @@ bool verifyResult(Aig_Man_t*&SAig, vector<vector<int> >& r0,
 		cout << "Verifying Result..." << endl;
 
 	OUT("Final F Resubstitution...");
-	Aig_Obj_t* F = Aig_ManCo(SAig, (deleteCos?0:1));
+	Aig_Obj_t* F = Aig_ManCo(SAig, F_SAigIndex);
 	for(int i = 0; i < numY; i++) {
 		Aig_Obj_t* skolem_i = Aig_ObjChild0(Aig_ManCo(SAig,skolemAig[i]));
 		F = Aig_Substitute(SAig, F, varsYS[i], skolem_i);
@@ -2188,13 +2497,13 @@ bool verifyResult(Aig_Man_t*&SAig, vector<vector<int> >& r0,
 
 	OUT("F Id:     "<<Aig_Regular(F)->Id);
 	OUT("F compl:  "<<Aig_IsComplement(F));
-	OUT("Aig_ObjChild0(Aig_ManCo(SAig, (deleteCos?0:1))) Id:     "<<Aig_Regular(Aig_ObjChild0(Aig_ManCo(SAig, (deleteCos?0:1))))->Id);
-	OUT("Aig_ObjChild0(Aig_ManCo(SAig, (deleteCos?0:1))) compl:  "<<Aig_IsComplement(Aig_ObjChild0(Aig_ManCo(SAig, (deleteCos?0:1)))));
-	OUT("Aig_ObjChild0(Aig_ManCo(SAig, (deleteCos?0:1))):        "<<Aig_ObjChild0(Aig_ManCo(SAig, (deleteCos?0:1))));
+	OUT("Aig_ObjChild0(Aig_ManCo(SAig, F_SAigIndex)) Id:     "<<Aig_Regular(Aig_ObjChild0(Aig_ManCo(SAig, F_SAigIndex)))->Id);
+	OUT("Aig_ObjChild0(Aig_ManCo(SAig, F_SAigIndex)) compl:  "<<Aig_IsComplement(Aig_ObjChild0(Aig_ManCo(SAig, F_SAigIndex))));
+	OUT("Aig_ObjChild0(Aig_ManCo(SAig, F_SAigIndex)):        "<<Aig_ObjChild0(Aig_ManCo(SAig, F_SAigIndex)));
 
 
-	// F = Aig_Exor(SAig, F, Aig_ObjChild0(Aig_ManCo(SAig, (deleteCos?0:1))));
-	// F = Aig_XOR(SAig, F, Aig_ObjChild0(Aig_ManCo(SAig, (deleteCos?0:1))));
+	// F = Aig_Exor(SAig, F, Aig_ObjChild0(Aig_ManCo(SAig, 1)));
+	// F = Aig_XOR(SAig, F, Aig_ObjChild0(Aig_ManCo(SAig, 1)));
 	OUT("Aig_ManCoNum(SAig): "<<Aig_ManCoNum(SAig));
 
 	F = Aig_ObjCreateCo(SAig, F);
@@ -2216,7 +2525,7 @@ bool verifyResult(Aig_Man_t*&SAig, vector<vector<int> >& r0,
 
 	lit LA[3];
 	LA[0] = toLitCond(getCnfCoVarNum(FCnf, SAig, F_num),1);
-	LA[1] = toLitCond(getCnfCoVarNum(FCnf, SAig, (deleteCos?0:1)),0);
+	LA[1] = toLitCond(getCnfCoVarNum(FCnf, SAig, F_SAigIndex),0);
 
 	bool return_val;
 	start = std::chrono::steady_clock::now();
@@ -2462,15 +2771,16 @@ void Sat_SolverWriteDimacsAndIS(sat_solver * p, char * pFileName,
 void* unigenCallThread(void* i) {
 	auto start = std::chrono::steady_clock::now();
 	pthread_mutex_lock(&CMSat::mu_lock);
-	CMSat::Main::unigenRunning = true;
+	CMSat::CUSP::unigenRunning = true;
 	pthread_mutex_unlock(&CMSat::mu_lock);
 
-	CMSat::Main unigenCall(unigen_argc, unigen_argv);
+	CMSat::CUSP unigenCall(unigen_argc, unigen_argv);
+	unigenCall.conf.verbStats = 1;
 	unigenCall.parseCommandLine();
-	unigenCall.singleThreadSolve();
+	unigenCall.solve();
 
 	pthread_mutex_lock(&CMSat::mu_lock);
-	CMSat::Main::unigenRunning = false;
+	CMSat::CUSP::unigenRunning = false;
 	pthread_cond_signal(&CMSat::lilCondVar);
 	pthread_mutex_unlock(&CMSat::mu_lock);
 	unigen_threadId = -1;
@@ -2490,9 +2800,9 @@ int unigen_call(string fname, int nSamples, int nThreads) {
 	assert(fname.find(' ') == string::npos);
 	system("rm -rf " UNIGEN_OUT_DIR "/*");
 
-	unigen_argv[1] = (char*)((new string("--samples="+to_string(nSamples)))->c_str());
-	unigen_argv[2] = (char*)((new string("--threads="+to_string(nThreads)))->c_str());
-	unigen_argv[13] = (char*)((new string(fname))->c_str());
+	unigen_argv[unigen_samples_argnum] = (char*)((new string("--samples="+to_string(nSamples)))->c_str());
+	unigen_argv[unigen_threads_argnum] = (char*)((new string("--threads="+to_string(nThreads)))->c_str());
+	unigen_argv[unigen_cnfname_argnum] = (char*)((new string(fname))->c_str());
 
 	string cmd;
 	for (int i = 0; i < unigen_argc; ++i) {
@@ -2503,10 +2813,10 @@ int unigen_call(string fname, int nSamples, int nThreads) {
 
 
 	// Initializations
-	CMSat::Main::prematureKill = false;
-	CMSat::Main::firstFetch    = true;
-	CMSat::Main::initStat = CMSat::initialStatus::udef;
-	CMSat::Main::unigenCalledAt = chrono::steady_clock::now();
+	CMSat::CUSP::prematureKill = false;
+	CMSat::CUSP::firstFetch    = true;
+	CMSat::CUSP::initStat = CMSat::initialStatus::udef;
+	CMSat::CUSP::unigenCalledAt = chrono::steady_clock::now();
 	cexSeen.clear();
 
 	// Thread Creation
@@ -2515,14 +2825,33 @@ int unigen_call(string fname, int nSamples, int nThreads) {
 		pthread_join(unigen_threadId, NULL);
 
 	pthread_mutex_lock(&CMSat::stat_lock);
-	while(CMSat::Main::initStat == CMSat::initialStatus::udef)
+	while(CMSat::CUSP::initStat == CMSat::initialStatus::udef)
 		pthread_cond_wait(&CMSat::statCondVar, &CMSat::stat_lock);
 	pthread_mutex_unlock(&CMSat::stat_lock);
 
-	switch(CMSat::Main::initStat) {
+	printf("ApproxMC #CEX (Sci.):   =%d*2^%d\n", CMSat::CUSP::approxmcBase, CMSat::CUSP::approxmcExpo);
+	printf("ApproxMC #CEX (Dec.):   %f\n", CMSat::CUSP::approxmcBase*pow(2.0,CMSat::CUSP::approxmcExpo));
+	printf("Badness Ratio (Sci.):   =%d*2^%d\n", CMSat::CUSP::approxmcBase, CMSat::CUSP::approxmcExpo - numX);
+	printf("Badness Ratio (Dec.):   %f\n", CMSat::CUSP::approxmcBase*pow(2.0,CMSat::CUSP::approxmcExpo - numX));
+
+	switch(CMSat::CUSP::initStat) {
 		case CMSat::initialStatus::unsat: return 0;
 		case CMSat::initialStatus::tooLittle: return -1;
-		case CMSat::initialStatus::sat: return 1;
+		case CMSat::initialStatus::sat:
+			if(options.checkSatOnly) {
+				cout << "SAT, Terminating Unigen prematurely" << endl;
+				CMSat::CUSP::prematureKill = true;
+				pthread_join(unigen_threadId, NULL);
+
+				pthread_mutex_lock(&CMSat::mu_lock);
+				CMSat::CUSP::unigenRunning = false;
+				pthread_cond_signal(&CMSat::lilCondVar);
+				pthread_mutex_unlock(&CMSat::mu_lock);
+				unigen_threadId = -1;
+
+				exit(0);
+			}
+		return 1;
 	}
 
 	// control cannot reach here
@@ -2534,7 +2863,7 @@ bool unigen_fetchModels(Aig_Man_t* SAig, vector<vector<int> > &r0,
 
 	bool flag = false;
 	string line;
-	auto storedSolutionMap = CMSat::Main::fetchSolutionMap(options.waitSamples);
+	auto storedSolutionMap = CMSat::CUSP::fetchSolutionMap(options.waitSamples);
 	solsJustFetched = 0;
 	for(auto it:storedSolutionMap) {
 		line = it.first;
@@ -2626,7 +2955,7 @@ int filterAndPopulateK1Vec(Aig_Man_t* SAig, vector<vector<int> >&r0, vector<vect
 				cex[numX + i] = (int) (useR1AsSkolem[i] ^ r_i);
 			}
 			evaluateAig(SAig, cex);
-			spurious[index] = (bool)(Aig_ManCo(SAig, 1)->iData != 1);
+			spurious[index] = (bool)(Aig_ManCo(SAig, F_SAigIndex)->iData != 1);
 
 			if(spurious[index]) {
 				int k_max = (storedCEX_k2[index]==-1)?numY-1:storedCEX_k2[index];
@@ -2702,7 +3031,7 @@ int filterAndPopulateK1VecFast(Aig_Man_t* SAig, vector<vector<int> >&r0, vector<
 				cex[numX + i] = (int) (useR1AsSkolem[i] ^ r_i);
 				Aig_ManObj(SAig, varsYS[i])->iData = cex[numX + i];
 			}
-			spurious[index] = !evaluateAigAtNode(SAig,Aig_ManCo(SAig, 1));
+			spurious[index] = !evaluateAigAtNode(SAig,Aig_ManCo(SAig, F_SAigIndex));
 
 			if(spurious[index]) {
 				int k1_maxLim = (storedCEX_k2[index]==-1)?numY-1:storedCEX_k2[index];
@@ -3092,8 +3421,39 @@ string getFileName(string s) {
 	return(s);
 }
 
+int checkUnateSyntacticAll(Aig_Man_t* FAig, vector<int>&unate) {
+	Nnf_Man nnfSyntatic(FAig);
+	assert(nnfSyntatic.getCiNum() == numOrigInputs);
+
+	int numUnate = 0;
+	for(int i = 0; i < numY; ++i) {
+		if (unate[i] == -1) {
+			int refPos = nnfSyntatic.getCiPos(varsYF[i] - 1)->getNumRef();
+			int refNeg = nnfSyntatic.getCiNeg(varsYF[i] - 1)->getNumRef();
+			if(refPos == 0) {
+				unate[i] = 0;
+				cout << "Var y" << i << " (" << varsYF[i] << ") is negative unate (syntactic)" << endl;
+			} else if(refNeg == 0) {
+				unate[i] = 1;
+				cout << "Var y" << i << " (" << varsYF[i] << ") is positive unate (syntactic)" << endl;
+			}
+			if (unate[i] != -1) {
+				numUnate++;
+			}
+		}
+	}
+	cout << "Found " << numUnate << " unates" << endl;
+	return numUnate;
+}
+
 // skolems[] = 1 (pos unate); 0 (neg unate); -1 (not unate)
-void checkUnateAll(Aig_Man_t* FAig, vector<int>&unate){
+int checkUnateSemanticAll(Aig_Man_t* FAig, vector<int>&unate) {
+	Aig_ManPrintStats(FAig);
+
+	auto unate_start = std::chrono::steady_clock::now();
+	auto unate_end = std::chrono::steady_clock::now();
+	auto unate_run_time = std::chrono::duration_cast<std::chrono::microseconds>(unate_end - unate_start).count()/1000000.0;
+
 	nodeIdtoN.resize(numOrigInputs);
 	for(int i = 0; i < numX; i++) {
 		nodeIdtoN[varsXF[i] - 1] = i;
@@ -3145,7 +3505,7 @@ void checkUnateAll(Aig_Man_t* FAig, vector<int>&unate){
 	Cnf_Dat_t* SCnf = Cnf_Derive(FAig, Aig_ManCoNum(FAig));
 	addCnfToSolver(pSat, SCnf);
 
-	int status, numUnate;
+	int status, numUnate, totalNumUnate = 0;
 	assert(unate.size()==numY);
 
 	// Unate Sat Calls
@@ -3161,9 +3521,9 @@ void checkUnateAll(Aig_Man_t* FAig, vector<int>&unate){
 				status = sat_solver_solve(pSat, LA, LA+1, (ABC_INT64_T)0, (ABC_INT64_T)0, (ABC_INT64_T)0, (ABC_INT64_T)0);
 				if (status == l_False) {
 					unate[i] = 1;
-					cerr << "Var y" << i << " is positive unate" << endl;
-					// sat_solver_push(pSat, toLitCond(SCnf->pVarNums[varsYF[i]-1],0));
-					addVarToSolver(pSat, SCnf->pVarNums[varsYF[i]-1], 1);
+					cout << "Var y" << i << " (" << varsYF[i] << ") is positive unate (semantic)" << endl;
+					// sat_solver_push(pSat, toLitCond(SCnf->pVarNums[varsYF[i]],0));
+					addVarToSolver(pSat, SCnf->pVarNums[varsYF[i]], 1);
 					numUnate++;
 				}
 			}
@@ -3173,20 +3533,30 @@ void checkUnateAll(Aig_Man_t* FAig, vector<int>&unate){
 				LA[0] = toLitCond(getCnfCoVarNum(SCnf, FAig, negUnates[i]),1);
 				status = sat_solver_solve(pSat, LA, LA+1, (ABC_INT64_T)0, (ABC_INT64_T)0, (ABC_INT64_T)0, (ABC_INT64_T)0);
 				if (status == l_False) {
-					cerr << "Var y" << i << " is negative unate" << endl;
+					cout << "Var y" << i << " (" << varsYF[i] << ") is negative unate (semantic)" << endl;
 					unate[i] = 0;
-					// sat_solver_push(pSat, toLitCond(SCnf->pVarNums[varsYF[i]-1],1));
-					addVarToSolver(pSat, SCnf->pVarNums[varsYF[i]-1], 0);
+					// sat_solver_push(pSat, toLitCond(SCnf->pVarNums[varsYF[i]],1));
+					addVarToSolver(pSat, SCnf->pVarNums[varsYF[i]], 0);
 					numUnate++;
 				}
 			}
 		}
 		cout << "Found " << numUnate << " unates" << endl;
+		totalNumUnate += numUnate;
+
+		unate_end = std::chrono::steady_clock::now();
+		unate_run_time = std::chrono::duration_cast<std::chrono::microseconds>(unate_end - main_time_start).count()/1000000.0;
+		if(numUnate > 0 and unate_run_time >= options.unateTimeout) {
+			cout << "checkUnateSemanticAll Timed Out" << endl;
+			break;
+		}
 	}
 	while(numUnate > 0);
 
 	sat_solver_delete(pSat);
 	Cnf_DataFree(SCnf);
+
+	return totalNumUnate;
 }
 
 int getNumY(string varsFile) {
@@ -3274,6 +3644,7 @@ void substituteUnates(Aig_Man_t* &pMan, vector<int>&unate) {
 	}
 	Aig_Obj_t* pAigObj = Aig_SubstituteVec(pMan, Aig_ManCo(pMan,0), varIdVec, funcVec);
 	Aig_ObjPatchFanin0(pMan, Aig_ManCo(pMan,0), pAigObj);
+	Aig_ManCleanup(pMan);
 
 	// Duplicate Aig to toposort nodes
 	Aig_Man_t* tempAig = pMan;
@@ -3281,6 +3652,7 @@ void substituteUnates(Aig_Man_t* &pMan, vector<int>&unate) {
 	Aig_ManStop(tempAig);
 }
 
+// Assumes skolemAig[...] correspond to varsYS[...]
 void saveSkolems(Aig_Man_t* SAig, vector<int>& skolemAig) {
 	assert(skolemAig.size() == numY);
 
@@ -3299,6 +3671,10 @@ void saveSkolems(Aig_Man_t* SAig, vector<int>& skolemAig) {
 	// 	}
 	// }
 
+	int i;
+	Abc_Obj_t* pObj;
+
+	// Specify Ci/Co to pick
 	Vec_Ptr_t * vPis = Vec_PtrAlloc(numX);
 	Vec_Ptr_t * vPos = Vec_PtrAlloc(numY);
 	for(auto it:varsXS) {
@@ -3308,10 +3684,32 @@ void saveSkolems(Aig_Man_t* SAig, vector<int>& skolemAig) {
 		Vec_PtrPush(vPos, Aig_ManCo(SAig,it));
 	}
 
-	cout << "Saving skolems..." << endl;
+	// Get partial Aig, Ntk
 	Aig_Man_t* outAig = Aig_ManDupSimpleDfsPart(SAig, vPis, vPos);
-	Aig_ManDumpVerilog(outAig, (char*)options.outFName.c_str());
-	cout << "Saved skolems to " << options.outFName << endl;
+	Abc_Ntk_t* outNtk = Abc_NtkFromAigPhase(outAig);
+
+	// Unset and Set Input, Output Names
+	string ntkName = getFileName(options.benchmark)+"_skolem";
+	Abc_NtkSetName(outNtk, Abc_UtilStrsav((char*)(ntkName).c_str()));
+	Nm_ManFree(outNtk->pManName);
+	outNtk->pManName = Nm_ManCreate(200);
+
+	Abc_NtkForEachCi(outNtk, pObj, i) {
+		Abc_ObjAssignName(pObj, (char*)varsNameX[i].c_str(), NULL);
+	}
+	Abc_NtkForEachCo(outNtk, pObj, i) {
+		Abc_ObjAssignName(pObj, (char*)varsNameY[i].c_str(), NULL);
+	}
+
+	// Write to verilog
+	Abc_FrameSetCurrentNetwork(pAbc, outNtk);
+	string command = "write "+options.outFName;
+	if (Cmd_CommandExecute(pAbc, (char*)command.c_str())) {
+		cerr << "Could not write result to verilog file" << endl;
+	}
+	else {
+		cout << "Saved skolems to " << options.outFName << endl;
+	}
 }
 
 void printAig(Aig_Man_t* pMan) {
@@ -3321,4 +3719,70 @@ void printAig(Aig_Man_t* pMan) {
 	Aig_ManForEachObj( pMan, pAigObj, i )
 	    Aig_ObjPrintVerbose( pAigObj, 1 ), printf( "\n" );
 	cout << endl;
+}
+
+int Aig_ConeCountWithConstAndMark_rec( Aig_Obj_t * pObj ) {
+    int Counter;
+    assert( !Aig_IsComplement(pObj) );
+    if (!Aig_ObjIsNode(pObj) || Aig_ObjIsMarkA(pObj) )
+    {
+		if (Aig_ObjIsConst1(pObj) || Aig_ObjIsCi(pObj)) {
+			if(Aig_ObjIsMarkA(pObj))
+				return 0;
+			else {
+				Aig_ObjSetMarkA( pObj );
+				return 1;
+			}
+		}
+		else
+	        return 0;
+    }
+    Counter = 1 + Aig_ConeCountWithConstAndMark_rec( Aig_ObjFanin0(pObj) ) +
+        Aig_ConeCountWithConstAndMark_rec( Aig_ObjFanin1(pObj) );
+    assert( !Aig_ObjIsMarkA(pObj) ); // loop detection
+    Aig_ObjSetMarkA( pObj );
+    return Counter;
+}
+
+void Aig_ConeWithConstUnmark_rec( Aig_Obj_t * pObj ) {
+    assert( !Aig_IsComplement(pObj) );
+    if ( !Aig_ObjIsNode(pObj) || !Aig_ObjIsMarkA(pObj) )
+    {
+		if (Aig_ObjIsConst1(pObj)|| Aig_ObjIsCi(pObj))
+			Aig_ObjClearMarkA( pObj );
+	    return;
+    }
+    Aig_ConeWithConstUnmark_rec( Aig_ObjFanin0(pObj) );
+    Aig_ConeWithConstUnmark_rec( Aig_ObjFanin1(pObj) );
+    assert( Aig_ObjIsMarkA(pObj) ); // loop detection
+    Aig_ObjClearMarkA( pObj );
+}
+
+int Aig_DagSizeWithConst( Aig_Obj_t * pObj ) {
+    int Counter;
+    Counter = Aig_ConeCountWithConstAndMark_rec( Aig_Regular(pObj) );
+    Aig_ConeWithConstUnmark_rec( Aig_Regular(pObj) );
+    return Counter;
+}
+
+void printBDDNode(DdManager* ddMan, DdNode* obj) {
+	assert(!Cudd_IsComplement(obj));
+	printf("Node %d : ", obj->Id);
+
+	if (Cudd_IsConstant(obj))
+		printf("constant %f", Cudd_V(obj));
+	else
+		printf("ite(v%d, %d%s, %d%s)", obj->index,
+			Cudd_Regular(Cudd_T(obj))->Id, (Cudd_IsComplement(Cudd_T(obj))? "\'" : " "),
+			Cudd_Regular(Cudd_E(obj))->Id, (Cudd_IsComplement(Cudd_E(obj))? "\'" : " "));
+
+	printf(" (refs = %3d)\n", obj->ref);
+}
+
+void printBDD(DdManager* ddMan, DdNode* f) {
+	DdGen *gen;
+	DdNode *node;
+	Cudd_ForeachNode(ddMan, f, gen, node) {
+		printBDDNode(ddMan, node);
+	}
 }
