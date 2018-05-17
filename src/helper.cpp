@@ -52,6 +52,9 @@ vector<vector<int>> CiCloudIth;
 vector<vector<int>> CoIth;
 int F_SAigIndex = -1;
 int FPrime_SAigIndex = -1;
+#ifdef NO_UNIGEN
+bool CMSat::CUSP::unigenRunning = false;
+#endif
 
 ////////////////////////////////////////////////////////////////////////
 ///                      HELPER FUNCTIONS                            ///
@@ -100,6 +103,9 @@ void parseOptions(int argc, char * argv[]) {
 	if(options.varsOrder == "")
 		options.varsOrder = options.benchmark.substr(0,options.benchmark.find_last_of('.')) + "_varstoelim.txt";
 
+	#ifdef NO_UNIGEN
+	assert(options.useABCSolver);
+	#endif
 	SwitchToABCSolver = options.useABCSolver;
 	options.proactiveProp = !lazy;
 
@@ -1268,6 +1274,7 @@ bool populateCEX(Aig_Man_t* SAig,
 	else {
 		cout << "PACratio:           " << 0 << endl;
 	}
+	#ifndef NO_UNIGEN
 	if(finSize < solsJustFetched*options.unigenThreshold and CMSat::CUSP::unigenRunning) {
 		cout << "PACratio too low, Terminating Unigen prematurely" << endl;
 		CMSat::CUSP::prematureKill = true;
@@ -1279,6 +1286,7 @@ bool populateCEX(Aig_Man_t* SAig,
 		pthread_mutex_unlock(&CMSat::mu_lock);
 		unigen_threadId = -1;
 	}
+	#endif
 
 	// if(!CMSat::CUSP::unigenRunning && CMSat::CUSP::getSolutionMapSize() == 0) {
 	// 	if(populateStoredCEX(SAig, r0, r1, false)) {
@@ -2770,6 +2778,7 @@ void Sat_SolverWriteDimacsAndIS(sat_solver * p, char * pFileName,
 
 void* unigenCallThread(void* i) {
 	auto start = std::chrono::steady_clock::now();
+	#ifndef NO_UNIGEN
 	pthread_mutex_lock(&CMSat::mu_lock);
 	CMSat::CUSP::unigenRunning = true;
 	pthread_mutex_unlock(&CMSat::mu_lock);
@@ -2787,6 +2796,9 @@ void* unigenCallThread(void* i) {
 	auto end = std::chrono::steady_clock::now();
 	sat_solving_time += std::chrono::duration_cast<std::chrono::microseconds>(end - start).count()/1000000.0;
 	pthread_exit(NULL);
+	#else
+	assert(false);
+	#endif
 }
 
 
@@ -2796,6 +2808,7 @@ void* unigenCallThread(void* i) {
  * returns  1 when sat and models succesfully populated UNIGEN_MODEL_FPATH
  */
 int unigen_call(string fname, int nSamples, int nThreads) {
+	#ifndef NO_UNIGEN
 	numUnigenCalls++;
 	assert(fname.find(' ') == string::npos);
 	system("rm -rf " UNIGEN_OUT_DIR "/*");
@@ -2856,10 +2869,14 @@ int unigen_call(string fname, int nSamples, int nThreads) {
 
 	// control cannot reach here
 	assert(false);
+	#else
+	assert(false);
+	#endif
 }
 
 bool unigen_fetchModels(Aig_Man_t* SAig, vector<vector<int> > &r0,
 	vector<vector<int> > &r1, bool more) {
+	#ifndef NO_UNIGEN
 
 	bool flag = false;
 	string line;
@@ -2915,6 +2932,9 @@ bool unigen_fetchModels(Aig_Man_t* SAig, vector<vector<int> > &r0,
 	cout << "storedCEX.size() = " << storedCEX.size() << endl;
 
 	return flag;
+	#else
+	assert(false);
+	#endif
 }
 
 vector<lit> setAllNegX(Cnf_Dat_t* SCnf, Aig_Man_t* SAig, int val) {

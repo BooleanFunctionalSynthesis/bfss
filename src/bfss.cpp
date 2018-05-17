@@ -391,7 +391,11 @@ int main(int argc, char * argv[]) {
 	total_main_time = std::chrono::duration_cast<std::chrono::microseconds>(main_end - main_time_start).count()/1000000.0;
 	cout<< "Total main time:         " << total_main_time << endl;
 	cout<< "Total SAT solving time:  " << sat_solving_time << endl;
+	#ifndef NO_UNIGEN
 	cout<< "Total Dead time:         " << CMSat::CUSP::totalDeadTime << endl;
+	#else
+	cout<< "Total Dead time:         " << 0 << endl;
+	#endif
 
 	assert(verifyResult(SAig, r0, r1, 0));
 	cout<< "Verify SAT solving time: " << verify_sat_solving_time << endl;

@@ -12,9 +12,21 @@
 #include <fstream>
 #include <sstream>
 #include <ctime>
+#include <chrono>
 #include <signal.h>
-#include "cusp.h"
 #include "cxxopts.hpp"
+
+#ifndef NO_UNIGEN
+#include "cusp.h"
+#else
+namespace CMSat{
+	class CUSP {
+	public:
+		static bool unigenRunning;
+		static int getSolutionMapSize(){return 0;}
+	};
+}
+#endif
 
 #define ABC_NAMESPACE NS_ABC
 

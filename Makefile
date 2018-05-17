@@ -1,15 +1,9 @@
 # project name (generate executable with this name)
 TARGET   = bfss
 
-ifndef ABC_PATH
-export ABC_PATH = ${HOME}/abc
-endif
-ifndef SCALMC_PATH
-export SCALMC_PATH = ${HOME}/Github/scalmcSampling
-endif
-ifndef BOOST_HOME
-export BOOST_HOME = .
-endif
+ABC_PATH = ./dependencies/abc
+SCALMC_PATH = ./dependencies/scalmc
+
 ifndef CXX
 export CXX = g++
 endif
@@ -17,22 +11,23 @@ endif
 SRCDIR   = src
 OBJDIR   = obj
 BINDIR   = bin
-LIBDIR   = lib
 
 export ABC_INCLUDES = -I $(ABC_PATH) -I $(ABC_PATH)/src
 export UGEN_INCLUDES = -I $(SCALMC_PATH)/build/cmsat5-src/ -I $(SCALMC_PATH)/src/
-export BOOST_INCLUDES = -I $(BOOST_HOME)
-export LIB_DIRS = -L $(LIBDIR)/ -L $(SCALMC_PATH)/build/lib/ -L $(BOOST_HOME)/stage/lib/
-export DIR_INCLUDES = $(ABC_INCLUDES) $(UGEN_INCLUDES) $(BOOST_INCLUDES) $(LIB_DIRS)
+export LIB_DIRS = -L $(SCALMC_PATH)/build/lib/ -L $(ABC_PATH)/
+export DIR_INCLUDES = $(ABC_INCLUDES) $(UGEN_INCLUDES) $(LIB_DIRS)
 
-export LIB_UNIGEN = -Wl,-Bdynamic -lcryptominisat5
-export LIB_ABC = -Wl,-Bstatic -labc
+export LIB_UGEN  = -Wl,-Bdynamic -lcryptominisat5
+export LIB_ABC   = -Wl,-Bstatic  -labc
 export LIB_BOOST = -Wl,-Bdynamic -lboost_program_options
 
+ifeq ($(UNIGEN), NO)
+export CPP_FLAGS = -g -std=c++11 -DNO_UNIGEN
+export LFLAGS   = $(DIR_INCLUDES) $(LIB_ABC) -Wl,-Bdynamic -lm -ldl -lreadline -ltermcap -lpthread -fopenmp -lrt $(LIB_BOOST) -Wl,-Bdynamic -lz
+else
 export CPP_FLAGS = -g -std=c++11
-
-export LFLAGS   = $(DIR_INCLUDES) $(LIB_ABC) $(LIB_UNIGEN) -Wl,-Bdynamic -lm -ldl -lreadline -ltermcap -lpthread -fopenmp -lrt $(LIB_BOOST) -Wl,-Bdynamic -lm4ri  -Wl,-Bdynamic -lz
-
+export LFLAGS   = $(DIR_INCLUDES) $(LIB_ABC) $(LIB_UGEN) -Wl,-Bdynamic -lm -ldl -lreadline -ltermcap -lpthread -fopenmp -lrt $(LIB_BOOST) -Wl,-Bdynamic -lz
+endif
 
 
 SOURCES  := $(wildcard $(SRCDIR)/*.cpp)
