@@ -1,60 +1,65 @@
 # project name (generate executable with this name)
-TARGET   = bfss
+BFSS 	= bfss
+RCNF  	= readCnf
 
 ABC_PATH = ./dependencies/abc
 SCALMC_PATH = ./dependencies/scalmc
 
 ifndef CXX
-export CXX = g++
+CXX = g++
 endif
 
 SRCDIR   = src
 OBJDIR   = obj
 BINDIR   = bin
 
-export ABC_INCLUDES = -I $(ABC_PATH) -I $(ABC_PATH)/src
-export UGEN_INCLUDES = -I $(SCALMC_PATH)/build/cmsat5-src/ -I $(SCALMC_PATH)/src/
-export LIB_DIRS = -L $(SCALMC_PATH)/build/lib/ -L $(ABC_PATH)/
-export DIR_INCLUDES = $(ABC_INCLUDES) $(UGEN_INCLUDES) $(LIB_DIRS)
+TARGET_RCNF  = $(BINDIR)/$(RCNF)
+TARGET_BFSS  = $(BINDIR)/$(BFSS)
 
-export LIB_UGEN  = -Wl,-Bdynamic -lcryptominisat5
-export LIB_ABC   = -Wl,-Bstatic  -labc
-export LIB_BOOST = -Wl,-Bdynamic -lboost_program_options
+ABC_INCLUDES = -I $(ABC_PATH) -I $(ABC_PATH)/src
+UGEN_INCLUDES = -I $(SCALMC_PATH)/build/cmsat5-src/ -I $(SCALMC_PATH)/src/
+LIB_DIRS = -L $(SCALMC_PATH)/build/lib/ -L $(ABC_PATH)/
+DIR_INCLUDES = $(ABC_INCLUDES) $(UGEN_INCLUDES) $(LIB_DIRS)
+
+LIB_UGEN   = -Wl,-Bdynamic -lcryptominisat5
+LIB_ABC    = -Wl,-Bstatic  -labc
+LIB_COMMON = -Wl,-Bdynamic -lm -ldl -lreadline -ltermcap -lpthread -fopenmp -lrt -Wl,-Bdynamic -lboost_program_options -Wl,-Bdynamic -lz
 
 ifeq ($(UNIGEN), NO)
-export CPP_FLAGS = -g -std=c++11 -DNO_UNIGEN
-export LFLAGS   = $(DIR_INCLUDES) $(LIB_ABC) -Wl,-Bdynamic -lm -ldl -lreadline -ltermcap -lpthread -fopenmp -lrt $(LIB_BOOST) -Wl,-Bdynamic -lz
+CPP_FLAGS = -g -std=c++11 -DNO_UNIGEN
+LFLAGS    = $(DIR_INCLUDES) $(LIB_ABC) $(LIB_COMMON)
 else
-export CPP_FLAGS = -g -std=c++11
-export LFLAGS   = $(DIR_INCLUDES) $(LIB_ABC) $(LIB_UGEN) -Wl,-Bdynamic -lm -ldl -lreadline -ltermcap -lpthread -fopenmp -lrt $(LIB_BOOST) -Wl,-Bdynamic -lz
+CPP_FLAGS = -g -std=c++11
+LFLAGS    = $(DIR_INCLUDES) $(LIB_ABC) $(LIB_UGEN) $(LIB_COMMON)
 endif
 
+COMMON_SOURCES  = $(SRCDIR)/nnf.cpp $(SRCDIR)/helper.cpp
 
-SOURCES  := $(wildcard $(SRCDIR)/*.cpp)
-INCLUDES := $(wildcard $(SRCDIR)/*.h)
-SOURCES  := $(filter-out $(SRCDIR)/findDep.cpp, $(SOURCES))
-INCLUDES := $(filter-out $(SRCDIR)/findDep.h,  $(INCLUDES))
-OBJECTS  := $(SOURCES:$(SRCDIR)/%.cpp=$(OBJDIR)/%.o)
-rm       = rm -f
+BFSS_SOURCES  = $(SRCDIR)/bfss.cpp $(COMMON_SOURCES)
+BFSS_OBJECTS  = $(BFSS_SOURCES:$(SRCDIR)/%.cpp=$(OBJDIR)/%.o)
+RCNF_SOURCES  = $(SRCDIR)/readCnf.cpp
 
+.PHONY: all
+all: $(TARGET_BFSS) $(TARGET_RCNF)
 
-$(BINDIR)/$(TARGET): $(OBJECTS)
+$(TARGET_BFSS): $(BFSS_OBJECTS)
 	$(CXX) $(CPP_FLAGS) -o $@ $^ $(LFLAGS)
 	@echo "Linking complete!"
 
-$(OBJECTS): $(OBJDIR)/%.o : $(SRCDIR)/%.cpp
+$(TARGET_RCNF): $(RCNF_SOURCES)
+	$(CXX) $(CPP_FLAGS) $^ -o $@
+	@echo "Compiled "$^" successfully!"
+
+$(BFSS_OBJECTS): $(OBJDIR)/%.o : $(SRCDIR)/%.cpp
 	$(CXX) $(CPP_FLAGS) -c $^ -o $@  $(LFLAGS)
 	@echo "Compiled "$<" successfully!"
 
-.PHONY: all
-all: $(TARGET)
-
 .PHONY: clean
 clean:
-	@$(rm) $(OBJECTS)
+	@$(RM) $(BFSS_OBJECTS)
 	@echo "Cleanup complete!"
 
 .PHONY: remove
 remove: clean
-	@$(rm) $(BINDIR)/$(TARGET)
+	@$(RM) $(TARGET_BFSS) $(TARGET_RCNF)
 	@echo "Executable removed!"

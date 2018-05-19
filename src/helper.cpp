@@ -103,9 +103,6 @@ void parseOptions(int argc, char * argv[]) {
 	if(options.varsOrder == "")
 		options.varsOrder = options.benchmark.substr(0,options.benchmark.find_last_of('.')) + "_varstoelim.txt";
 
-	#ifdef NO_UNIGEN
-	assert(options.useABCSolver);
-	#endif
 	SwitchToABCSolver = options.useABCSolver;
 	options.proactiveProp = !lazy;
 
@@ -253,6 +250,14 @@ void parseOptions(int argc, char * argv[]) {
 	}
 
 	optionsOriginal = options;
+
+	#ifdef NO_UNIGEN
+	if(!options.useABCSolver and !options.useBDD) {
+		cerr << endl << "Error: BFSS was compiled to be used with the ABC solver only (Option -a)" << endl << endl;
+		cout << optParser.help({"", "Group"}) << std::endl;
+		exit(0);
+	}
+	#endif
 
 	unigen_argv[1] = (char*)((new string("--samples="+to_string(options.numSamples)))->c_str());
 	unigen_argv[2] = (char*)((new string("--threads="+to_string(options.numThreads)))->c_str());
@@ -2493,8 +2498,10 @@ bool verifyResult(Aig_Man_t*&SAig, vector<vector<int> >& r0,
 	// For experimental purposes
 	if(!options.verify)
 		return true;
-	else
-		cout << "Verifying Result..." << endl;
+	else {
+		cout << "Assuming unateness checks were correct" << endl;
+		cout << "Partially Verifying Result..." << endl;
+	}
 
 	OUT("Final F Resubstitution...");
 	Aig_Obj_t* F = Aig_ManCo(SAig, F_SAigIndex);
