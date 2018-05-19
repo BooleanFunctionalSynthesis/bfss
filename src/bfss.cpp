@@ -271,7 +271,7 @@ int main(int argc, char * argv[]) {
 		cout << "Found Skolem Functions" << endl;
 		cout<< "Total main time: (monoskolem)   " << total_main_time << endl;
 		chooseR_(SAig,r0,r1);
-		assert(verifyResult(SAig, r0, r1, 0));
+		verifyResult(SAig, r0, r1, 0);
 		cout<< "Verify SAT solving time: " << verify_sat_solving_time << endl;
 		return 1;
 	}
@@ -399,7 +399,7 @@ int main(int argc, char * argv[]) {
 	cout<< "Total Dead time:         " << 0 << endl;
 	#endif
 
-	assert(verifyResult(SAig, r0, r1, 0));
+	verifyResult(SAig, r0, r1, 0);
 	cout<< "Verify SAT solving time: " << verify_sat_solving_time << endl;
 
 	if(m_pSat!=NULL) sat_solver_delete(m_pSat);

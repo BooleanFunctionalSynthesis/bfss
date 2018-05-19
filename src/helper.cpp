@@ -2383,14 +2383,14 @@ Aig_Obj_t* Aig_XOR(Aig_Man_t*p, Aig_Obj_t*p0, Aig_Obj_t*p1) {
 	return Aig_Or( p, Aig_And(p, p0, Aig_Not(p1)), Aig_And(p, Aig_Not(p0), p1) );
 }
 
-bool verifyResult(Aig_Man_t*&SAig, vector<vector<int> >& r0,
+void verifyResult(Aig_Man_t*&SAig, vector<vector<int> >& r0,
 	vector<vector<int> >& r1, bool deleteCos) {
 	int i; Aig_Obj_t*pAigObj; int numAND;
 	vector<int> skolemAig(numY);
 
 	if(options.noRevSub) {
 		cout << "noRevSub, exiting" << endl;
-		return true;
+		return;
 	}
 
 	OUT("Taking Ors..." << i);
@@ -2530,7 +2530,7 @@ bool verifyResult(Aig_Man_t*&SAig, vector<vector<int> >& r0,
 
 	// For experimental purposes
 	if(!options.verify)
-		return true;
+		return;
 	else {
 		cout << "Assuming unateness checks were correct" << endl;
 		cout << "Partially Verifying Result..." << endl;
@@ -2587,11 +2587,12 @@ bool verifyResult(Aig_Man_t*&SAig, vector<vector<int> >& r0,
 	}
 	else if (status == l_True) {
 		cout << "Not Verified!" << endl;
+		cerr << "Not Verified!" << endl;
 		return_val = false;
 	}
 	sat_solver_delete(pSat);
 	Cnf_DataFree(FCnf);
-	return return_val;
+	return;
 }
 
 void checkCexSanity(Aig_Man_t* pMan, vector<int>& cex, vector<vector<int> >& r0,

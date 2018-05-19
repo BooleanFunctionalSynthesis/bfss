@@ -204,7 +204,7 @@ Aig_Man_t* 		compressAigByNtkMultiple(Aig_Man_t* SAig, int times);
 void 			checkSupportSanity(Aig_Man_t*pMan, vector<vector<int> > &r0, vector<vector<int> > &r1);
 Aig_Obj_t* 		OR_rec(Aig_Man_t* SAig, vector<int>& nodes, int start, int end);
 Aig_Obj_t* 		newOR(Aig_Man_t* SAig, vector<int>& nodes);
-bool 			verifyResult(Aig_Man_t*&SAig, vector<vector<int> >& r0,
+void 			verifyResult(Aig_Man_t*&SAig, vector<vector<int> >& r0,
 					vector<vector<int> >& r1, bool deleteCos);
 void 			checkCexSanity(Aig_Man_t* pMan, vector<int>& cex, vector<vector<int> >& r0,
 					vector<vector<int> >& r1);

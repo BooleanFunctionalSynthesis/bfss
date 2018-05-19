@@ -1,4 +1,7 @@
-# project name (generate executable with this name)
+# optional arguments:
+# 	UNIGEN=NO
+# 	BUILD=RELEASE/DEBUG
+
 BFSS 	= bfss
 RCNF  	= readCnf
 ORDR  	= genVarOrder
@@ -30,11 +33,19 @@ LIB_ABC    = -Wl,-Bstatic  -labc
 LIB_COMMON = -Wl,-Bdynamic -lm -ldl -lreadline -ltermcap -lpthread -fopenmp -lrt -Wl,-Bdynamic -lboost_program_options -Wl,-Bdynamic -lz
 
 ifeq ($(UNIGEN), NO)
-CPP_FLAGS = -g -std=c++11 -DNO_UNIGEN
+CPP_FLAGS += -std=c++11 -DNO_UNIGEN
 LFLAGS    = $(DIR_INCLUDES) $(LIB_ABC) $(LIB_COMMON)
 else
-CPP_FLAGS = -g -std=c++11
+CPP_FLAGS += -std=c++11
 LFLAGS    = $(DIR_INCLUDES) $(LIB_ABC) $(LIB_UGEN) $(LIB_COMMON)
+endif
+
+ifeq ($(BUILD),DEBUG)
+CPP_FLAGS += -O0 -g
+else ifeq ($(BUILD),RELEASE)
+CPP_FLAGS += -O3 -s -DNDEBUG
+else
+CPP_FLAGS += -O3
 endif
 
 COMMON_SOURCES  = $(SRCDIR)/nnf.cpp $(SRCDIR)/helper.cpp
