@@ -1,6 +1,7 @@
 # project name (generate executable with this name)
 BFSS 	= bfss
 RCNF  	= readCnf
+ORDR  	= genVarOrder
 
 ABC_PATH = ./dependencies/abc
 SCALMC_PATH = ./dependencies/scalmc
@@ -15,6 +16,7 @@ BINDIR   = bin
 
 TARGET_RCNF  = $(BINDIR)/$(RCNF)
 TARGET_BFSS  = $(BINDIR)/$(BFSS)
+TARGET_ORDR  = $(BINDIR)/$(ORDR)
 
 ABC_INCLUDES = -I $(ABC_PATH) -I $(ABC_PATH)/src
 UGEN_INCLUDES = -I $(SCALMC_PATH)/build/cmsat5-src/ -I $(SCALMC_PATH)/src/
@@ -36,30 +38,38 @@ endif
 COMMON_SOURCES  = $(SRCDIR)/nnf.cpp $(SRCDIR)/helper.cpp
 
 BFSS_SOURCES  = $(SRCDIR)/bfss.cpp $(COMMON_SOURCES)
-BFSS_OBJECTS  = $(BFSS_SOURCES:$(SRCDIR)/%.cpp=$(OBJDIR)/%.o)
+ORDR_SOURCES  = $(SRCDIR)/genVarOrder.cpp $(COMMON_SOURCES)
 RCNF_SOURCES  = $(SRCDIR)/readCnf.cpp
+BFSS_OBJECTS  = $(BFSS_SOURCES:$(SRCDIR)/%.cpp=$(OBJDIR)/%.o)
+ORDR_OBJECTS  = $(ORDR_SOURCES:$(SRCDIR)/%.cpp=$(OBJDIR)/%.o)
+ALL_OBJECTS   = $(sort $(BFSS_OBJECTS) $(ORDR_OBJECTS))
 
-.PHONY: all
-all: $(TARGET_BFSS) $(TARGET_RCNF)
+.PHONY: all clean remove bfss readCnf genVarOrder
+all: bfss readCnf genVarOrder
+bfss: $(TARGET_BFSS)
+genVarOrder: $(TARGET_ORDR)
+readCnf: $(TARGET_RCNF)
 
 $(TARGET_BFSS): $(BFSS_OBJECTS)
 	$(CXX) $(CPP_FLAGS) -o $@ $^ $(LFLAGS)
-	@echo "Linking complete!"
+	@echo "Linking complete! - bfss"
+
+$(TARGET_ORDR): $(ORDR_OBJECTS)
+	$(CXX) $(CPP_FLAGS) -o $@ $^ $(LFLAGS)
+	@echo "Linking complete! - genVarOrder"
 
 $(TARGET_RCNF): $(RCNF_SOURCES)
 	$(CXX) $(CPP_FLAGS) $^ -o $@
 	@echo "Compiled "$^" successfully!"
 
-$(BFSS_OBJECTS): $(OBJDIR)/%.o : $(SRCDIR)/%.cpp
+$(ALL_OBJECTS): $(OBJDIR)/%.o : $(SRCDIR)/%.cpp
 	$(CXX) $(CPP_FLAGS) -c $^ -o $@  $(LFLAGS)
 	@echo "Compiled "$<" successfully!"
 
-.PHONY: clean
 clean:
 	@$(RM) $(BFSS_OBJECTS)
 	@echo "Cleanup complete!"
 
-.PHONY: remove
 remove: clean
-	@$(RM) $(TARGET_BFSS) $(TARGET_RCNF)
+	@$(RM) $(TARGET_BFSS) $(TARGET_ORDR) $(TARGET_RCNF)
 	@echo "Executable removed!"

@@ -142,6 +142,7 @@ extern int numFixes;
 extern int numCEX;
 extern int numCEXUsed;
 extern cxxopts::Options optParser;
+extern cxxopts::Options optParserOrdering;
 extern optionStruct options;
 extern optionStruct optionsOriginal;
 extern vector<vector<int> > k2Trend;
@@ -239,12 +240,13 @@ void			propagateR0R1Cofactors(Aig_Man_t* pMan, vector<vector<int> >& r0, vector<
 void			chooseSmallerR_(Aig_Man_t* pMan, vector<vector<int> >& r0, vector<vector<int> >& r1);
 void			chooseR_(Aig_Man_t* pMan, vector<vector<int> >& r0, vector<vector<int> >& r1);
 void			parseOptions(int argc, char * argv[]);
+void			parseOptionsOrdering(int argc, char * argv[]);
 void 			printK2Trend();
 void 			monoSkolem(Aig_Man_t*&pMan, vector<vector<int> > &r0, vector<vector<int> > &r1);
 string			getFileName(string s);
 int 			checkUnateSyntacticAll(Aig_Man_t* FAig, vector<int>&unate);
 int 			checkUnateSemanticAll(Aig_Man_t* FAig, vector<int>&unate);
-void 			populateVars(Abc_Ntk_t* FNtk, string varsFile,
+void 			populateVars(Abc_Ntk_t* FNtk, string varsFile, vector<string>& varOrder,
 					vector<int>& varsXF, vector<int>& varsYF,
 					map<string,int>& name2IdF, map<int,string>& id2NameF);
 void 			substituteUnates(Aig_Man_t* &pMan, vector<int>&unate);

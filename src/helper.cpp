@@ -21,6 +21,7 @@ int numCEX   = 0;
 int numCEXUsed = 0;
 bool initCollapseDone = false;
 cxxopts::Options optParser("bfss", "bfss: Blazingly Fast Skolem Synthesis");
+cxxopts::Options optParserOrdering("genVarOrder", "Generate Least Occuring Variable Order");
 optionStruct options;
 optionStruct optionsOriginal;
 vector<vector<int> > k2Trend;
@@ -290,6 +291,38 @@ void parseOptions(int argc, char * argv[]) {
 	cout << "\t checkSatOnly:         " << options.checkSatOnly << endl;
 	cout << "\t useBDD:               " << options.useBDD << endl;
 	cout << "}" << endl;
+}
+
+void parseOptionsOrdering(int argc, char * argv[]) {
+	bool lazy;
+	string skolemType;
+	optParserOrdering.positional_help("");
+	optParserOrdering.add_options()
+		("b, benchmark", "Specify the benchmark (required)", cxxopts::value<string>(options.benchmark), "FILE")
+		("v, varsOrder", "Specify the variables to be eliminated", cxxopts::value<string>(options.varsOrder), "FILE")
+		("h, help", "Print this help")
+		("s, samples", "Number of unigen samples requested per call (default: " STR(UNIGEN_SAMPLES_DEF) ")", cxxopts::value<int>(options.numSamples), "N")
+		("positional",
+			"Positional arguments: these are the arguments that are entered "
+			"without an option", cxxopts::value<std::vector<string>>())
+		;
+
+	optParserOrdering.parse_positional({"benchmark", "varsOrder","positional"});
+	optParserOrdering.parse(argc, argv);
+
+	if(options.varsOrder == "")
+		options.varsOrder = options.benchmark.substr(0,options.benchmark.find_last_of('.')) + "_varstoelim.txt";
+
+	if (optParserOrdering.count("help")) {
+		cout << optParserOrdering.help({"", "Group"}) << std::endl;
+		exit(0);
+	}
+
+	if (!optParserOrdering.count("benchmark")) {
+		cerr << endl << "Error: Benchmark not specified" << endl << endl;
+		cout << optParserOrdering.help({"", "Group"}) << std::endl;
+		exit(0);
+	}
 }
 
 int CommandExecute(Abc_Frame_t* pAbc, string cmd) {
@@ -3603,7 +3636,7 @@ int getNumY(string varsFile) {
 	return tempnumY;
 }
 
-void populateVars(Abc_Ntk_t* FNtk, string varsFile,
+void populateVars(Abc_Ntk_t* FNtk, string varsFile, vector<string>& varOrder,
 	vector<int>& varsXF, vector<int>& varsYF,
 	map<string,int>& name2IdF, map<int,string>& id2NameF) {
 
@@ -3630,6 +3663,7 @@ void populateVars(Abc_Ntk_t* FNtk, string varsFile,
 		if(line != "") {
 			auto it = name2IdFTemp.find(line);
 			assert(it != name2IdFTemp.end());
+			varOrder.push_back(line);
 			varsYF.push_back(it->second);
 			name2IdFTemp.erase(it);
 		}

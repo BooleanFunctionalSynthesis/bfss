@@ -60,8 +60,10 @@ int main(int argc, char * argv[]) {
 		name2IdF.clear();
 		id2NameF.clear();
 
+		vector<string> varOrder;
+
 		cout << "populateVars" << endl;
-		populateVars(FNtk, options.varsOrder,
+		populateVars(FNtk, options.varsOrder, varOrder,
 						varsXF, varsYF,
 						name2IdF, id2NameF);
 
