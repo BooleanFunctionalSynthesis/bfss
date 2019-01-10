@@ -1,7 +1,8 @@
 #include "nnf.h"
+#include <numeric>
 
 Nnf_Obj::Nnf_Obj(int id) : Nnf_Obj(id, NNF_OBJ_NONE) {};
-Nnf_Obj::Nnf_Obj(int id, Nnf_Type t) : Id(id), Type(t), neg(NULL), pFanin0(NULL), pFanin1(NULL), AigNum(-1), fMarkA(false) {};
+Nnf_Obj::Nnf_Obj(int id, Nnf_Type t) : Id(id), Type(t), neg(NULL), pFanin0(NULL), pFanin1(NULL), AigNum(-1), fMarkA(false), pData(NULL) {};
 
 void Nnf_Obj::print()
 {
@@ -27,27 +28,152 @@ void Nnf_Obj::print()
     printf(" (refs = %3d)\n", Nnf_ObjRefs(this));
 }
 
-Nnf_Man::Nnf_Man() {
+int Nnf_Obj::getNumRef()
+{
+	return pFanoutPos.size() + pFanoutNeg.size();
+}
+
+Nnf_Man::Nnf_Man() : pName("No_Name") {
 	this->pConst1 = createNode(NNF_OBJ_CONST1);
 }
 
 Nnf_Man::Nnf_Man(Aig_Man_t* pSrc) : Nnf_Man() {
-	cout <<"\n\nInitially" << endl;
-	print();
+	init(pSrc);
+}
 
-	cout <<"\n\nParsing..." << endl;
+Nnf_Man::Nnf_Man(DdManager* ddMan, DdNode* FddNode) : Nnf_Man() {
+	init(ddMan, FddNode);
+}
+
+void Nnf_Man::init(Aig_Man_t* pSrc) {
+	assert(_allNodes.size()==1);
+	assert(getCiNum()==0);
+	assert(getCoNum()==0);
+	// cout <<"\n\nInitially" << endl;
+	// print();
+
+	int rem = Aig_ManCleanup(pSrc);
+	cout << "Removed " << rem << " nodes during NNF cleanup" << endl;
+
+	// cout <<"\n\nParsing..." << endl;
 	parse_aig(pSrc);
 
-	cout <<"\n\nParsed Aig" << endl;
-	print();
+	// cout <<"\n\nParsed Aig" << endl;
+	// print();
 	makeNnf();
 
-	cout <<"\n\nPushed Bubbles down" << endl;
-	print();
+	// cout <<"\n\nPushed Bubbles down" << endl;
+	// print();
 	Nnf_ManTopoId();
 
-	cout <<"\n\nTopo-sorted" << endl;
-	print();
+	// cout <<"\n\nTopo-sorted" << endl;
+	// print();
+}
+
+void Nnf_Man::init(DdManager* ddMan, DdNode* FddNode) {
+	assert(_allNodes.size()==1);
+	assert(getCiNum()==0);
+	assert(getCoNum()==0);
+	// First Create All Leaves (Input Nodes)
+	int numCi = Cudd_ReadSize(ddMan);
+	for (int i = 0; i < numCi; ++i) {
+		Nnf_Obj* ci = this->createCi();
+		ci->OrigAigId = i+1;	// @TODO: FIX!
+	}
+
+	// Recursively convert to nnf
+	map<DdNode*, Nnf_Obj*> cache;
+	Nnf_Obj* head = this->bdd2nnf_rec(FddNode, cache);
+	this->createCo(head);
+
+	// Check isNNF
+	assert(this->checkIsNnf());
+}
+
+bool Nnf_Man::checkIsNnf() {
+	// Unmark all nodes
+	for(auto it: _allNodes)
+		Nnf_ObjClearMarkA(it);
+
+	bool res = true;
+	for(auto it:_outputs) {
+		if(!checkIsNnf_rec(it)) {
+			res = false;
+			break;
+		}
+	}
+
+	// Unmark all nodes
+	for(auto it: _allNodes)
+	Nnf_ObjClearMarkA(it);
+
+	return res;
+}
+
+bool Nnf_Man::checkIsNnf_rec(Nnf_Obj* pObj) {
+	if(Nnf_ObjIsMarkA(pObj))
+		return true;
+	Nnf_ObjSetMarkA(pObj);
+
+	if(Nnf_IsComplement(pObj)) {
+		assert(!Nnf_ObjIsConst0(pObj));
+		return false;
+	}
+	else if(Nnf_ObjIsConst1(pObj)
+		or Nnf_ObjIsCiPos(pObj)
+		or Nnf_ObjIsCiNeg(pObj)) {
+		return true;
+	}
+	else if(Nnf_ObjIsCo(pObj)) {
+		return this->checkIsNnf_rec(Nnf_ObjFanin0(pObj));
+	}
+	else if(Nnf_ObjIsAnd(pObj) or Nnf_ObjIsOr(pObj)) {
+		return (this->checkIsNnf_rec(Nnf_ObjFanin0(pObj))
+			and this->checkIsNnf_rec(Nnf_ObjFanin1(pObj)));
+	}
+	else
+		assert(false);
+}
+
+Nnf_Obj* Nnf_Man::bdd2nnf_rec(DdNode* FddNode, map<DdNode*, Nnf_Obj*>&cache) {
+
+	if(cache.count(FddNode) > 0)
+		return cache[FddNode];
+
+	Nnf_Obj* res;
+
+	if Cudd_IsConstant(FddNode) {
+		bool isConst1 = Cudd_V(FddNode);
+		if(isConst1) // res = 1-node;
+			res = Nnf_NotCond(this->const1(), Cudd_IsComplement(FddNode));
+		else // res = 0-node;
+			res = Nnf_NotCond(this->const0(), Cudd_IsComplement(FddNode));
+	} else {
+
+		// Find NNF variable corresponding to FddNode
+		int varNum = Cudd_Regular(FddNode)->index;
+		Nnf_Obj* Xi = this->getCiPos(varNum);
+		Nnf_Obj* Xi_bar = this->getCiNeg(varNum);
+
+		if(Cudd_IsComplement(FddNode)) {
+			// res = (-tc and Xi) or (-ec and -Xi)
+			Nnf_Obj* tc = this->bdd2nnf_rec(Cudd_Not(Cudd_T(FddNode)), cache);
+			Nnf_Obj* ec = this->bdd2nnf_rec(Cudd_Not(Cudd_E(FddNode)), cache);
+			res = Nnf_Or(Nnf_And(tc, Xi), Nnf_And(ec, Xi_bar));
+		}
+		else {
+			// res = (tc and Xi) or (ec and -Xi)
+			Nnf_Obj* tc = this->bdd2nnf_rec(Cudd_T(FddNode), cache);
+			Nnf_Obj* ec = this->bdd2nnf_rec(Cudd_E(FddNode), cache);
+			res = Nnf_Or(Nnf_And(tc, Xi), Nnf_And(ec, Xi_bar));
+		}
+	}
+
+	// printf("bdd2nnf_rec %s%d -> ",(Cudd_IsComplement(FddNode)?"-":" "),Cudd_Regular(FddNode)->Id);
+	// cout << (Nnf_IsComplement(res)?"-":" ");
+	// Nnf_Regular(res)->print();
+	cache[FddNode] = res;
+	return res;
 }
 
 Nnf_Man::~Nnf_Man() {
@@ -55,6 +181,32 @@ Nnf_Man::~Nnf_Man() {
 		if(it!=NULL)
 			delete it;
 	}
+}
+
+Nnf_Obj* Nnf_Man::Nnf_And(Nnf_Obj* left, Nnf_Obj* right) {
+	if(Nnf_ObjIsConst1(left)) return right;
+	if(Nnf_ObjIsConst1(right)) return left;
+	if(Nnf_ObjIsConst0(left)) return this->const0();
+	if(Nnf_ObjIsConst0(right)) return this->const0();
+
+	Nnf_Obj* newNode = this->createNode(NNF_OBJ_AND);
+	NNf_ObjSetFanin0(newNode, left);
+	NNf_ObjSetFanin1(newNode, right);
+
+	return newNode;
+}
+
+Nnf_Obj* Nnf_Man::Nnf_Or(Nnf_Obj* left, Nnf_Obj* right) {
+	if(Nnf_ObjIsConst1(left)) return this->const1();
+	if(Nnf_ObjIsConst1(right)) return this->const1();
+	if(Nnf_ObjIsConst0(left)) return right;
+	if(Nnf_ObjIsConst0(right)) return left;
+
+	Nnf_Obj* newNode = this->createNode(NNF_OBJ_OR);
+	NNf_ObjSetFanin0(newNode, left);
+	NNf_ObjSetFanin1(newNode, right);
+
+	return newNode;
 }
 
 Nnf_Obj* Nnf_Man::getCiPos(int i) {return _inputs_pos[i];}
@@ -107,10 +259,14 @@ void Nnf_Man::parse_aig(Aig_Man_t* pSrc) {
 	Aig_Obj_t* pObj, *f0, *f1;
 	Nnf_Obj* nObj;
 
+	if(pSrc->pName)
+		this->pName = string(pSrc->pName);
+
 	// Delete Current Nodes
 	for (int i = 1; i < _allNodes.size(); ++i) {
 		if(_allNodes[i] != NULL)
 			delete _allNodes[i];
+			_allNodes[i] = NULL;
 	}
 	_allNodes.resize(1);
 	_inputs_pos.clear();
@@ -246,6 +402,9 @@ Aig_Man_t* Nnf_Man::createAigWithoutClouds() {return createAig(false);}
 Aig_Man_t* Nnf_Man::createAig(bool withCloudInputs) {
 	int nNodesMax = 1e5;
 	Aig_Man_t* pMan = Aig_ManStart(nNodesMax);
+
+	// Save Name
+	pMan->pName = Abc_UtilStrsav((char*)this->pName.c_str());
 
 	Aig_Obj_t* pObj;
 	vector<int> CiPosIth;
@@ -426,6 +585,7 @@ Aig_Man_t* Nnf_Man::createAigMultipleClouds(int numCloudSets,
 
 	for(auto node: _allNodes) {
 		delete (vector<Aig_Obj_t*>*)node->pData;
+		node->pData = NULL;
 	}
 
 	return pMan;
@@ -513,6 +673,10 @@ vector<Nnf_Obj*> Nnf_Man::Nnf_ManDfs() {
     Nnf_Obj * pObj;
     int i;
 
+    // Unmark all nodes
+    for(auto it: _allNodes)
+        Nnf_ObjClearMarkA(it);
+
     // Add const1 and inputs
     Nnf_ManDfs_rec(const1(), vNodes);
     for(auto it: _inputs_pos)
@@ -528,8 +692,25 @@ vector<Nnf_Obj*> Nnf_Man::Nnf_ManDfs() {
     for(auto it: _allNodes)
         Nnf_ObjClearMarkA(it);
 
-    // @TODO: necessary for size to be same?
-    assert(vNodes.size() == _allNodes.size());
+    if(vNodes.size() != _allNodes.size()) {
+	    cout << "NNF: " << endl;
+	    this->print();
+	    set<Nnf_Obj*> a(_allNodes.begin(), _allNodes.end());
+	    set<Nnf_Obj*> v(vNodes.begin(), vNodes.end());
+
+	    vector<Nnf_Obj*> diff;
+	    set_difference(a.begin(), a.end(), v.begin(), v.end(),
+	        std::inserter(diff, diff.begin()));
+	    cout << "Missing Nodes: " << endl;
+	    for(auto it:diff) {
+	        it->print();
+	    }
+	    cout << "vNodes.size(): 	" << vNodes.size() << endl;
+	    cout << "_allNodes.size(): 	" << _allNodes.size() << endl;
+	    // @TODO: necessary for size to be same?
+	    assert(vNodes.size() == _allNodes.size());
+    }
+
     return vNodes;
 }
 
@@ -540,6 +721,128 @@ void Nnf_Man::Nnf_ManTopoId() {
 		it->Id = currId++;
     _allNodes = vNodes;
     return;
+}
+
+bool Nnf_Man::isWDNNF() {
+	vector<int> varsY(this->getCiNum());
+	iota(varsY.begin(), varsY.end(), 0);
+	return this->isWDNNF(varsY);
+}
+
+bool Nnf_Man::isWDNNF(vector<int>& varsY) {
+	// Recursive calls
+
+	// Unmark all nodes
+	for(auto it: _allNodes) {
+	    Nnf_ObjClearMarkA(it);
+	    it->pData = NULL;
+	}
+
+	// Const1 and Inputs
+	this->const1()->pData = new set<int>();
+	this->const1()->iData = 1;
+	Nnf_ObjSetMarkA(this->const1());
+	for (int i = 0; i < this->getCiNum(); ++i) {
+		_inputs_pos[i]->pData = new set<int>();
+		_inputs_neg[i]->pData = new set<int>();
+		_inputs_pos[i]->iData = 1;
+		_inputs_neg[i]->iData = 1;
+		Nnf_ObjSetMarkA(_inputs_pos[i]);
+		Nnf_ObjSetMarkA(_inputs_neg[i]);
+	}
+	for (auto i:varsY) {
+		((set<int>*)(_inputs_pos[i]->pData))->insert(i);
+		((set<int>*)(_inputs_neg[i]->pData))->insert(-i);
+	}
+
+	assert(_outputs.size() == 1);
+	bool result = _outputs.front()->isWDNNF();
+
+	// Unmark all nodes, Free Memory
+	for(auto it: _allNodes) {
+	    Nnf_ObjClearMarkA(it);
+		if(it->pData != NULL) {
+			delete (set<int>*) it->pData;
+			it->pData = NULL;
+		}
+	}
+
+	return result;
+}
+
+bool Nnf_Obj::isWDNNF() {
+	// Recursive calls
+	// Store Support in pData as set<int>
+	// Store isWDNNF in iData, return
+
+	if(Nnf_ObjIsMarkA(this)) {
+		return this->iData == 1;
+	}
+	Nnf_ObjSetMarkA(this);
+
+	bool res;
+	switch(this->Type) {
+		case Nnf_Type::NNF_OBJ_NONE:
+		case Nnf_Type::NNF_OBJ_CONST1:
+		case Nnf_Type::NNF_OBJ_CI_POS:
+		case Nnf_Type::NNF_OBJ_CI_NEG:
+			assert(false); // Handled Earlier
+
+		case Nnf_Type::NNF_OBJ_CO:
+			res = Nnf_ObjFanin0(this)->isWDNNF();
+			this->iData = res?1:0;
+			// cout << res << " from "; this->print();
+			return res;
+
+		case Nnf_Type::NNF_OBJ_OR:
+			res = Nnf_ObjFanin0(this)->isWDNNF() and Nnf_ObjFanin1(this)->isWDNNF();
+			if(res) {
+				set<int>* s0 = (set<int>*) Nnf_ObjFanin0(this)->pData;
+				set<int>* s1 = (set<int>*) Nnf_ObjFanin1(this)->pData;
+				auto supp = new set<int>();
+				set_union (s0->begin(), s0->end(),
+							s1->begin(), s1->end(),
+							inserter(*supp, supp->begin()));
+				this->pData = supp;
+			}
+			this->iData = res?1:0;
+			// cout << res << " from "; this->print();
+			return res;
+
+		case Nnf_Type::NNF_OBJ_AND:
+			res = Nnf_ObjFanin0(this)->isWDNNF() and Nnf_ObjFanin1(this)->isWDNNF();
+			if(res) {
+				set<int>* s0 = (set<int>*) Nnf_ObjFanin0(this)->pData;
+				set<int>* s1 = (set<int>*) Nnf_ObjFanin1(this)->pData;
+				// Check wDNNF violation
+				for(auto lit:*s0) {
+					if(s1->find(-lit) != s1->end()) {
+						res = false;
+						break;
+					}
+				}
+				if(!res) {
+					cout << "wDNNF violation: ";
+					this->print();
+					cout << endl;
+				}
+			}
+			if(res) {
+				set<int>* s0 = (set<int>*) Nnf_ObjFanin0(this)->pData;
+				set<int>* s1 = (set<int>*) Nnf_ObjFanin1(this)->pData;
+				auto supp = new set<int>();
+				set_union (s0->begin(), s0->end(),
+							s1->begin(), s1->end(),
+							inserter(*supp, supp->begin()));
+				this->pData = supp;
+			}
+			this->iData = res?1:0;
+			// cout << res << " from "; this->print();
+			return res;
+	}
+
+	// Should not reach here
+	assert(false);
 }
 
 Nnf_Type SwitchAndOrType(Nnf_Type t) {
