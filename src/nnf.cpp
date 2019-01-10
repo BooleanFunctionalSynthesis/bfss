@@ -1,4 +1,5 @@
 #include "nnf.h"
+#include <numeric>
 
 Nnf_Obj::Nnf_Obj(int id) : Nnf_Obj(id, NNF_OBJ_NONE) {};
 Nnf_Obj::Nnf_Obj(int id, Nnf_Type t) : Id(id), Type(t), neg(NULL), pFanin0(NULL), pFanin1(NULL), AigNum(-1), fMarkA(false), pData(NULL) {};
