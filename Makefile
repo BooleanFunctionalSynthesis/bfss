@@ -2,6 +2,9 @@
 # 	UNIGEN=NO
 # 	BUILD=RELEASE/DEBUG
 
+# Architecture required by ABC
+CPP_FLAGS += -DLIN64
+
 BFSS 	= bfss
 RCNF  	= readCnf
 ORDR  	= genVarOrder
