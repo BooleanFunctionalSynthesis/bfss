@@ -10,7 +10,7 @@ git submodule update --init dependencies/abc
 git submodule update --init dependencies/scalmc # Skip if scalmc unavailable
 
 # Setup Dependencies
-sudo apt install libreadline-dev libboost-all-dev libm4ri-dev
+sudo apt install libreadline-dev libboost-all-dev libm4ri-dev build-essential cmake
 bash setup.sh
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$(pwd)/dependencies/scalmc/build/lib/
 ```
