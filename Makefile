@@ -61,12 +61,16 @@ BFSS_OBJECTS  = $(BFSS_SOURCES:$(SRCDIR)/%.cpp=$(OBJDIR)/%.o)
 ORDR_OBJECTS  = $(ORDR_SOURCES:$(SRCDIR)/%.cpp=$(OBJDIR)/%.o)
 ALL_OBJECTS   = $(sort $(BFSS_OBJECTS) $(ORDR_OBJECTS))
 
-.PHONY: all clean remove bfss readCnf genVarOrder verify
+.PHONY: all clean remove bfss readCnf genVarOrder verify directories
 all: bfss readCnf genVarOrder verify
-bfss: $(TARGET_BFSS)
-genVarOrder: $(TARGET_ORDR)
-readCnf: $(TARGET_RCNF)
-verify: $(TARGET_VRFY)
+bfss: directories $(TARGET_BFSS)
+genVarOrder: directories $(TARGET_ORDR)
+readCnf: directories $(TARGET_RCNF)
+verify: directories $(TARGET_VRFY)
+
+directories:
+	@mkdir -p $(OBJDIR)
+	@mkdir -p $(BINDIR)
 
 $(TARGET_BFSS): $(BFSS_OBJECTS)
 	$(CXX) $(CPP_FLAGS) -o $@ $^ $(LFLAGS)
