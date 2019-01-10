@@ -2,15 +2,20 @@
 
 ## Setup
 BFSS has 2 major dependencies: [ABC](https://github.com/shubham-goel/ABC) and [Scalmc](https://github.com/shubham-goel/scalmcSampling). Both have been added as submodules in `./dependencies`. Note that some repos may be private. Please contact BFSS authors for access. Clone recursively to download dependencies and setup as follows:
-```
-apt install libreadline-dev libboost-all-dev libm4ri-dev
+```shell
+# Download BFSS
+git clone --single-branch --branch=v4.0 --recurse-submodules git@github.com:Sumith1896/bfss.git
+
+# Setup Dependencies
+cd bfss
+sudo apt install libreadline-dev libboost-all-dev libm4ri-dev
 bash setup.sh
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$(pwd)/dependencies/scalmc/build/lib/
 ```
 For persistent use, please add `./dependencies/scalmc/build/lib/` to the `$LD_LIBRARY_PATH` environment variable.
 
 ## Usage
-Running `make` builds multiple binaries in `./bin/`:
+Running `make [UNIGEN=NO] [BUILD=RELEASE/DEBUG]` builds BFSS. `UNIGEN=NO` compiles BFSS without the Scalmc dependency. Multiple binaries are created in `./bin/`:
 
 1. readCnf
 2. genVarOrder
