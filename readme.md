@@ -1,7 +1,7 @@
 # BFSS: Blazing Fast Skolem Synthesis
 
 ## Setup
-BFSS has 2 major dependencies: [ABC]() and [Scalmc](). Note that some repos may be private. Please contact BFSS authors for access. Modified version of both libraries should be placed in `./dependencies` and used as is. Setup dependencies as follows:
+BFSS has 2 major dependencies: [ABC](https://github.com/shubham-goel/ABC) and [Scalmc](https://github.com/shubham-goel/scalmcSampling). Note that some repos may be private. Please contact BFSS authors for access. Modified version of both libraries should be placed in `./dependencies` and used as is. Setup dependencies as follows:
 ```
 apt install libreadline-dev libboost-all-dev libm4ri-dev
 bash setup.sh
@@ -34,4 +34,4 @@ So a typical sequence of commands for working on a qdimacs would be as follows.
 ```
 
 ## Benchmarks
-Some benchmarks are provided in `./benchmarks`. More can be found [here](https://github.com/shubham-goel/Skolem_Benchmarks)
+Benchmarks can be found [here](https://github.com/shubham-goel/Skolem_Benchmarks)
