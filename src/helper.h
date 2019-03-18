@@ -246,6 +246,7 @@ void 			monoSkolem(Aig_Man_t*&pMan, vector<vector<int> > &r0, vector<vector<int>
 string			getFileName(string s);
 int 			checkUnateSyntacticAll(Aig_Man_t* FAig, vector<int>&unate);
 int 			checkUnateSemanticAll(Aig_Man_t* FAig, vector<int>&unate);
+int 			checkUnateSemAll(Aig_Man_t* FAig, vector<int>&unate);//Same as checkUnateSemanticAll but more memory efficient
 void 			populateVars(Abc_Ntk_t* FNtk, string varsFile, vector<string>& varOrder,
 					vector<int>& varsXF, vector<int>& varsYF,
 					map<string,int>& name2IdF, map<int,string>& id2NameF);

@@ -60,6 +60,39 @@ bool CMSat::CUSP::unigenRunning = false;
 ////////////////////////////////////////////////////////////////////////
 ///                      HELPER FUNCTIONS                            ///
 ////////////////////////////////////////////////////////////////////////
+void parseOptionsOrdering(int argc, char * argv[]) {
+	bool lazy;
+	string skolemType;
+cout << "Positional Arguments Argc"<< argc << "Argv: " << argv[0] << endl;
+	optParserOrdering.positional_help("");
+	optParserOrdering.add_options()
+		("b, benchmark", "Specify the benchmark (required)", cxxopts::value<string>(options.benchmark), "FILE")
+		("v, varsOrder", "Specify the variables to be eliminated", cxxopts::value<string>(options.varsOrder), "FILE")
+		("h, help", "Print this help")
+		("s, samples", "Number of unigen samples requested per call (default: " STR(UNIGEN_SAMPLES_DEF) ")", cxxopts::value<int>(options.numSamples), "N")
+		("positional",
+			"Positional arguments: these are the arguments that are entered "
+			"without an option", cxxopts::value<std::vector<string>>())
+		;
+
+	optParserOrdering.parse_positional({"benchmark", "varsOrder","positional"});
+	optParserOrdering.parse(argc, argv);
+
+	if(options.varsOrder == "")
+		options.varsOrder = options.benchmark.substr(0,options.benchmark.find_last_of('.')) + "_varstoelim.txt";
+
+	if (optParserOrdering.count("help")) {
+		cout << optParserOrdering.help({"", "Group"}) << std::endl;
+		exit(0);
+	}
+
+	if (!optParserOrdering.count("benchmark")) {
+		cerr << endl << "Error: Benchmark not specified" << endl << endl;
+		cout << optParserOrdering.help({"", "Group"}) << std::endl;
+		exit(0);
+	}
+}
+
 void parseOptions(int argc, char * argv[]) {
 	bool lazy;
 	string skolemType;
@@ -67,7 +100,7 @@ void parseOptions(int argc, char * argv[]) {
 	optParser.add_options()
 		("b, benchmark", "Specify the benchmark (required)", cxxopts::value<string>(options.benchmark), "FILE")
 		("v, varsOrder", "Specify the variable ordering", cxxopts::value<string>(options.varsOrder), "FILE")
-		("o, out", "Specify the output file (default: <benchmark>_result.v)", cxxopts::value<string>(options.outFName), "FILE")
+		("o, out", "Specify the output file (default: <benchmark>_norevsub.v)", cxxopts::value<string>(options.outFName), "FILE")
 		("skolem", "Specify skolem function to be used (r0/r1/rx)", cxxopts::value<string>(skolemType)->default_value("rx"))
 		("a, ABC", "Use ABC's solver for SAT calls", cxxopts::value<bool>(options.useABCSolver))
 		("e, evalAigAtNode", "Efficiently evaluate AIG on a need-only basis", cxxopts::value<bool>(options.evalAigAtNode))
@@ -227,7 +260,7 @@ void parseOptions(int argc, char * argv[]) {
 	}
 
 	if (!optParser.count("out")) {
-		options.outFName = getFileName(options.benchmark) + "_result.v";
+		options.outFName = getFileName(options.benchmark) + "_norevsub.v";
 	}
 
 	options.noUnate = options.noUnate || options.monoSkolem;
@@ -292,39 +325,6 @@ void parseOptions(int argc, char * argv[]) {
 	cout << "\t useBDD:               " << options.useBDD << endl;
 	cout << "}" << endl;
 }
-
-void parseOptionsOrdering(int argc, char * argv[]) {
-	bool lazy;
-	string skolemType;
-	optParserOrdering.positional_help("");
-	optParserOrdering.add_options()
-		("b, benchmark", "Specify the benchmark (required)", cxxopts::value<string>(options.benchmark), "FILE")
-		("v, varsOrder", "Specify the variables to be eliminated", cxxopts::value<string>(options.varsOrder), "FILE")
-		("h, help", "Print this help")
-		("s, samples", "Number of unigen samples requested per call (default: " STR(UNIGEN_SAMPLES_DEF) ")", cxxopts::value<int>(options.numSamples), "N")
-		("positional",
-			"Positional arguments: these are the arguments that are entered "
-			"without an option", cxxopts::value<std::vector<string>>())
-		;
-
-	optParserOrdering.parse_positional({"benchmark", "varsOrder","positional"});
-	optParserOrdering.parse(argc, argv);
-
-	if(options.varsOrder == "")
-		options.varsOrder = options.benchmark.substr(0,options.benchmark.find_last_of('.')) + "_varstoelim.txt";
-
-	if (optParserOrdering.count("help")) {
-		cout << optParserOrdering.help({"", "Group"}) << std::endl;
-		exit(0);
-	}
-
-	if (!optParserOrdering.count("benchmark")) {
-		cerr << endl << "Error: Benchmark not specified" << endl << endl;
-		cout << optParserOrdering.help({"", "Group"}) << std::endl;
-		exit(0);
-	}
-}
-
 int CommandExecute(Abc_Frame_t* pAbc, string cmd) {
 	int ret = Cmd_CommandExecute(pAbc, (char*) cmd.c_str());
 	if(ret) {
@@ -482,6 +482,7 @@ void populateVars(Abc_Ntk_t* FNtk, Nnf_Man& nnf, string varsFile,
 		varsXF.push_back(it.second);
 	}
 
+		
 	OUT( "Populating varsXS varsYS..." );
 	for(auto it : varsXF) {
 		// cout << "nnf.getNewAigNodeID: " << it << "->" << nnf.getNewAigNodeID(it) << endl;
@@ -505,8 +506,10 @@ void populateVars(Abc_Ntk_t* FNtk, Nnf_Man& nnf, string varsFile,
 	if(numY <= 0) {
 		cout << "Var File " + varsFile + " is empty!" << endl;
 		cerr << "Var File " + varsFile + " is empty!" << endl;
-		assert(numY > 0);
+		cerr << "  No Skolem functions to generate " << endl;
+	//	exit (1);
 	}
+	assert(numY > 0);
 
 
 	// for (int i = 0; i < numX; ++i) {
@@ -560,6 +563,7 @@ Aig_Obj_t* Aig_SubstituteVec(Aig_Man_t* pMan, Aig_Obj_t* initAig, vector<int> va
 		varIdVec[i]--;
 	}
 	Aig_Obj_t* afterCompose = Aig_ComposeVec(pMan, currFI, funcVec, varIdVec);
+
 	assert(!Aig_ObjIsCo(Aig_Regular(afterCompose)));
 	return afterCompose;
 }
@@ -763,107 +767,167 @@ void initializeCompose(Aig_Man_t* SAig, vector<Aig_Obj_t* >& Fs,
 	for(int i = 0; i < numX; i++) {
 		nodeIdtoN[varsXS[i] - 1] = i;
 		nodeIdtoN[numOrigInputs + varsXS[i] - 1] = numOrigInputs + i;
+		//cout << "Assigning " << i << " and " << numOrigInputs + i << " to X " << endl;
 	}
 	for(int i = 0; i < numY; i++) {
 		nodeIdtoN[varsYS[i] - 1] = numX + i;
 		nodeIdtoN[numOrigInputs + varsYS[i] - 1] = numOrigInputs + numX + i;
+		//cout << "Assigning " << numX + i << " and " << numOrigInputs + numX + i << " to Y " << endl;
 	}
+
+	//cout << " NumY = " << numY << endl;
+	//Aig_Obj_t * pAigObj;
+	//int k;
+	//	cout << "\nSAig after composing X vars and unates: " << endl;
+	//	Aig_ManForEachObj( SAig, pAigObj, k)
+	//		Aig_ObjPrintVerbose( pAigObj, 1 ), printf( "\n" );
 
 	vector<vector<Aig_Obj_t* > > funcVecVec;
 	vector<Aig_Obj_t* > retVec;
 	vector<Aig_Obj_t* > funcVec;
-
+//First substituting just the X's - SS
+	vector<int> varIdVec;
 	funcVec.resize(0);
+	varIdVec.resize(0);
 	for(int i = 0; i < numX; ++i) {
+		varIdVec.push_back(varsXS[i]);
 		funcVec.push_back(Aig_ManObj(SAig, varsXS[i]));
 	}
+    //Adding the unates - but is it really required??   - check
+	for (int i = 0; i < numY; ++i) {
+		if (unate[i] != -1)
+		{
+			varIdVec.push_back(varsYS[i]);
+			funcVec.push_back((unate[i] == 1) ? Aig_ManConst1(SAig): Aig_ManConst0(SAig));
+
+		}
+	}
+	for(int i = 0; i < numX; ++i) {
+		varIdVec.push_back(numOrigInputs + varsXS[i]);
+		funcVec.push_back(Aig_Not(Aig_ManObj(SAig, varsXS[i])));
+	}
+	for (int i = 0; i < numY; ++i) {
+		if (unate[i] != -1)
+		{
+			varIdVec.push_back(numOrigInputs + varsYS[i]);
+			funcVec.push_back((unate[i] == 1) ? Aig_ManConst0(SAig): Aig_ManConst1(SAig));
+
+		}
+	}
+
+	
+	assert (Aig_ManCoNum (SAig) == 1);
+	Aig_Obj_t* F_Obj = Aig_SubstituteVec(SAig, Aig_ManCo(SAig,0), varIdVec, funcVec);
+	Aig_ObjPatchFanin0(SAig, Aig_ManCo(SAig, 0), F_Obj);
+
+	funcVec.resize(0);
+	funcVecVec.resize(0);
+//	for(int i = 0; i < numX; ++i) {
+//		funcVec.push_back(Aig_ManObj(SAig, varsXS[i]));
+//	}
 	for(int i = 0; i < numY; ++i) {
 		funcVec.push_back(Aig_ManObj(SAig, varsYS[i]));
 	}
-	for(int i = 0; i < numX; ++i) {
-		funcVec.push_back(Aig_Not(Aig_ManObj(SAig, varsXS[i])));
-	}
+//	for(int i = 0; i < numX; ++i) {
+//		funcVec.push_back(Aig_Not(Aig_ManObj(SAig, varsXS[i])));
+//	}
 	for(int i = 0; i < numY; ++i) {
-		funcVec.push_back(Aig_Not(Aig_ManObj(SAig, varsYS[i])));
+			funcVec.push_back(Aig_Not(Aig_ManObj(SAig, varsYS[i])));
 	}
+
 	funcVecVec.push_back(funcVec);
 
 	funcVec.resize(0);
-	for(int i = 0; i < numX; ++i) {
-		funcVec.push_back(Aig_ManObj(SAig, varsXS[i]));
-	}
+//	for(int i = 0; i < numX; ++i) {
+//		funcVec.push_back(Aig_ManObj(SAig, varsXS[i]));
+//	}
 	for(int i = 0; i < numY; ++i) {
 		funcVec.push_back(Aig_ManObj(SAig, numOrigInputs + varsYS[i]));
 	}
-	for(int i = 0; i < numX; ++i) {
-		funcVec.push_back(Aig_Not(Aig_ManObj(SAig, varsXS[i])));
-	}
+//	for(int i = 0; i < numX; ++i) {
+//		funcVec.push_back(Aig_Not(Aig_ManObj(SAig, varsXS[i])));
+//	}
 	for(int i = 0; i < numY; ++i) {
 		funcVec.push_back(Aig_Not(Aig_ManObj(SAig, numOrigInputs + varsYS[i])));
 	}
 	funcVecVec.push_back(funcVec);
 
+	int nonUnates = 0;
 	for(int i = 0; i < numY; ++i) {
-		funcVec.resize(0);
-		for(int j = 0; j < numX; j++) {
-			funcVec.push_back(Aig_ManObj(SAig, varsXS[j]));
-		}
-		for(int j = 0; j < numY; j++) {
-			if(j < i) {
-				funcVec.push_back(Aig_ManConst1(SAig));
-			} else if(j == i) {
-				funcVec.push_back(Aig_ManConst0(SAig));
-			} else {
-				funcVec.push_back(Aig_ManObj(SAig, varsYS[j]));
+		if (unate[i] == -1)
+		{
+			funcVec.resize(0);
+			nonUnates ++;
+		//	for(int j = 0; j < numX; j++) {
+		//		funcVec.push_back(Aig_ManObj(SAig, varsXS[j]));
+		//	}
+			for(int j = 0; j < numY; j++) {
+					if(j < i) {
+						funcVec.push_back(Aig_ManConst1(SAig));
+					} else if(j == i) {
+						funcVec.push_back(Aig_ManConst0(SAig));
+					} else {
+						funcVec.push_back(Aig_ManObj(SAig, varsYS[j]));
+					}
 			}
-		}
-		for(int j = 0; j < numX; j++) {
-			funcVec.push_back(Aig_Not(Aig_ManObj(SAig, varsXS[j])));
-		}
-		for(int j = 0; j < numY; j++) {
-			if(j <= i) {
-				funcVec.push_back(Aig_ManConst1(SAig));
-			} else {
-				funcVec.push_back(Aig_Not(Aig_ManObj(SAig, varsYS[j])));
+		//	for(int j = 0; j < numX; j++) {
+		//		funcVec.push_back(Aig_Not(Aig_ManObj(SAig, varsXS[j])));
+		//	}
+			for(int j = 0; j < numY; j++) {
+					if(j <= i) {
+						funcVec.push_back(Aig_ManConst1(SAig));
+					} else {
+						funcVec.push_back(Aig_Not(Aig_ManObj(SAig, varsYS[j])));
+					}
 			}
+			funcVecVec.push_back(funcVec);
 		}
-		funcVecVec.push_back(funcVec);
 	}
 
+	cout << "Finished generating r0 vectors for non-unate vars " << endl;
 	for(int i = 0; i < numY; ++i) {
-		funcVec.resize(0);
-		for(int j = 0; j < numX; j++) {
-			funcVec.push_back(Aig_ManObj(SAig, varsXS[j]));
-		}
-		for(int j = 0; j < numY; j++) {
-			if(j <= i) {
-				funcVec.push_back(Aig_ManConst1(SAig));
-			} else {
-				funcVec.push_back(Aig_ManObj(SAig, varsYS[j]));
+		if (unate[i] == -1)
+		{
+			funcVec.resize(0);
+		//	for(int j = 0; j < numX; j++) {
+		//		funcVec.push_back(Aig_ManObj(SAig, varsXS[j]));
+		//	}
+			for(int j = 0; j < numY; j++) {
+					if(j <= i) {
+						funcVec.push_back(Aig_ManConst1(SAig));
+					} else {
+						funcVec.push_back(Aig_ManObj(SAig, varsYS[j]));
+					}
 			}
-		}
-		for(int j = 0; j < numX; j++) {
-			funcVec.push_back(Aig_Not(Aig_ManObj(SAig, varsXS[j])));
-		}
-		for(int j = 0; j < numY; j++) {
-			if(j < i) {
-				funcVec.push_back(Aig_ManConst1(SAig));
-			} else if(j == i) {
-				funcVec.push_back(Aig_ManConst0(SAig));
-			} else {
-				funcVec.push_back(Aig_Not(Aig_ManObj(SAig, varsYS[j])));
+		//	for(int j = 0; j < numX; j++) {
+		//		funcVec.push_back(Aig_Not(Aig_ManObj(SAig, varsXS[j])));
+		//	}
+			for(int j = 0; j < numY; j++) {
+					if(j < i) {
+						funcVec.push_back(Aig_ManConst1(SAig));
+					} else if(j == i) {
+						funcVec.push_back(Aig_ManConst0(SAig));
+					} else {
+						funcVec.push_back(Aig_Not(Aig_ManObj(SAig, varsYS[j])));
+					}
+
 			}
+			funcVecVec.push_back(funcVec);
 		}
-		funcVecVec.push_back(funcVec);
 	}
+	cout << "Finished generating r1 vectors for non-unate vars " << endl;
 
 	retVec = Aig_SubstituteVecVec(SAig, Aig_ManCo(SAig, 0), funcVecVec);
 	Fs[0] = Aig_ObjCreateCo(SAig, retVec[0]);
-	Fs[1] = Aig_ObjCreateCo(SAig, retVec[1]);
+	if (Aig_ObjIsConst1(Aig_Regular(retVec[0])) || Aig_ObjIsConst1(Aig_Regular(retVec[1])) )
+		cout << " Error = F is assigned Cons0 " << endl;
+	Fs[1] = Aig_ObjCreateCo(SAig, retVec[1]);	
+	int nonUIndex = 0;
 	for(int i = 0; i < numY; i++) {
 		switch(unate[i]) {
 			case -1:
-				Aig_ObjCreateCo(SAig, Aig_Not(retVec[2 + i]));
+				Aig_ObjCreateCo(SAig, Aig_Not(retVec[2 + nonUIndex]));
+				nonUIndex ++;
 				break;
 			case 0:
 				Aig_ObjCreateCo(SAig, Aig_ManConst0(SAig));
@@ -874,10 +938,14 @@ void initializeCompose(Aig_Man_t* SAig, vector<Aig_Obj_t* >& Fs,
 		}
 		r0[i].push_back(Aig_ManCoNum(SAig) - 1);
 	}
+	cout << "Assigned r0's for all vars " << endl;
+	assert (nonUIndex == nonUnates);
+	nonUIndex = 0;
 	for(int i = 0; i < numY; i++) {
 		switch(unate[i]) {
 			case -1:
-				Aig_ObjCreateCo(SAig, Aig_Not(retVec[2 + numY + i]));
+				Aig_ObjCreateCo(SAig, Aig_Not(retVec[2 + nonUnates + nonUIndex]));
+				nonUIndex ++;
 				break;
 			case 0:
 				Aig_ObjCreateCo(SAig, Aig_ManConst1(SAig));
@@ -888,6 +956,9 @@ void initializeCompose(Aig_Man_t* SAig, vector<Aig_Obj_t* >& Fs,
 		}
 		r1[i].push_back(Aig_ManCoNum(SAig) - 1);
 	}
+	funcVecVec.resize(0);
+	retVec.resize(0);
+	cout << "Assigned r1's for all vars " << endl;
 }
 
 /** Function
@@ -1827,7 +1898,7 @@ void updateAbsRef(Aig_Man_t*&pMan, int M, int k1Level, int k1MaxLevel, vector<ve
 	if(refCollapseStart>M or collapsedInto[refCollapseStart])
 		refCollapseEnd = refCollapseStart = k1Level;
 
-	fmcadPhaseStart = (refCollapseEnd == refCollapseStart)?k1Level:refCollapseEnd;
+	fmcadPhaseStart = k1Level;
 	fmcadPhaseEnd = M;
 
 
@@ -1918,7 +1989,7 @@ void updateAbsRef(Aig_Man_t*&pMan, int M, int k1Level, int k1MaxLevel, vector<ve
 	// ########################################
 	//  SECTION B: k1 -> k1+c2 ################
 	// ########################################
-	if(refCollapseStart <= exhaustiveCollapsedTill) {
+/*	if(refCollapseStart <= exhaustiveCollapsedTill) {
 		refCollapseStart = exhaustiveCollapsedTill;
 	}
 	if(refCollapseStart < refCollapseEnd)
@@ -2002,8 +2073,7 @@ void updateAbsRef(Aig_Man_t*&pMan, int M, int k1Level, int k1MaxLevel, vector<ve
 			}
 		}
 	}
-
-
+*/
 	// #########################################
 	// SECTION C: k1+c -> fmcad ################
 	// #########################################
@@ -2480,28 +2550,31 @@ void verifyResult(Aig_Man_t*&SAig, vector<vector<int> >& r0,
 	auto start = std::chrono::steady_clock::now();
 	cout << "Reverse Substitution..." << endl;
 	int iter = 0;
+	bool change = false;
+	if (false)	//Skipping reverse substitution for now..
+	{
 	for(int i = numY-2; i >= 0; --i) {
-		iter++;
 		Aig_Obj_t * curr = Aig_ManCo(SAig, skolemAig[i]);
-		for(int j = i + 1; j < numY; ++j) {
-			// Aig_ManForEachObj(SAig,pAigObj,i_temp) {
-			// 	assert(Aig_ObjIsConst1(pAigObj) || Aig_ObjIsCi(pAigObj) || Aig_ObjIsCo(pAigObj) || (Aig_ObjFanin0(pAigObj) && Aig_ObjFanin1(pAigObj)));
-			// }
+		if (!Aig_ObjIsConst1(Aig_Regular(Aig_ObjFanin0(curr))))	//Nothing to substitute
+		{
+			iter++;
+			for(int j = i + 1; j < numY; ++j) {
 
-			Aig_Obj_t* skolem_j = Aig_ObjChild0(Aig_ManCo(SAig,skolemAig[j]));
-			curr = Aig_Substitute(SAig, curr, varsYS[j], skolem_j);
-			assert(skolemAig[i]!=NULL);
-			assert(Aig_ObjIsCo(Aig_Regular(curr))==false);
-		}
-		Aig_ObjPatchFanin0(SAig, Aig_ManCo(SAig, skolemAig[i]), curr);
-		int removed = Aig_ManCleanup(SAig);
-		cout << "Removed " << removed <<" nodes" << endl;
-		if(iter%30 == 0) {
-			Aig_ManPrintStats( SAig );
-			cout << "Compressing SAig..." << endl;
-			SAig = compressAigByNtkMultiple(SAig, 1);
-			assert(SAig != NULL);
-			Aig_ManPrintStats( SAig );
+				Aig_Obj_t* skolem_j = Aig_ObjChild0(Aig_ManCo(SAig,skolemAig[j]));
+				curr = Aig_Substitute(SAig, curr, varsYS[j], skolem_j);
+				assert(skolemAig[i]!=NULL);
+				assert(Aig_ObjIsCo(Aig_Regular(curr))==false);
+			}
+			Aig_ObjPatchFanin0(SAig, Aig_ManCo(SAig, skolemAig[i]), curr);
+				int removed = Aig_ManCleanup(SAig);
+				cout << "Removed " << removed <<" nodes" << endl;
+				if(iter%30 == 0) {
+					Aig_ManPrintStats( SAig );
+					cout << "Compressing SAig..." << endl;
+					SAig = compressAigByNtkMultiple(SAig, 1);
+					assert(SAig != NULL);
+					Aig_ManPrintStats( SAig );
+				}
 		}
 	}
 	// SAig = compressAigByNtk(SAig);
@@ -2521,6 +2594,7 @@ void verifyResult(Aig_Man_t*&SAig, vector<vector<int> >& r0,
 	cout << "Final reverse-substituted MAX Size:    " << max_after << endl;
 	Aig_ManPrintStats(SAig);
 
+	}
 	auto end = std::chrono::steady_clock::now();
 	reverse_sub_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count()/1000000.0;
 	cout<< "Reverse substitute time: " << reverse_sub_time << endl;
@@ -2629,6 +2703,7 @@ void Aig_ComposeVec_rec( Aig_Man_t * p, Aig_Obj_t * pObj, vector<Aig_Obj_t *>& p
 		for (auto iVarObj: iVarObjVec) {
 			if(pObj == iVarObj) {
 				pObj->pData = pFuncVec[i];
+				//cout << " Assigned " << pObj->Id  << ( Aig_ObjIsConst1(Aig_Regular(pFuncVec[i]))? 1 : 0) << endl;
 			}
 			i++;
 		}
@@ -2700,8 +2775,16 @@ void Aig_ComposeVecVec_rec(Aig_Man_t* p, Aig_Obj_t* pObj, vector<vector<Aig_Obj_
 	}
 	if(Aig_ObjIsCi(pObj)) {
 		int i = nodeIdtoN[(pObj->Id) - 1];
+//		cout << "Printing nodeIdtoN @ i " << i << "  " << i - numX  << " " << i - 2 * numX << endl;
 		for(int j = 0; j < pFuncVecs.size(); j++)
-			tempData->push_back(pFuncVecs[j][i]);
+		{
+			if ((i >= numX && i < numOrigInputs))
+				tempData->push_back(pFuncVecs[j][i - numX]); // - numX]);
+	 		else if( ( i >= numOrigInputs + numX ))
+				tempData->push_back(pFuncVecs[j][i - (2 * numX)]);
+			else
+				tempData->push_back(pObj);
+		}
 		pObj->pData = tempData;
 		assert(!Aig_ObjIsMarkA(pObj)); // loop detection
 		Aig_ObjSetMarkA(pObj);
@@ -3507,6 +3590,161 @@ int checkUnateSyntacticAll(Aig_Man_t* FAig, vector<int>&unate) {
 	return numUnate;
 }
 
+//Temporarily coded by Shetal
+int checkUnateSemAll(Aig_Man_t* FAig, vector<int>&unate) { 
+	Aig_ManPrintStats(FAig);
+
+	auto unate_start = std::chrono::steady_clock::now();
+	auto unate_end = std::chrono::steady_clock::now();
+	auto unate_run_time = std::chrono::duration_cast<std::chrono::microseconds>(unate_end - unate_start).count()/1000000.0;
+
+//Is this required?
+//	nodeIdtoN.resize(numOrigInputs);
+//	for(int i = 0; i < numX; i++) {
+//		nodeIdtoN[varsXF[i] - 1] = i;
+//	}
+//	for(int i = 0; i < numY; i++) {
+//		nodeIdtoN[varsYF[i] - 1] = numX + i;
+//	}
+	
+	cout << " Preparing for semantic unate checks " << endl;
+	sat_solver* pSat = sat_solver_new();
+	Cnf_Dat_t* SCnf = Cnf_Derive(FAig, Aig_ManCoNum(FAig));
+	addCnfToSolver(pSat, SCnf);
+	int numCnfVars = SCnf->nVars;
+	Cnf_Dat_t* SCnf_copy = Cnf_DataDup(SCnf);
+ 	Cnf_DataLift (SCnf_copy, numCnfVars);	
+	addCnfToSolver(pSat, SCnf_copy);
+	int status, numUnate, totalNumUnate = 0;
+	assert(unate.size()==numY);
+//Equate the X's and Y's. 
+ 	int x_iCnf, y_iCnf; 
+	lit Lits[3];
+	for(int i = 0; i < numX; ++i) {
+		Lits[0] = toLitCond( SCnf->pVarNums[ varsXF[i]], 0 );
+		Lits[1] = toLitCond( SCnf_copy->pVarNums[ varsXF[i]], 1 );
+	//	cout << " Adding clause " <<  Lits [0] << " " << Lits [1] << endl;
+        	if ( !sat_solver_addclause( pSat, Lits, Lits+2 ) )
+            		assert( 0 );
+		Lits[0] = toLitCond( SCnf->pVarNums[ varsXF[i]], 1 );
+		Lits[1] = toLitCond( SCnf_copy->pVarNums[ varsXF[i]], 0 );
+        	if ( !sat_solver_addclause( pSat, Lits, Lits+2 ) )
+            		assert( 0 );
+	//	cout << " Adding clause " <<  Lits [0] << " " << Lits [1] << endl;
+	}
+
+	int cont_Vars[numY]; //control Variables
+	for(int i = 0; i < numY; ++i) {
+	
+		cont_Vars[i] = sat_solver_addvar (pSat);
+		Lits[0] = toLitCond( SCnf->pVarNums[ varsYF[i]], 0 );
+		Lits[1] = toLitCond( SCnf_copy->pVarNums[ varsYF[i]], 1 );
+		Lits[2] = Abc_Var2Lit (cont_Vars[i], 0);
+//		cout << " Adding clause for " << i << " "  <<  Lits [0] << " " << Lits [1] << " " << Lits [2] << endl;
+        	if ( !sat_solver_addclause( pSat, Lits, Lits+3 ) )
+            		assert( 0 );
+		Lits[0] = toLitCond( SCnf->pVarNums[ varsYF[i]], 1 );
+		Lits[1] = toLitCond( SCnf_copy->pVarNums[ varsYF[i]], 0 );
+		Lits[2] = Abc_Var2Lit (cont_Vars[i], 0);
+///		cout << " Adding clause for " << i << " "  <<  Lits [0] << " " << Lits [1] << " " << Lits [2] << endl;
+        	if ( !sat_solver_addclause( pSat, Lits, Lits+3 ) )
+            		assert( 0 );
+		if (unate [i] != -1) // Y is already syntactically unate
+		{
+			//unate[i] = -1;
+			//cout << "Adding " << varsYF[i] << " as unate " << unate [i] << endl;
+			addVarToSolver(pSat, SCnf->pVarNums[varsYF[i]], unate[i]);
+			addVarToSolver(pSat, SCnf_copy->pVarNums[varsYF[i]], unate[i]);
+		}
+	}
+	
+	//lit LA[numY+4];
+	lit LA[numY+2];
+
+	//cout << "NumCnfVars " <<  numCnfVars << endl;
+	//cout << "SCnfVars " <<  SCnf->nVars << endl;
+	int coID = getCnfCoVarNum(SCnf, FAig, 0);
+	
+	Aig_Obj_t * pCo = Aig_ManCo(FAig, 0);
+	assert (coID == SCnf->pVarNums[pCo->Id]);
+
+	addVarToSolver(pSat, SCnf->pVarNums[pCo->Id], 1);
+	addVarToSolver(pSat, SCnf_copy->pVarNums[pCo->Id], 0);
+//	LA[0] = toLitCond( SCnf->pVarNums[pCo->Id],0);	
+//	LA[1] = toLitCond(SCnf_copy->pVarNums[pCo->Id],1); //Check whether this is positive or negative	-- assuming 0 is true
+
+	int yIndex;
+
+	do {
+		numUnate = 0;
+		for (int i = 0; i < numY; ++i)
+		{
+			yIndex  = SCnf->pVarNums[varsYF[i]];
+	//		cout << "Checking @ " << i << " for " << varsYF[i] << " YIndex = " << yIndex << "Unate " << unate [i] << endl;	
+			for (int j = 0; j < numY; j++)
+			{
+				if (j == i)
+					LA[2+j] = Abc_Var2Lit (cont_Vars[j], 0);
+				else
+					LA[2+j] = Abc_Var2Lit (cont_Vars[j], 1);
+				//cout << " Control variable " << j   << " is " << LA [4+j] << endl;
+			}
+
+			if(unate[i] == -1) {
+				// Check if positive unate
+				LA[0] = toLitCond(SCnf->pVarNums[varsYF[i]], 1); //check the 0 and 1's
+				LA[1] = toLitCond(SCnf_copy->pVarNums[varsYF[i]], 0);
+				//cout << "Printing assumptions for pos unate : " << LA [0] << " " << LA [1] << " " << LA [2] << " " << LA [3] << endl;
+				status = sat_solver_solve(pSat, LA, LA+2+numY, (ABC_INT64_T)0, (ABC_INT64_T)0, (ABC_INT64_T)0, (ABC_INT64_T)0);
+				//cout << "Status of sat solver " << status << endl;
+				if (status == l_False) {
+					unate[i] = 1;
+					cout << "Var y" << i << " (" << varsYF[i] << ") is positive unate (semantic)" << endl;
+					// sat_solver_push(pSat, toLitCond(SCnf->pVarNums[varsYF[i]],0));
+					addVarToSolver(pSat, SCnf->pVarNums[varsYF[i]], 1);
+					addVarToSolver(pSat, SCnf_copy->pVarNums[varsYF[i]], 1);
+					numUnate++;
+				}
+			}
+			if(unate[i] == -1) {
+				// Check if negative unate
+				LA[0] = toLitCond(SCnf->pVarNums[varsYF[i]], 0); //check the 0 and 1's
+				LA[1] = toLitCond(SCnf_copy->pVarNums[varsYF[i]], 1);
+				//cout << "Printing assumptions for neg unate : " << LA [0] << " " << LA [1] << " " << LA [2] << " " << LA [3] << endl;
+				//LA[0] = toLitCond(getCnfCoVarNum(SCnf, FAig, negUnates[i]),1);
+				status = sat_solver_solve(pSat, LA, LA+2+numY, (ABC_INT64_T)0, (ABC_INT64_T)0, (ABC_INT64_T)0, (ABC_INT64_T)0);
+				//cout << "Status of sat solver " << status << endl;
+				if (status == l_False) {
+					cout << "Var y" << i << " (" << varsYF[i] << ") is negative unate (semantic)" << endl;
+					unate[i] = 0;
+					// sat_solver_push(pSat, toLitCond(SCnf->pVarNums[varsYF[i]],1));
+					addVarToSolver(pSat, SCnf->pVarNums[varsYF[i]], 0);
+					addVarToSolver(pSat, SCnf_copy->pVarNums[varsYF[i]], 0);
+					numUnate++;
+				}
+			}
+		}
+		cout << "Found " << numUnate << " unates" << endl;
+		totalNumUnate += numUnate;
+
+		unate_end = std::chrono::steady_clock::now();
+		unate_run_time = std::chrono::duration_cast<std::chrono::microseconds>(unate_end - main_time_start).count()/1000000.0;
+		if(numUnate > 0 and unate_run_time >= options.unateTimeout) {
+			cout << "checkUnateSemanticAll Timed Out" << endl;
+			break;
+		}
+	}
+	while(numUnate > 0);
+
+	sat_solver_delete(pSat);
+	Cnf_DataFree(SCnf);
+	Cnf_DataFree(SCnf_copy);
+
+//	cout << "TotalNumUnate =  " << totalNumUnate << endl;
+	return totalNumUnate;
+
+}
+
 // skolems[] = 1 (pos unate); 0 (neg unate); -1 (not unate)
 int checkUnateSemanticAll(Aig_Man_t* FAig, vector<int>&unate) {
 	Aig_ManPrintStats(FAig);
@@ -3566,6 +3804,9 @@ int checkUnateSemanticAll(Aig_Man_t* FAig, vector<int>&unate) {
 	Cnf_Dat_t* SCnf = Cnf_Derive(FAig, Aig_ManCoNum(FAig));
 	addCnfToSolver(pSat, SCnf);
 
+		
+		
+
 	int status, numUnate, totalNumUnate = 0;
 	assert(unate.size()==numY);
 
@@ -3584,6 +3825,7 @@ int checkUnateSemanticAll(Aig_Man_t* FAig, vector<int>&unate) {
 					unate[i] = 1;
 					cout << "Var y" << i << " (" << varsYF[i] << ") is positive unate (semantic)" << endl;
 					// sat_solver_push(pSat, toLitCond(SCnf->pVarNums[varsYF[i]],0));
+				//	cout << "Cnf var for y " << varsYF[i] << "is" << SCnf->pVarNums[varsYF[i]] << endl;
 					addVarToSolver(pSat, SCnf->pVarNums[varsYF[i]], 1);
 					numUnate++;
 				}
@@ -3598,6 +3840,7 @@ int checkUnateSemanticAll(Aig_Man_t* FAig, vector<int>&unate) {
 					unate[i] = 0;
 					// sat_solver_push(pSat, toLitCond(SCnf->pVarNums[varsYF[i]],1));
 					addVarToSolver(pSat, SCnf->pVarNums[varsYF[i]], 0);
+				//	cout << "Cnf var for y " << varsYF[i] << "is" << SCnf->pVarNums[varsYF[i]] << endl;
 					numUnate++;
 				}
 			}
@@ -3617,6 +3860,7 @@ int checkUnateSemanticAll(Aig_Man_t* FAig, vector<int>&unate) {
 	sat_solver_delete(pSat);
 	Cnf_DataFree(SCnf);
 
+	cout << "TotalNumUnate =  " << totalNumUnate << endl;
 	return totalNumUnate;
 }
 
@@ -3691,7 +3935,9 @@ void substituteUnates(Aig_Man_t* &pMan, vector<int>&unate) {
 	}
 	Aig_ManCleanup(pMan);
 
+//	cout << "No. of pis in  AIG before substitution " << Aig_ManCiNum(pMan) << endl;
 	// Substitute
+//	cout << " Starting Substitution " << endl;
 	vector<int> varIdVec;
 	vector<Aig_Obj_t*> funcVec;
 	for (int i = 0; i < numY; ++i) {
@@ -3704,14 +3950,24 @@ void substituteUnates(Aig_Man_t* &pMan, vector<int>&unate) {
 			funcVec.push_back(Aig_ManConst0(pMan));
 		}
 	}
+//	cout << "Support of pFanin " << Aig_SupportSize(pMan, Aig_Regular(Aig_ObjFanin0(Aig_ManCo(pMan, 0))));
+ 
 	Aig_Obj_t* pAigObj = Aig_SubstituteVec(pMan, Aig_ManCo(pMan,0), varIdVec, funcVec);
+	
+//	cout << "Support of pAigObj " << Aig_SupportSize(pMan, Aig_Regular(pAigObj));
+
 	Aig_ObjPatchFanin0(pMan, Aig_ManCo(pMan,0), pAigObj);
 	Aig_ManCleanup(pMan);
+//	cout << "No. of pis in the aig after cleanup " << Aig_ManCiNum(pMan) << endl;
 
+//	cout << " Finished Substitution " << endl;
 	// Duplicate Aig to toposort nodes
 	Aig_Man_t* tempAig = pMan;
+	cout << " Duplicating AIG " << endl;
+
 	pMan = Aig_ManDupSimple(pMan);
 	Aig_ManStop(tempAig);
+//	cout << "No. of pis in new AIG " << Aig_ManCiNum(pMan) << endl;
 }
 
 // Assumes skolemAig[...] correspond to varsYS[...]
@@ -3742,6 +3998,9 @@ void saveSkolems(Aig_Man_t* SAig, vector<int>& skolemAig) {
 	for(auto it:varsXS) {
 		Vec_PtrPush(vPis, Aig_ManObj(SAig,it));
 	}
+	for(auto it:varsYS) {
+		Vec_PtrPush(vPis, Aig_ManObj(SAig,it));
+	}
 	for(auto it:skolemAig) {
 		Vec_PtrPush(vPos, Aig_ManCo(SAig,it));
 	}
@@ -3756,10 +4015,24 @@ void saveSkolems(Aig_Man_t* SAig, vector<int>& skolemAig) {
 	Nm_ManFree(outNtk->pManName);
 	outNtk->pManName = Nm_ManCreate(200);
 
+	int xs =varsXS.size() ;
+	assert (xs == numX);
+
 	Abc_NtkForEachCi(outNtk, pObj, i) {
-		Abc_ObjAssignName(pObj, (char*)varsNameX[i].c_str(), NULL);
+			if (i < numX )
+			{
+				cout << "Assigning name " <<  (char*)varsNameX[i].c_str() << " to ci " << i << endl;
+				Abc_ObjAssignName(pObj, (char*)varsNameX[i].c_str(), NULL);
+			}
+			else
+			{
+				string yname =  "nn" + varsNameY[i - numX];
+				cout << "Assigning name " <<  yname << " to ci " << i << endl;
+				Abc_ObjAssignName(pObj, (char*)yname.c_str(), NULL);
+			}
 	}
 	Abc_NtkForEachCo(outNtk, pObj, i) {
+			cout << "Assigning name " <<  (char*)varsNameX[i].c_str() << " to co " << i << endl;
 		Abc_ObjAssignName(pObj, (char*)varsNameY[i].c_str(), NULL);
 	}
 
@@ -3772,6 +4045,7 @@ void saveSkolems(Aig_Man_t* SAig, vector<int>& skolemAig) {
 	else {
 		cout << "Saved skolems to " << options.outFName << endl;
 	}
+
 }
 
 void printAig(Aig_Man_t* pMan) {
