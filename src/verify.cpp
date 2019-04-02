@@ -86,6 +86,51 @@ Aig_Man_t* compressAigByNtkMultiple(Aig_Man_t* SAig, int times) {
 	return temp;
 }
 
+//Generate clauses for a = b and feed to the sat solver
+
+/*
+This gives an assert fail error on a few benchmarks 
+void EquateCC (sat_solver * pSat, int a, int b )
+{
+    //cout << " Equating " << a << " and " << b << endl;
+    lit Lits[2];
+	Lits[0] = toLitCond( a, 0 );
+	Lits[1] = toLitCond( b, 1 );
+		cout << " Adding clause " <<  Lits [0] << " " << Lits [1] << endl;
+    if ( !sat_solver_addclause( pSat, Lits, Lits+2 ) )
+         		assert( 0 );
+
+	Lits[0] = toLitCond( a, 1 );
+	Lits[1] = toLitCond( b, 0 );
+	//	cout << " Adding clause " <<  Lits [0] << " " << Lits [1] << endl;
+        	if ( !sat_solver_addclause( pSat, Lits, Lits+2 ) )
+            		assert( 0 );
+}
+*/
+
+//Copied  Equate in helper.cpp
+bool EquateC(sat_solver *pSat, int varA, int varB) {
+	lit Lits[3];
+	assert(varA!=0 && varB!=0);
+	bool retval = true;
+	// A -> B
+	Lits[0] = toLitCond( abs(-varA), -varA<0 );
+	Lits[1] = toLitCond( abs(varB), varB<0 );
+	if(!sat_solver_addclause( pSat, Lits, Lits + 2 )) {
+		cerr << "Warning: In addCnfToSolver, sat_solver_addclause failed" << endl;
+		retval = false;
+	}
+
+	// B -> A
+	Lits[0] = toLitCond( abs(varA), varA<0 );
+	Lits[1] = toLitCond( abs(-varB), -varB<0 );
+	if(!sat_solver_addclause( pSat, Lits, Lits + 2 )) {
+		cerr << "Warning: In addCnfToSolver, sat_solver_addclause failed" << endl;
+		retval = false;
+	}
+	return retval;
+}
+
 // temporarily copying this:
 Aig_Man_t* QdimacsToAig(const char * qdFileName,  int& numVars, int& numClauses, vector<vector<int> >& allClauses) {
     char C[100], c;
@@ -306,7 +351,6 @@ int main(int argc, char const *argv[])
 	}
 
 	Aig_Man_t* skolemAig = Abc_NtkToDar(skolemNtk, 0, 0);
-
 	populateVars(FNtk, FAig, skolemNtk, varsOrderFile, verilogInput);
 	assert(Aig_ManCiNum(FAig) >= numX+numY); 
 	assert(Aig_ManCoNum(FAig) == 1);
@@ -330,88 +374,46 @@ int main(int argc, char const *argv[])
 		cout << "Skolem(Ci " << Yi2Co_Skolem[i] << " Name " <<  Co2NameSkolem[Yi2Co_Skolem[i]].c_str() << ");" <<   endl ;
 		cout << "Co id " <<  Aig_ObjId(Aig_ManCo(skolemAig, Yi2Co_Skolem[i])) << endl;
 	}
-//	printAig(skolemAig);
-//	cout << endl;
-
-	// ************
-	// Permute FAig inputs to match skolemAig
-	// ************
-	Vec_Ptr_t * vPis = Vec_PtrAlloc(numX + numY);
-	Vec_Ptr_t * vPos = Vec_PtrAlloc(1);
-	for (int i = 0; i < numX; ++i) {
-		Vec_PtrPush(vPis, Aig_ManObj(FAig, varsXF[Ci2Xi_Skolem[i]]));
-	}
-	Yi2Ci_Skolem.resize(numY);				// Book-keeping
-	for (int i = 0; i < numY; ++i) {
-		Vec_PtrPush(vPis, Aig_ManObj(FAig, varsYF[i]));
-		Yi2Ci_Skolem[i] = numX+i; 			// Book-keeping
-	}
-	Vec_PtrPush(vPos, Aig_ManCo(FAig,0));
-	Aig_Man_t* FAig_ordered = Aig_ManDupSimpleDfsPart(FAig, vPis, vPos);
-
-	// cout << "FAig_ordered" << endl;
-	// printAig(FAig_ordered);
-
-	// ************
-	// Transfer FAig_ordered to skolemAig
-	// ************
-	cout << "Transfer FAig to skolemAig..." << endl;
-	Aig_Obj_t* F = Aig_Transfer(FAig_ordered, skolemAig, Aig_ObjChild0(Aig_ManCo(FAig_ordered,0)), numOrigInputs);
-	Aig_ObjCreateCo(skolemAig, F);
-	int FCoNum = Aig_ManCoNum(skolemAig)-1;
-
-	// cout << "skolemAig after transfer" << endl;
-	// printAig(skolemAig);
-
-	// Compress!
-	Aig_ManPrintStats( skolemAig );
-	cout << "Compressing skolemAig..." << endl;
-	skolemAig = compressAigByNtkMultiple(skolemAig, 3);
-	assert(skolemAig != NULL);
-	Aig_ManPrintStats( skolemAig );
-
-	// ************
-	// Start Verification
-	// ************
-	Aig_ObjCreateCo(skolemAig, Aig_ObjChild0(Aig_ManCo(skolemAig, FCoNum)));
-	int FPrimeCoNum = Aig_ManCoNum(skolemAig)-1;
-
-	// Substitute
-	cout << "Substituting..." << endl;
-	Aig_Obj_t* F_subs = Aig_ObjChild0(Aig_ManCo(skolemAig, FCoNum));
-	for (int i = 0; i < numY; ++i) {
-		TIME_MEASURE_START
-		Aig_Obj_t* skolemFunc = Aig_ObjChild0(Aig_ManCo(skolemAig, Yi2Co_Skolem[i]));
-		int CiNum = Yi2Ci_Skolem[i];
-		F_subs = Aig_Compose(skolemAig, F_subs, skolemFunc, CiNum);
-		printf("Done %d/%d, took %f; ", i, numY, TIME_MEASURE_ELAPSED);
-		Aig_ManPrintStats( skolemAig );
-	}
-
-	Aig_ObjPatchFanin0(skolemAig, Aig_ManCo(skolemAig,FCoNum), F_subs);
-	int FSubsCoNum = FCoNum;
-	// Aig_ObjCreateCo(skolemAig, F_subs);
-	// int FSubsCoNum = Aig_ManCoNum(skolemAig)-1;
-
-	// Compress!
-	Aig_ManPrintStats( skolemAig );
-	cout << "Compressing skolemAig..." << endl;
-	skolemAig = compressAigByNtkMultiple(skolemAig, 3);
-	assert(skolemAig != NULL);
-	Aig_ManPrintStats( skolemAig );
-
-	// Aig_ManCleanup(skolemAig);
-	// printAig(skolemAig);
-	// cout << "FSubsCoNum: " << FSubsCoNum << endl;
-	// cout << "FPrimeCoNum: " << FPrimeCoNum << endl;
-
+//Create Cnfs
 	sat_solver* pSat = sat_solver_new();
 	Cnf_Dat_t* skolemCnf = Cnf_Derive(skolemAig, Aig_ManCoNum(skolemAig));
+    Cnf_Dat_t* FCnf = Cnf_Derive (FAig, Aig_ManCoNum(FAig));
+	Cnf_Dat_t* FCnf_copy = Cnf_DataDup(FCnf);
+    Cnf_DataLift (FCnf, FCnf_copy->nVars);
+    Cnf_DataLift (skolemCnf, FCnf->nVars);
+	addCnfToSolver(pSat, FCnf_copy);
+	addCnfToSolver(pSat, FCnf);
 	addCnfToSolver(pSat, skolemCnf);
+   
+ //  cout << "FCnf_copy->nVars " << FCnf_copy->nVars  << " FCnf->nVars " << FCnf->nVars << "skolemCnf->nVars " << skolemCnf->nVars << endl;
+    
+	cout << "Equating X (inputs):" << endl;
+	for (int i = 0; i < numX; ++i) {
+    //Equate //FCnf.X and FCnf_Copy.X
+        EquateC (pSat,   FCnf->pVarNums[varsXF[i]], FCnf_copy -> pVarNums [varsXF[i]]);
+    //Equate (FCnf.X and SkolemCI.X
+        EquateC(pSat, FCnf->pVarNums[varsXF[i]], skolemCnf->pVarNums[Xi2Ci_Skolem[i]]); 
 
-	lit LA[3];
-	LA[0] = toLitCond(getCnfCoVarNum(skolemCnf, skolemAig, FSubsCoNum),1);
-	LA[1] = toLitCond(getCnfCoVarNum(skolemCnf, skolemAig, FPrimeCoNum),0);
+//	cout << "F(Id " << varsXF[i] << ", Name "  << id2NameF[varsXF[i]].c_str() << " ): "  ;
+//		cout << "Skolem(Ci " << Xi2Ci_Skolem[i] << " Name " <<  Ci2NameSkolem[Xi2Ci_Skolem[i]].c_str() << ");" << endl ;
+ //       cout << "Equating " << FCnf->pVarNums[varsXF[i]] << " and "  << skolemCnf->pVarNums[Xi2Ci_Skolem[i]]; 
+  //      cout <<  "FCnf->pVarNums[varsXF[i]]" <<  " and " << FCnf_copy -> pVarNums [varsXF[i]] << endl;
+	}
+	cout << "Equating Y (outputs):" << endl;
+	for (int i = 0; i < numY; ++i) {
+       //SkolemCo and FCnf.Y 
+//		cout << i << ":" << endl;
+//		cout << "F(Id " << varsYF[i] << ", Name "  << id2NameF[varsYF[i]].c_str() << " ): " << endl ;
+//		cout << "Skolem(Ci " << Yi2Co_Skolem[i] << " Name " <<  Co2NameSkolem[Yi2Co_Skolem[i]].c_str() << ");" <<   endl ;
+//		cout << "Co id " <<  Aig_ObjId(Aig_ManCo(skolemAig, Yi2Co_Skolem[i])) << endl;
+        EquateC(pSat, FCnf->pVarNums[varsYF[i]], skolemCnf->pVarNums[Aig_ObjId(Aig_ManCo(skolemAig, Yi2Co_Skolem[i]))]); 
+ //       cout << "Equating " << FCnf->pVarNums[varsYF[i]] << " and " << skolemCnf->pVarNums[Aig_ObjId(Aig_ManCo(skolemAig, Yi2Co_Skolem[i]))] << endl; 
+	}
+
+    lit LA[2];
+	LA[0] = toLitCond(FCnf->pVarNums[Aig_ManCo(FAig, 0)->Id], 1);
+	LA[0] = toLitCond(FCnf_copy->pVarNums[Aig_ManCo(FAig, 0)->Id], 0);
+//	LA[1] = toLitCond(getCnfCoVarNum(skolemCnf, skolemAig, FPrimeCoNum),0);
 
 	cout << "Calling SAT Solver..." << endl;
 	int status = sat_solver_solve(pSat, LA, LA+2, (ABC_INT64_T)0, (ABC_INT64_T)0, (ABC_INT64_T)0, (ABC_INT64_T)0);
@@ -620,3 +622,5 @@ string getFileName(string s) {
 
 	return(s);
 }
+
+
