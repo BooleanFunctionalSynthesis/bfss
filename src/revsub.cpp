@@ -20,7 +20,7 @@ using namespace std;
 
 vector<string> varsY;
 
-//Important assumption : Assuming that the wire connection has to be done by equating nny_i = y_i; Where nny_i is the input variable in the verilog and y_i is the output
+//Important assumption : Assuming that the wire connection has to be done by equating nny_i = y_i;
 void write_comments (ifstream& ifs, ofstream& ofs, string& line )
 {
 	while (line.rfind("module", 0))	//Read comments
@@ -37,8 +37,6 @@ void write_module (ifstream& ifs, ofstream& ofs, string& line )
     boost::char_separator<char> sep (" ;");
 
     bool skip = false;
-
-//Remove definition of each nny_i from module and input
 
 		//Write module
 	while (line.find ("output") == string::npos)	 //The next line after the module definition begins from input
@@ -64,13 +62,15 @@ void write_module (ifstream& ifs, ofstream& ofs, string& line )
             }
 
 
-	        if (tok.rfind("nn", 0))
+		int pos = tok.find ("nn");
+		//cout << "Token" << tok << " Pos " << pos << endl;
+	        if (pos < 0) // 0 or 1 
             {
 				//ofs << tok << " " ;
-				collect += tok + " " ;
+		collect += tok + " " ;
                 skip = false;
             }
-            else //Remove defition
+            else
                 skip = true;
 		}
 		getline (ifs, line);	
@@ -83,7 +83,7 @@ void write_module (ifstream& ifs, ofstream& ofs, string& line )
 	//ofs << ";" << endl;
 
 }
-//Save the output variables to a vector. The output definitions are copied as is - no changes made.
+//Save the output variables to a vector
 void write_output (ifstream& ifs, ofstream& ofs, string& line)
 {
     boost::char_separator<char> sep (", ;");
@@ -102,7 +102,7 @@ void write_output (ifstream& ifs, ofstream& ofs, string& line)
             {
 	 	varsY.push_back(tok);
 				   // ofs << tok << ", " ; 
-                    collect += tok + ", ";
+                    collect += tok + " , ";
             }
          }
 	 getline (ifs, line);	
@@ -125,7 +125,6 @@ void write_output (ifstream& ifs, ofstream& ofs, string& line)
 
 }
 
-//Add definition of nny_i as a wire
 void write_wire (ifstream& ifs, ofstream& ofs, string& line)
 {
     boost::char_separator<char> sep (";");
@@ -156,11 +155,23 @@ void write_wire (ifstream& ifs, ofstream& ofs, string& line)
       }
       for (int i = 0 ; i < varsY.size(); i++) //Add the Y_i's as wires
       {
+	   string prefix="";
+	   string newName(varsY[i]);
+		
+	   int pos = newName.find("\\");
+
+	   if (pos == 0) //begins with
+	   {
+		prefix = "\\";
+		newName=varsY[i].substr(pos+1);
+		//cout << " prefix " << prefix  << " newName " << newName << endl;
+	   }
+ 
             //cout <<  varsY[i] << " " ;
             if ( i < varsY.size() - 1)
-                ofs << "nn" << varsY[i]  << ", ";
+                ofs << prefix << "nn" << newName << " , ";
             else
-                ofs << "nn" << varsY[i]  << ";" << endl;
+                ofs << prefix << "nn" << newName << " ; " << endl;
        }
 }	
 	
@@ -198,9 +209,24 @@ void performRevSub ( string norsFname, string rsFname )
 		ofs << line << endl;
 		getline (ifs, line);	
 	}
-    //Generate assign statement nny_i = y_i;
 	for (int i = 0 ; i < varsY.size(); i++) //The 0th element is output
-		ofs << "assign nn" << varsY[i]  << " = " << varsY[i] << ";" << endl;
+	{
+
+	   string prefix="";
+	   string newName(varsY[i]);
+		
+	   int pos = newName.find("\\");
+
+	   if (pos == 0) //begins with
+	   {
+		prefix = "\\";
+		newName=varsY[i].substr(pos+1);
+		//cout << " prefix " << prefix  << " newName " << newName << endl;
+	   }
+ 
+            //cout <<  varsY[i] << " " ;
+		ofs << "assign " << prefix << "nn" << newName  << " = " << varsY[i] << " ;" << endl;
+	}
 	ofs << line << endl;
 
 	ifs.close();
