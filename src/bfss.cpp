@@ -51,6 +51,7 @@ int main(int argc, char * argv[]) {
 	cout << "Removed " << removed_first << " in the first cleanup" << endl;
 
 	vector<int> unate;
+	int numTotUnates = 0;
 	if(!options.noUnate) {
 
 		cout << "\n\nChecking Unates..." << endl;
@@ -75,18 +76,23 @@ int main(int argc, char * argv[]) {
 
 		// find unates, substitute
 		int n, numSynUnates = 0;
-		if(!options.noSyntacticUnate) {
+		if(!options.noSyntacticUnate ) {
 			while((n = checkUnateSyntacticAll(FAig, unate)) > 0) {
 				substituteUnates(FAig, unate);
 				numSynUnates += n;
 			}
 		}
+		cout << "Syntactic Unates Done" << endl;
 		int numSemUnates = 0;
-		if(!options.noSemanticUnate) {
-			numSemUnates = checkUnateSemanticAll(FAig, unate);
+		//int numSemUnates1 = 0;
+		if(!options.noSemanticUnate ) {	//Semantic Unate checks on the remaining variables - SS
+			numSemUnates = checkUnateSemAll (FAig, unate);
+			//numSemUnates1 = checkUnateSemanticAll(FAig, unate1);
+			//assert (numSemUnates == numSemUnates1);
 			substituteUnates(FAig, unate);
 		}
 
+		numTotUnates = numSynUnates + numSemUnates;
 		auto unate_end = TIME_NOW;
 		auto unate_run_time = std::chrono::duration_cast<std::chrono::microseconds>(unate_end - unate_start).count()/1000000.0;
 		cout << "Total Syntactic Unates: " << numSynUnates << endl;
@@ -105,7 +111,7 @@ int main(int argc, char * argv[]) {
 		id2NameF.clear();
 	}
 
-
+	
 	Nnf_Man nnfNew;
 	if(options.useBDD) {
 		// ************************
@@ -212,8 +218,8 @@ int main(int argc, char * argv[]) {
 	int removed = Aig_ManCleanup(SAig);
 	OUT("Removed "<<removed<<" nodes");
 
-	bool isWDNNF = false;
-	if(options.checkWDNNF) {
+	bool isWDNNF = (numTotUnates == numY); //false;
+	if(options.checkWDNNF && (! isWDNNF)) {
 		// populate varsYNNF: vector of input numbers
 		vector<int> varsYNNF;
 		for(auto y:varsYF) {
@@ -227,17 +233,17 @@ int main(int argc, char * argv[]) {
 
 		cout << "Checking wDNNF" << endl;
 		isWDNNF = nnfNew.isWDNNF(varsYNNF);
-		if(isWDNNF) {
-			cout << "********************************" << endl;
-			cout << "** In wDNNF!" << endl;
-			cout << "** Will Predict Exact Skolem Fns" << endl;
-			cout << "********************************" << endl;
-		}
-		else {
-			cout << "********************************" << endl;
-			cout << "** Not wDNNF :(" << endl;
-			cout << "********************************" << endl;
-		}
+	}
+	if(isWDNNF) {
+		cout << "********************************" << endl;
+		cout << "** In wDNNF!" << endl;
+		cout << "** Will Predict Exact Skolem Fns" << endl;
+		cout << "********************************" << endl;
+	}
+	else {
+		cout << "********************************" << endl;
+		cout << "** Not wDNNF :(" << endl;
+		cout << "********************************" << endl;
 	}
 
 	Aig_ManPrintStats( SAig );

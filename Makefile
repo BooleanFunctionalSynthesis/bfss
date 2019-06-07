@@ -9,6 +9,7 @@ BFSS 	= bfss
 RCNF  	= readCnf
 ORDR  	= genVarOrder
 VRFY  	= verify
+RSUB    = revsub
 
 ABC_PATH = ./dependencies/abc
 SCALMC_PATH = ./dependencies/scalmc
@@ -25,6 +26,7 @@ TARGET_RCNF  = $(BINDIR)/$(RCNF)
 TARGET_BFSS  = $(BINDIR)/$(BFSS)
 TARGET_ORDR  = $(BINDIR)/$(ORDR)
 TARGET_VRFY  = $(BINDIR)/$(VRFY)
+TARGET_RSUB  = $(BINDIR)/$(RSUB)
 
 ABC_INCLUDES = -I $(ABC_PATH) -I $(ABC_PATH)/src
 UGEN_INCLUDES = -I $(SCALMC_PATH)/build/cmsat5-src/ -I $(SCALMC_PATH)/src/
@@ -57,16 +59,18 @@ BFSS_SOURCES  = $(SRCDIR)/bfss.cpp $(COMMON_SOURCES)
 ORDR_SOURCES  = $(SRCDIR)/genVarOrder.cpp $(COMMON_SOURCES)
 RCNF_SOURCES  = $(SRCDIR)/readCnf.cpp
 VRFY_SOURCES  = $(SRCDIR)/verify.cpp
+RSUB_SOURCES  = $(SRCDIR)/revsub.cpp
 BFSS_OBJECTS  = $(BFSS_SOURCES:$(SRCDIR)/%.cpp=$(OBJDIR)/%.o)
 ORDR_OBJECTS  = $(ORDR_SOURCES:$(SRCDIR)/%.cpp=$(OBJDIR)/%.o)
 ALL_OBJECTS   = $(sort $(BFSS_OBJECTS) $(ORDR_OBJECTS))
 
-.PHONY: all clean remove bfss readCnf genVarOrder verify directories
-all: bfss readCnf genVarOrder verify
+.PHONY: all clean remove bfss readCnf genVarOrder verify revsub directories
+all: bfss readCnf genVarOrder verify revsub
 bfss: directories $(TARGET_BFSS)
 genVarOrder: directories $(TARGET_ORDR)
 readCnf: directories $(TARGET_RCNF)
 verify: directories $(TARGET_VRFY)
+revsub: directories $(TARGET_RSUB)
 
 directories:
 	@mkdir -p $(OBJDIR)
@@ -90,6 +94,11 @@ $(TARGET_VRFY): $(VRFY_SOURCES)
 	@echo "Compiled "$^" successfully!"
 	@echo "Built Target! - verify"
 
+$(TARGET_RSUB): $(RSUB_SOURCES)
+	$(CXX) $^ -o $@
+	@echo "Compiled "$^" successfully!"
+	@echo "Built Target! - revsub"
+
 $(ALL_OBJECTS): $(OBJDIR)/%.o : $(SRCDIR)/%.cpp
 	$(CXX) $(CPP_FLAGS) -c $^ -o $@  $(LFLAGS)
 	@echo "Compiled "$<" successfully!"
@@ -99,5 +108,5 @@ clean:
 	@echo "Cleanup complete!"
 
 remove: clean
-	@$(RM) $(TARGET_BFSS) $(TARGET_ORDR) $(TARGET_RCNF) $(TARGET_VRFY)
+	@$(RM) $(TARGET_BFSS) $(TARGET_ORDR) $(TARGET_RCNF) $(TARGET_VRFY) $(TARGET_RSUB)
 	@echo "Executable removed!"

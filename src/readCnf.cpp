@@ -15,6 +15,9 @@ using namespace std;
 #define VERILOG_HEADER "// Generated using findDep.cpp \n"
 #define MAX_DEP_SIZE 5
 
+//Currently for an unary universal variable - a wire definition is generated.
+//This should be changed if it doesn't meet the specifications. - SS
+
 vector<vector<int> > allClauses;
 vector<bool> tseitinClauses;
 vector<int> varsX;
@@ -142,6 +145,7 @@ void readQdimacsFile(char * qdFileName) {
 	fscanf (qdFPtr, "%c", &c);
 	while (c != 'a')
 		fscanf (qdFPtr, "%c", &c);
+
 	fscanf(qdFPtr, "%d", &tmpVar);
 	while (tmpVar !=0) {
 		varsX.push_back(tmpVar);
@@ -152,6 +156,7 @@ void readQdimacsFile(char * qdFileName) {
 
 	// Vars Y (to elim)
 	fscanf (qdFPtr, "%c", &c);
+
 	while (c != 'e')
 		fscanf (qdFPtr, "%c", &c);
 	fscanf(qdFPtr, "%d", &tmpVar);
@@ -225,12 +230,10 @@ bool findDepAND(int y) {
 			continue;
 
 		bool gotcha = true;
-		// cout << "clause "; print(allClauses[clauseNum]);
 		for(auto v2: allClauses[clauseNum]) {
-			if(tseitinClauses[clauseNum] == true)
-				continue;
+			//if(tseitinClauses[clauseNum] == true) //Required - SS?
+			//	continue;
 			if(v2!=y and posImplies[y].find(-v2)==posImplies[y].end()) {
-				// cout << "Breaking because of " << v2 << endl;
 				gotcha = false;
 				break;
 			}
@@ -239,8 +242,8 @@ bool findDepAND(int y) {
 			// Print it
 			string dep = "AND(";
 			for(auto v2: allClauses[clauseNum]) {
-				if(tseitinClauses[clauseNum] == true)
-					continue;
+			//	if(tseitinClauses[clauseNum] == true) //Required - SS?
+		//			continue;
 				if(v2!=y) {
 					dep = dep + to_string(-v2) + ", ";
 				}
@@ -252,8 +255,8 @@ bool findDepAND(int y) {
 			// assert(depAND.find(y) == depAND.end());
 			depAND[y] = vector<int>();
 			for(auto v2: allClauses[clauseNum]) {
-				if(tseitinClauses[clauseNum] == true)
-					continue;
+				//if(tseitinClauses[clauseNum] == true)
+				//	continue;
 				if(v2!=y) {
 					depAND[y].push_back(-v2);
 					tseitinClauses[posImplies[y][-v2]] = true; // tseitinClauses=true
@@ -274,12 +277,10 @@ bool findDepOR(int y) {
 			continue;
 
 		bool gotcha = true;
-		// cout << "clause "; print(allClauses[clauseNum]);
 		for(auto v2: allClauses[clauseNum]) {
 			if(tseitinClauses[clauseNum] == true)
 				continue;
 			if(v2!=-y and negImplies[y].find(-v2)==negImplies[y].end()) {
-				// cout << "Breaking because of " << v2 << endl;
 				gotcha = false;
 				break;
 			}
@@ -408,6 +409,8 @@ void findLitToProp() {
 		auto & clause = allClauses[clauseNum];
 		if(clause.size() == 1) {
 			setConst(clause[0]);
+			if (std::find (varsX.begin(), varsX.end(), abs (clause [0])) != varsX.end())
+				cout << " A universally quantified variable is unary " << clause[0] << endl;
 			tseitinClauses[clauseNum] = true; // Unary tseitinClauses=true
 		}
 		else if(clause.size() == 2) {
@@ -421,13 +424,11 @@ void findLitToProp() {
 			map<int,int>& v1_map = getImpliesMap(v1);
 
 			if(v1_map.find(v0) != v1_map.end()) { // v0_isConst
-				// cout << "clause: "; print(clause);
 				setConst(v0);
 				tseitinClauses[clauseNum] = true;	// Unary tseitinClauses=true
 				tseitinClauses[v1_map[v0]] = true;	// Unary tseitinClauses=true
 			}
 			if(v0_map.find(v1) != v0_map.end()) { // v1_isConst
-				// cout << "clause: "; print(clause);
 				setConst(v1);
 				tseitinClauses[clauseNum] = true;	// Unary tseitinClauses=true
 				tseitinClauses[v0_map[v1]] = true;	// Unary tseitinClauses=true
@@ -452,6 +453,7 @@ void findLitToProp() {
 
 void propagateLiteral(int lit) {
 	int var = abs(lit);
+	cout << " Propogating literal " << lit << endl;
 	bool pos = lit>0;
 	for(auto clauseNum:existsAsPos[var]) {
 		if(tseitinClauses[clauseNum])
@@ -515,6 +517,7 @@ void writeVerilogFile(string fname, string moduleName) {
 	ofs << "module " << moduleName << " ";
 	ofs << "(";
 	for(auto it:varsX) {
+		if(!depFound[it])
 		ofs << varNumToName(it) << ", ";
 	}
 	for(auto it:varsY) {
@@ -525,14 +528,21 @@ void writeVerilogFile(string fname, string moduleName) {
 
 	// Input/Output/Wire
 	for(auto it:varsX) {
-		assert(!depFound[it]);
-		ofs << "input " << varNumToName(it) << ";\n";
+		//assert(!depFound[it]); //This is required - in verilog one cannot assign
+                               // a value to an input
+		if (!depFound [it])	//This is being done temporarily
+		//	cout << " A Universal Variable Found UnSAT! " << it << endl;
+			ofs << "input " << varNumToName(it) << ";\n";
 	}
 	for(auto it:varsY) {
 		if(!depFound[it])
 			ofs << "input " << varNumToName(it) << ";\n";
 	}
 	ofs << "output o_1;\n";
+	for(auto it:varsX) {	//Temporary fix - the qdimacs generation should be fixed!
+		if(depFound[it])
+			ofs << "wire " << varNumToName(it) << ";\n";
+	}
 	for(auto it:varsY) {
 		if(depFound[it])
 			ofs << "wire " << varNumToName(it) << ";\n";
@@ -560,7 +570,7 @@ void writeVerilogFile(string fname, string moduleName) {
 	}
 	// and
 	for(auto&it: depAND) {
-		int var = abs(it.first);
+		int var = abs(it.first); 
 		bool pos = it.first>0;
 		string res = vecToVerilogLine(it.second,"&");
 		ofs << "assign " << varNumToName(it.first) << " = " << res << ";\n";
@@ -618,9 +628,15 @@ int addFlatClausesToVerilog(ofstream&ofs, int start, int end, int&nextVar) {
 void writeVariableFile(string fname) {
 	ofstream ofs (fname, ofstream::out);
 
+	cout << "# Y : " << varsY.size() << endl;
 	for(auto it:varsY) {
 		if(!depFound[it])
+		{
 			ofs << varNumToName(it) << "\n";
+			//cout << "Written " <<  varNumToName(it) << " to " << fname << endl;
+		}
+	//	else
+	//		cout << varNumToName(it) << "is a Tseitin variable" << endl;
 	}
 
 	ofs.close();
@@ -686,6 +702,7 @@ void writeNonTseitinToQdimacsFile(string fname) {
 
 	ofs << "a ";
 	for(auto it:varsX) {
+		if(!depFound[it])
 		ofs << it << " ";
 	}
 	ofs << 0 << endl;
@@ -802,11 +819,25 @@ bool DFS_checkForCycles(vector<set<int> >& graph, int node, vector<int>& DFS_sta
 	}
 	// Forward Edge
 	DFS_startTime[node] = DFS_currTime++;
-
+	
+//If a cycle is present, break it by removing a dependency
 	for(auto it:graph[node]) {
 		if(DFS_checkForCycles(graph, it, DFS_startTime, DFS_endTime, DFS_currTime)) {
 			cout << it << " ";
-			return true;
+		if (depAND.find(node) != depAND.end()) {
+			cout << "Breaking AND dep " << endl;
+			depAND.erase(node);	
+		}
+		else 
+		if (depXOR.find(node) != depXOR.end()) {
+			cout << "Breaking XOR dep " << endl;
+			depXOR.erase(node);	
+		}
+		else 
+		if (depOR.find(node) != depOR.end()) {
+			cout << "Breaking OR dep " << endl;
+			depOR.erase(node);	
+		}
 		}
 	}
 
