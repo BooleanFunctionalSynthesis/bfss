@@ -1,4 +1,4 @@
-This folder contains the benchmarks used for the following two papers:
+This folder contains the benchmarks used for experiments reported in the following two papers:
 
 S. Akshay, Supratik Chakraborty, Shubham Goel, Sumith Kulal, Shetal Shah, "Boolean Functional Synthesis: Hardness and Practical Algorithms", to appear in Formal Methods in System Design
 
