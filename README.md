@@ -1,2 +1,2 @@
-# bfss
-Blazing Fast Skolem function Synthesis
+# BFSS
+Blazingly Fast Skolem function Synthesis
