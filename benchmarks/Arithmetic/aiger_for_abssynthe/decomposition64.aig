@@ -1,0 +1,279 @@
+aig 890 192 0 1 698
+1780
+¸˙¯ˆÙÚÓÏÍËÊ‰‚‡ﬁ‹⁄ÿ÷‘“–ŒÃ »∆ƒ¬¿æº∫∏∂¥≤∞Æ¨™®¶§¢†ûúöòñîíêéåäàÜÑÇÄÖëù©"&µ,0¡6:Õ@DŸJNÂTXÒ^b˝hlârvï|Ä°Üä≠êîπöû≈§®—Æ≤›∏ºÈ¬∆ıÃ–Å÷⁄ç‡‰ôÍÓ•Ù¯±˛ÇΩàå…íñ’ú†·¶™Ì∞¥˘∫æÖƒ»ëŒ“ùÿ‹©‚ÊµÏ¡ˆ˙ÕÄÑŸäéÂîòÒû¢˝®¨â≤∂ïº¿°∆ ≠–‘π⁄ﬁ≈‰Ë—ÓÚ›¯¸ÈÇÜıåêÅñöç†§ô™Æ•¥∏±æ¬Ω»Ã…“÷’‹‡·ÊÍÓÔ˘˜Åˇ
++*ãâ
+?>ïì
+SRüù
+gf©ß
+{z≥±
+èéΩª
+£¢«≈
+∑∂—œ
+À €Ÿ
+ﬂﬁÂ„
+ÛÚÔÌ
+áÜ˘˜
+õöÉÅ
+ØÆçã
+√¬óï
+◊÷°ü
+ÎÍ´©
+ˇ˛µ≥
+ìíøΩ
+ß¶…«
+ª∫”—
+œŒ›€
+„‚ÁÂ
+˜ˆÒÔ
+ãä˚˘
+üûÖÉ
+≥≤èç
+«∆ôó
+€⁄£°
+ÔÓ≠´
+ÉÇ∑µ
+óñ¡ø
+´™À…
+øæ’”
+”“ﬂ›
+ÁÊÈÁ
+˚˙ÛÒ
+èé˝˚
+£¢á	Ö	
+∑∂ë	è	
+À õ	ô	
+ﬂﬁ•	£	
+ÛÚØ	≠	
+áÜπ	∑	
+õö√	¡	
+ØÆÕ	À	
+√¬◊	’	
+◊÷·	ﬂ	
+ÎÍÎ	È	
+ˇ˛ı	Û	
+ìíˇ	˝	
+ß¶â
+á
+
+ª∫ì
+ë
+
+œŒù
+õ
+
+„‚ß
+•
+
+˜ˆ±
+Ø
+
+ã	ä	ª
+π
+
+ü	û	≈
+√
+
+≥	≤	œ
+Õ
+
+«	∆	Ÿ
+◊
+
+€	⁄	„
+·
+
+ÎÏ	Ì
+Î
+
+i0 a[0]  
+i1 controllable_i1[1] 
+i2 controllable_i2[1] 
+i3 controllable_i1[2] 
+i4 controllable_i2[2] 
+i5 controllable_i1[3] 
+i6 controllable_i2[3] 
+i7 controllable_i1[4] 
+i8 controllable_i2[4] 
+i9 controllable_i1[5] 
+i10 controllable_i2[5] 
+i11 controllable_i1[6] 
+i12 controllable_i2[6] 
+i13 controllable_i1[7] 
+i14 controllable_i2[7] 
+i15 controllable_i1[8] 
+i16 controllable_i2[8] 
+i17 controllable_i1[9] 
+i18 controllable_i2[9] 
+i19 controllable_i1[10] 
+i20 controllable_i2[10] 
+i21 controllable_i1[11] 
+i22 controllable_i2[11] 
+i23 controllable_i1[12] 
+i24 controllable_i2[12] 
+i25 controllable_i1[13] 
+i26 controllable_i2[13] 
+i27 controllable_i1[14] 
+i28 controllable_i2[14] 
+i29 controllable_i1[15] 
+i30 controllable_i2[15] 
+i31 controllable_i1[16] 
+i32 controllable_i2[16] 
+i33 controllable_i1[17] 
+i34 controllable_i2[17] 
+i35 controllable_i1[18] 
+i36 controllable_i2[18] 
+i37 controllable_i1[19] 
+i38 controllable_i2[19] 
+i39 controllable_i1[20] 
+i40 controllable_i2[20] 
+i41 controllable_i1[21] 
+i42 controllable_i2[21] 
+i43 controllable_i1[22] 
+i44 controllable_i2[22] 
+i45 controllable_i1[23] 
+i46 controllable_i2[23] 
+i47 controllable_i1[24] 
+i48 controllable_i2[24] 
+i49 controllable_i1[25] 
+i50 controllable_i2[25] 
+i51 controllable_i1[26] 
+i52 controllable_i2[26] 
+i53 controllable_i1[27] 
+i54 controllable_i2[27] 
+i55 controllable_i1[28] 
+i56 controllable_i2[28] 
+i57 controllable_i1[29] 
+i58 controllable_i2[29] 
+i59 controllable_i1[30] 
+i60 controllable_i2[30] 
+i61 controllable_i1[31] 
+i62 controllable_i2[31] 
+i63 controllable_i1[32] 
+i64 controllable_i2[32] 
+i65 controllable_i1[33] 
+i66 controllable_i2[33] 
+i67 controllable_i1[34] 
+i68 controllable_i2[34] 
+i69 controllable_i1[35] 
+i70 controllable_i2[35] 
+i71 controllable_i1[36] 
+i72 controllable_i2[36] 
+i73 controllable_i1[37] 
+i74 controllable_i2[37] 
+i75 controllable_i1[38] 
+i76 controllable_i2[38] 
+i77 controllable_i1[39] 
+i78 controllable_i2[39] 
+i79 controllable_i1[40] 
+i80 controllable_i2[40] 
+i81 controllable_i1[41] 
+i82 controllable_i2[41] 
+i83 controllable_i1[42] 
+i84 controllable_i2[42] 
+i85 controllable_i1[43] 
+i86 controllable_i2[43] 
+i87 controllable_i1[44] 
+i88 controllable_i2[44] 
+i89 controllable_i1[45] 
+i90 controllable_i2[45] 
+i91 controllable_i1[46] 
+i92 controllable_i2[46] 
+i93 controllable_i1[47] 
+i94 controllable_i2[47] 
+i95 controllable_i1[48] 
+i96 controllable_i2[48] 
+i97 controllable_i1[49] 
+i98 controllable_i2[49] 
+i99 controllable_i1[50] 
+i100 controllable_i2[50] 
+i101 controllable_i1[51] 
+i102 controllable_i2[51] 
+i103 controllable_i1[52] 
+i104 controllable_i2[52] 
+i105 controllable_i1[53] 
+i106 controllable_i2[53] 
+i107 controllable_i1[54] 
+i108 controllable_i2[54] 
+i109 controllable_i1[55] 
+i110 controllable_i2[55] 
+i111 controllable_i1[56] 
+i112 controllable_i2[56] 
+i113 controllable_i1[57] 
+i114 controllable_i2[57] 
+i115 controllable_i1[58] 
+i116 controllable_i2[58] 
+i117 controllable_i1[59] 
+i118 controllable_i2[59] 
+i119 controllable_i1[60] 
+i120 controllable_i2[60] 
+i121 controllable_i1[61] 
+i122 controllable_i2[61] 
+i123 controllable_i1[62] 
+i124 controllable_i2[62] 
+i125 controllable_i1[63] 
+i126 controllable_i2[63] 
+i127 controllable_i1[0] 
+i128 controllable_i2[0] 
+i129 a[1]  
+i130 a[2]  
+i131 a[3]  
+i132 a[4]  
+i133 a[5]  
+i134 a[6]  
+i135 a[7]  
+i136 a[8]  
+i137 a[9]  
+i138 a[10]  
+i139 a[11]  
+i140 a[12]  
+i141 a[13]  
+i142 a[14]  
+i143 a[15]  
+i144 a[16]  
+i145 a[17]  
+i146 a[18]  
+i147 a[19]  
+i148 a[20]  
+i149 a[21]  
+i150 a[22]  
+i151 a[23]  
+i152 a[24]  
+i153 a[25]  
+i154 a[26]  
+i155 a[27]  
+i156 a[28]  
+i157 a[29]  
+i158 a[30]  
+i159 a[31]  
+i160 a[32]  
+i161 a[33]  
+i162 a[34]  
+i163 a[35]  
+i164 a[36]  
+i165 a[37]  
+i166 a[38]  
+i167 a[39]  
+i168 a[40]  
+i169 a[41]  
+i170 a[42]  
+i171 a[43]  
+i172 a[44]  
+i173 a[45]  
+i174 a[46]  
+i175 a[47]  
+i176 a[48]  
+i177 a[49]  
+i178 a[50]  
+i179 a[51]  
+i180 a[52]  
+i181 a[53]  
+i182 a[54]  
+i183 a[55]  
+i184 a[56]  
+i185 a[57]  
+i186 a[58]  
+i187 a[59]  
+i188 a[60]  
+i189 a[61]  
+i190 a[62]  
+i191 a[63]  

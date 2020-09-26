@@ -1,0 +1,28 @@
+aig 138 16 0 1 122
+276
+""
+&*6 :F
+J$")"/ .2Yn
+	v'&‚
+,W*.šš
+¡£§©+*­¯98³µsr¹»­¬ÀÀÜÇÝÛÑíë÷#'/3;?GKSW`i0 controllable_i2[7] 
+i1 controllable_i2[6] 
+i2 controllable_i2[5] 
+i3 controllable_i2[4] 
+i4 controllable_i1[7] 
+i5 controllable_i1[6] 
+i6 controllable_i1[5] 
+i7 controllable_i1[4] 
+i8 a[0]  
+i9 a[1]  
+i10 a[2]  
+i11 a[3]  
+i12 a[4]  
+i13 a[5]  
+i14 a[6]  
+i15 a[7]  
+o0 o_1
+c
+factorization8_simplified  
+This file was written by ABC on Thu Jan 4 15:55:54 2018  
+For information about AIGER format, refer to http://fmv.jku.at/aiger  

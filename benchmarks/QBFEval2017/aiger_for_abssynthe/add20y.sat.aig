@@ -1,0 +1,74 @@
+aig 347 66 0 1 281
+695
+/[)^'d(::q(GE
+y)|'Å(!Ü(_]ì)ñ'õ(†(yw≠)∞'µ(∫(ìë«) 'œ(‘(≠´·)‰'È(Ó(«≈˚)˛'É(à(·ﬂï)ò'ù(¢(˚˘Ø)≤'∑(º(ïì…)Ã'—(÷(Ø≠„)Ê'Î((…«˝)Ä'Ö(ä(„·ó)ö'ü(§(˝˚±)¥'π(æ(óïÀ)Œ'”(ÿ(±ØÂ)Ë'Ì(Ú(À…ˇ)Ç'á(å(Â„ô)ú'°(¶(ˇ˝µ(∫(πªËËôóúú–°ü	°≠Øi0 v_14  
+i1 v_9  
+i2 v_40  
+i3 v_67  
+i4 v_94  
+i5 v_121  
+i6 v_148  
+i7 v_175  
+i8 v_202  
+i9 v_229  
+i10 v_256  
+i11 v_283  
+i12 v_310  
+i13 v_337  
+i14 v_364  
+i15 v_391  
+i16 v_418  
+i17 v_445  
+i18 v_472  
+i19 v_510  
+i20 v_13  
+i21 v_8  
+i22 v_39  
+i23 v_66  
+i24 v_93  
+i25 v_120  
+i26 v_147  
+i27 v_174  
+i28 v_201  
+i29 v_228  
+i30 v_255  
+i31 v_282  
+i32 v_309  
+i33 v_336  
+i34 v_363  
+i35 v_390  
+i36 v_417  
+i37 v_444  
+i38 v_471  
+i39 v_502  
+i40 v_607  
+i41 v_1  
+i42 v_3  
+i43 controllable_v_32 
+i44 controllable_v_23 
+i45 controllable_v_58 
+i46 controllable_v_85 
+i47 controllable_v_112 
+i48 controllable_v_139 
+i49 controllable_v_166 
+i50 controllable_v_193 
+i51 controllable_v_220 
+i52 controllable_v_247 
+i53 controllable_v_274 
+i54 controllable_v_301 
+i55 controllable_v_328 
+i56 controllable_v_355 
+i57 controllable_v_382 
+i58 controllable_v_409 
+i59 controllable_v_436 
+i60 controllable_v_463 
+i61 controllable_v_490 
+i62 controllable_v_517 
+i63 controllable_v_6 
+i64 controllable_v_7 
+i65 controllable_v_606 
+o0 o_1
+c
+add20y.sat
+This file was written by ABC on Wed Nov 29 11:01:51 2017  
+For information about AIGER format, refer to http://fmv.jku.at/aiger  
