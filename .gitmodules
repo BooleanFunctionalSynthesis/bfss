@@ -1,0 +1,6 @@
+[submodule "dependencies/abc"]
+	path = dependencies/abc
+	url = https://github.com/shubham-goel/ABC
+[submodule "dependencies/scalmc"]
+	path = dependencies/scalmc
+	url = https://github.com/shubham-goel/scalmcSampling
