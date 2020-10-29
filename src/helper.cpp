@@ -100,7 +100,7 @@ void parseOptions(int argc, char * argv[]) {
 	optParser.add_options()
 		("b, benchmark", "Specify the benchmark (required)", cxxopts::value<string>(options.benchmark), "FILE")
 		("v, varsOrder", "Specify the variable ordering", cxxopts::value<string>(options.varsOrder), "FILE")
-		("o, out", "Specify the output file (default: <benchmark>_norevsub.v)", cxxopts::value<string>(options.outFName), "FILE")
+		("o, out", "Specify the output file (default: <benchmark>_result.v)", cxxopts::value<string>(options.outFName), "FILE")
 		("skolem", "Specify skolem function to be used (r0/r1/rx)", cxxopts::value<string>(skolemType)->default_value("rx"))
 		("a, ABC", "Use ABC's solver for SAT calls", cxxopts::value<bool>(options.useABCSolver))
 		("e, evalAigAtNode", "Efficiently evaluate AIG on a need-only basis", cxxopts::value<bool>(options.evalAigAtNode))
@@ -117,6 +117,7 @@ void parseOptions(int argc, char * argv[]) {
 		("m, monoSkolem", "Run MonoSkolem algorithm", cxxopts::value<bool>(options.monoSkolem))
 		("reverseOrder", "Use reversed variable orderings", cxxopts::value<bool>(options.reverseOrder))
 		("noRevSub", "Don't reverse substitute", cxxopts::value<bool>(options.noRevSub))
+		("skipCegar", "Skip CEGAR", cxxopts::value<bool>(options.skipCegar))
 		("verify", "Veify computed skolem functions", cxxopts::value<bool>(options.verify))
 		("noUnate", "Don't find and substitute unates", cxxopts::value<bool>(options.noUnate))
 		("noSyntacticUnate", "Don't use Syntactic unateness checks", cxxopts::value<bool>(options.noSyntacticUnate))
@@ -260,7 +261,7 @@ void parseOptions(int argc, char * argv[]) {
 	}
 
 	if (!optParser.count("out")) {
-		options.outFName = getFileName(options.benchmark) + "_norevsub.v";
+		options.outFName = getFileName(options.benchmark) + "_result.v";
 	}
 
 	options.noUnate = options.noUnate || options.monoSkolem;
@@ -2458,11 +2459,6 @@ void verifyResult(Aig_Man_t*&SAig, vector<vector<int> >& r0,
 	int i; Aig_Obj_t*pAigObj; int numAND;
 	vector<int> skolemAig(numY);
 
-	if(options.noRevSub) {
-		cout << "noRevSub, exiting" << endl;
-		return;
-	}
-
 	OUT("Taking Ors..." << i);
 	for(int i = 0; i < numY; i++) {
 		if(useR1AsSkolem[i])
@@ -2547,6 +2543,13 @@ void verifyResult(Aig_Man_t*&SAig, vector<vector<int> >& r0,
 	// 	assert(Aig_ObjIsConst1(pAigObj) || Aig_ObjIsCi(pAigObj) || Aig_ObjIsCo(pAigObj) || (Aig_ObjFanin0(pAigObj) && Aig_ObjFanin1(pAigObj)));
 	// }
 
+
+	if(options.noRevSub) {
+		cout << "noRevSub, saving and exiting" << endl;
+		saveSkolems(SAig, skolemAig, getFileName(options.benchmark) + "_norevsub.v");
+		return;
+	}
+
 	auto start = std::chrono::steady_clock::now();
 	cout << "Reverse Substitution..." << endl;
 	int iter = 0;
@@ -2600,7 +2603,7 @@ void verifyResult(Aig_Man_t*&SAig, vector<vector<int> >& r0,
 	cout<< "Reverse substitute time: " << reverse_sub_time << endl;
 
 	// save skolems to file
-	saveSkolems(SAig, skolemAig);
+	saveSkolems(SAig, skolemAig, options.outFName);
 
 	// For experimental purposes
 	if(!options.verify)
@@ -3971,7 +3974,7 @@ void substituteUnates(Aig_Man_t* &pMan, vector<int>&unate) {
 }
 
 // Assumes skolemAig[...] correspond to varsYS[...]
-void saveSkolems(Aig_Man_t* SAig, vector<int>& skolemAig) {
+void saveSkolems(Aig_Man_t* SAig, vector<int>& skolemAig, string outfname) {
 	assert(skolemAig.size() == numY);
 
 	// // Checking Supports for all except X
@@ -4032,18 +4035,18 @@ void saveSkolems(Aig_Man_t* SAig, vector<int>& skolemAig) {
 			}
 	}
 	Abc_NtkForEachCo(outNtk, pObj, i) {
-			cout << "Assigning name " <<  (char*)varsNameX[i].c_str() << " to co " << i << endl;
+			cout << "Assigning name " <<  (char*)varsNameY[i].c_str() << " to co " << i << endl;
 		Abc_ObjAssignName(pObj, (char*)varsNameY[i].c_str(), NULL);
 	}
 
 	// Write to verilog
 	Abc_FrameSetCurrentNetwork(pAbc, outNtk);
-	string command = "write "+options.outFName;
+	string command = "write "+outfname;
 	if (Cmd_CommandExecute(pAbc, (char*)command.c_str())) {
 		cerr << "Could not write result to verilog file" << endl;
 	}
 	else {
-		cout << "Saved skolems to " << options.outFName << endl;
+		cout << "Saved skolems to " << outfname << endl;
 	}
 
 }

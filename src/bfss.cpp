@@ -348,6 +348,9 @@ int main(int argc, char * argv[]) {
 	if(isWDNNF) {
 		cout << "In WDNNF, Skipping CEGAR Loop..."<<endl;
 	}
+	else if(options.skipCegar) {
+		cout << "skipCegar is set, Skipping CEGAR Loop..."<<endl;
+	}
 	else {
 		// CEGAR Loop
 		cout << "Starting CEGAR Loop..."<<endl;
