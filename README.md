@@ -9,7 +9,7 @@ S. Akshay, Supratik Chakraborty, Shubham Goel, Sumith Kulal, and Shetal Shah, "W
 BFSS has 2 major dependencies: [ABC](https://github.com/shubham-goel/ABC) and [Scalmc](https://github.com/shubham-goel/scalmcSampling). Both have been added as submodules in `./dependencies`. Note that some repos may be private. Please contact BFSS authors for access. Clone recursively to download dependencies and setup as follows:
 ```shell
 # Download BFSS with dependencies
-git clone --branch v4.1 git@github.com:BooleanFunctionalSynthesis/bfss.git
+git clone git@github.com:BooleanFunctionalSynthesis/bfss.git
 cd bfss
 git submodule update --init dependencies/abc
 git submodule update --init dependencies/scalmc # Skip if scalmc unavailable
