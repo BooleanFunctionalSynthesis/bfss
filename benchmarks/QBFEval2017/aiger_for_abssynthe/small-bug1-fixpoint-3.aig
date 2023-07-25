@@ -1,27 +1,0 @@
-aig 84 19 0 1 65
-169
-	
-%#/2+.;>=@	GJEH/jknrr}}Çy|ÄÄà	ÅÑàà/i0 v_1  
-i1 v_2  
-i2 v_3  
-i3 v_4  
-i4 v_5  
-i5 v_6  
-i6 v_7  
-i7 v_8  
-i8 v_9  
-i9 v_10  
-i10 v_11  
-i11 controllable_v_12 
-i12 controllable_v_13 
-i13 controllable_v_14 
-i14 controllable_v_15 
-i15 controllable_v_16 
-i16 controllable_v_17 
-i17 controllable_v_18 
-i18 controllable_v_19 
-o0 o_1
-c
-small-bug1-fixpoint-3  
-This file was written by ABC on Wed Nov 29 11:02:55 2017  
-For information about AIGER format, refer to http://fmv.jku.at/aiger  
